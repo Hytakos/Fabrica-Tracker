@@ -39,7 +39,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   
   // Navigation
-  const [currentView, setCurrentView] = useState('dashboard'); // 'dashboard' or 'workspace'
+  const [currentView, setCurrentView] = useState('dashboard');
   const [activeTab, setActiveTab] = useState('shots');
   
   // Dashboard states
@@ -132,19 +132,23 @@ export default function App() {
   const handleStopTimer = async () => {
     setIsTimerActive(false);
     if (timer > 0 && selectedTask && selectedStep && workspace) {
-      const taskName = [...shots, ...assets].find(t => t.id === selectedTask)?.name || 'Inconnu';
-      await addDoc(collection(db, 'timeLogs'), {
-        workspaceId: workspace.id,
-        userId: user.uid,
-        userName: userData.displayName,
-        taskId: selectedTask,
-        taskName: taskName,
-        step: selectedStep,
-        durationSeconds: timer,
-        date: serverTimestamp()
-      });
-      setTimer(0);
-      alert('Temps de travail enregistré !');
+      try {
+        const taskName = [...shots, ...assets].find(t => t.id === selectedTask)?.name || 'Inconnu';
+        await addDoc(collection(db, 'timeLogs'), {
+          workspaceId: workspace.id,
+          userId: user.uid,
+          userName: userData?.displayName || user.email,
+          taskId: selectedTask,
+          taskName: taskName,
+          step: selectedStep,
+          durationSeconds: timer,
+          date: serverTimestamp()
+        });
+        setTimer(0);
+        alert('Temps de travail enregistré !');
+      } catch (err) {
+        alert("Erreur lors de l'enregistrement : " + err.message);
+      }
     }
   };
 
@@ -160,7 +164,7 @@ export default function App() {
         await signInWithEmailAndPassword(auth, authEmail, authPassword);
       }
       setCurrentView('dashboard');
-    } catch (err) { alert(err.message); }
+    } catch (err) { alert("Erreur d'authentification : " + err.message); }
   };
 
   // PROJECT ACTIONS
@@ -168,53 +172,67 @@ export default function App() {
     e.preventDefault();
     if (!newProjectName) return;
     
-    const wsRef = await addDoc(collection(db, 'workspaces'), {
-      name: newProjectName,
-      type: newProjectType,
-      pipeline: newProjectType === '2D' ? PIPELINE_2D : PIPELINE_3D,
-      createdAt: serverTimestamp()
-    });
+    try {
+      const wsRef = await addDoc(collection(db, 'workspaces'), {
+        name: newProjectName,
+        type: newProjectType,
+        pipeline: newProjectType === '2D' ? PIPELINE_2D : PIPELINE_3D,
+        createdAt: serverTimestamp()
+      });
 
-    await addDoc(collection(db, 'projectMembers'), {
-      workspaceId: wsRef.id,
-      workspaceName: newProjectName,
-      userId: user.uid,
-      displayName: userData.displayName,
-      email: userData.email,
-      role: 'Admin'
-    });
-    
-    setNewProjectName('');
+      await addDoc(collection(db, 'projectMembers'), {
+        workspaceId: wsRef.id,
+        workspaceName: newProjectName,
+        userId: user.uid,
+        displayName: userData?.displayName || user.email || 'Utilisateur',
+        email: user.email,
+        role: 'Admin'
+      });
+      
+      setNewProjectName('');
+    } catch (err) {
+      alert("Erreur lors de la création du projet : " + err.message);
+    }
   };
 
   const joinProject = async (e) => {
     e.preventDefault();
     if (!joinCode) return;
     
-    const wsDoc = await getDoc(doc(db, 'workspaces', joinCode));
-    if (!wsDoc.exists()) { alert('Code de projet invalide'); return; }
+    try {
+      const wsDoc = await getDoc(doc(db, 'workspaces', joinCode));
+      if (!wsDoc.exists()) { alert('Code de projet invalide'); return; }
 
-    const alreadyJoined = myProjects.find(p => p.workspaceId === joinCode);
-    if (alreadyJoined) { alert('Tu fais déjà partie de ce projet'); return; }
+      const alreadyJoined = myProjects.find(p => p.workspaceId === joinCode);
+      if (alreadyJoined) { alert('Tu fais déjà partie de ce projet'); return; }
 
-    await addDoc(collection(db, 'projectMembers'), {
-      workspaceId: wsDoc.id,
-      workspaceName: wsDoc.data().name,
-      userId: user.uid,
-      displayName: userData.displayName,
-      email: userData.email,
-      role: 'Artist'
-    });
-    setJoinCode('');
+      await addDoc(collection(db, 'projectMembers'), {
+        workspaceId: wsDoc.id,
+        workspaceName: wsDoc.data().name,
+        userId: user.uid,
+        displayName: userData?.displayName || user.email || 'Utilisateur',
+        email: user.email,
+        role: 'Artist'
+      });
+      setJoinCode('');
+    } catch (err) {
+      alert("Erreur pour rejoindre : " + err.message);
+    }
   };
 
   const openProject = async (projectItem) => {
-    const wsDoc = await getDoc(doc(db, 'workspaces', projectItem.workspaceId));
-    if (wsDoc.exists()) {
-      setWorkspace({ id: wsDoc.id, ...wsDoc.data() });
-      setUserRole(projectItem.role);
-      setCurrentView('workspace');
-      setActiveTab('shots');
+    try {
+      const wsDoc = await getDoc(doc(db, 'workspaces', projectItem.workspaceId));
+      if (wsDoc.exists()) {
+        setWorkspace({ id: wsDoc.id, ...wsDoc.data() });
+        setUserRole(projectItem.role);
+        setCurrentView('workspace');
+        setActiveTab('shots');
+      } else {
+        alert("Ce projet semble avoir été supprimé.");
+      }
+    } catch (err) {
+      alert("Erreur d'ouverture : " + err.message);
     }
   };
 
@@ -253,13 +271,12 @@ export default function App() {
         <header className="flex justify-between items-center mb-10 max-w-5xl mx-auto">
           <h1 className="text-3xl font-bold text-blue-500">Fabrica Tracker</h1>
           <div className="flex items-center space-x-4">
-            <span className="text-slate-400">Salut, {userData?.displayName}</span>
+            <span className="text-slate-400">Salut, {userData?.displayName || user.email}</span>
             <button onClick={() => signOut(auth)} className="text-red-400 hover:text-red-300"><LogOut size={24} /></button>
           </div>
         </header>
 
         <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Liste des projets */}
           <div className="md:col-span-2 bg-slate-900 border border-slate-800 p-6 rounded-xl">
             <h2 className="text-xl font-bold mb-4 flex items-center"><FolderKanban className="mr-2" /> Mes Projets</h2>
             <div className="space-y-3">
@@ -276,7 +293,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* Actions : Créer / Rejoindre */}
           <div className="space-y-6">
             <form onSubmit={createProject} className="bg-slate-900 border border-slate-800 p-6 rounded-xl space-y-4">
               <h2 className="text-lg font-bold">Créer un projet</h2>
@@ -302,7 +318,6 @@ export default function App() {
   // WORKSPACE VIEW
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex">
-      {/* SIDEBAR */}
       <aside className="w-16 md:w-64 bg-slate-900 border-r border-slate-800 flex flex-col justify-between p-4">
         <div className="space-y-6">
           <button onClick={() => setCurrentView('dashboard')} className="flex items-center space-x-2 text-slate-400 hover:text-white mb-6">
@@ -337,16 +352,14 @@ export default function App() {
         </div>
       </aside>
 
-      {/* MAIN CONTENT */}
       <main className="flex-1 p-6 overflow-x-auto">
         <header className="mb-6 flex justify-between items-center">
           <div>
             <h2 className="text-xl font-semibold capitalize">{activeTab}</h2>
-            <p className="text-xs text-slate-400">Connecté en tant que : <span className="text-blue-400 font-bold">{userData?.displayName}</span> ({userRole})</p>
+            <p className="text-xs text-slate-400">Connecté en tant que : <span className="text-blue-400 font-bold">{userData?.displayName || user.email}</span> ({userRole})</p>
           </div>
         </header>
 
-        {/* SHOTS TAB */}
         {activeTab === 'shots' && (
           <div className="space-y-4">
             {canAssign && (
@@ -381,10 +394,10 @@ export default function App() {
                             onChange={async (e) => await updateDoc(doc(db, 'shots', s.id), { assignedTo: e.target.value })}
                           >
                             <option value="">-- Personne --</option>
-                            {members.map(m => <option key={m.userId} value={m.userId}>{m.displayName}</option>)}
+                            {members.map(m => <option key={m.userId} value={m.userId}>{m.displayName || m.email}</option>)}
                           </select>
                         ) : (
-                          <span className="text-slate-400">{members.find(m => m.userId === s.assignedTo)?.displayName || 'Non assigné'}</span>
+                          <span className="text-slate-400">{members.find(m => m.userId === s.assignedTo)?.displayName || members.find(m => m.userId === s.assignedTo)?.email || 'Non assigné'}</span>
                         )}
                       </td>
                       {workspace?.pipeline?.map(step => (
@@ -409,7 +422,6 @@ export default function App() {
           </div>
         )}
 
-        {/* ASSETS TAB */}
         {activeTab === 'assets' && (
           <div className="space-y-4">
             {canAssign && (
@@ -458,10 +470,10 @@ export default function App() {
                             onChange={async (e) => await updateDoc(doc(db, 'assets', a.id), { assignedTo: e.target.value })}
                           >
                             <option value="">-- Personne --</option>
-                            {members.map(m => <option key={m.userId} value={m.userId}>{m.displayName}</option>)}
+                            {members.map(m => <option key={m.userId} value={m.userId}>{m.displayName || m.email}</option>)}
                           </select>
                         ) : (
-                          <span className="text-slate-400">{members.find(m => m.userId === a.assignedTo)?.displayName || 'Non assigné'}</span>
+                          <span className="text-slate-400">{members.find(m => m.userId === a.assignedTo)?.displayName || members.find(m => m.userId === a.assignedTo)?.email || 'Non assigné'}</span>
                         )}
                       </td>
                       {workspace?.pipeline?.map(step => (
@@ -486,7 +498,6 @@ export default function App() {
           </div>
         )}
 
-        {/* REVIEW TAB */}
         {activeTab === 'review' && (
           <div className="space-y-4 max-w-4xl">
             <label className="inline-flex items-center space-x-2 bg-slate-800 px-4 py-2 rounded cursor-pointer hover:bg-slate-700">
@@ -520,7 +531,6 @@ export default function App() {
           </div>
         )}
 
-        {/* TIME TRACKING TAB */}
         {activeTab === 'time' && (
           <div className="max-w-md bg-slate-900 border border-slate-800 p-6 rounded-xl space-y-6">
             <h3 className="font-bold text-center">Enregistrer mon travail</h3>
@@ -556,7 +566,6 @@ export default function App() {
           </div>
         )}
 
-        {/* STATS TAB */}
         {activeTab === 'stats' && (
           <div className="bg-slate-900 border border-slate-800 rounded-lg p-6">
             <h3 className="font-bold mb-4 flex items-center"><BarChart className="mr-2"/> Temps passé sur le projet</h3>
@@ -589,7 +598,6 @@ export default function App() {
           </div>
         )}
 
-        {/* TEAM TAB */}
         {activeTab === 'team' && (
           <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 max-w-2xl">
             <h3 className="font-bold mb-4">Membres du projet</h3>
@@ -597,7 +605,7 @@ export default function App() {
               {members.map(m => (
                 <div key={m.id} className="flex justify-between items-center bg-slate-950 p-3 rounded border border-slate-800">
                   <div>
-                    <div className="font-bold">{m.displayName}</div>
+                    <div className="font-bold">{m.displayName || m.email}</div>
                     <div className="text-xs text-slate-500">{m.email}</div>
                   </div>
                   {userRole === 'Admin' && m.userId !== user.uid ? (
@@ -619,7 +627,6 @@ export default function App() {
           </div>
         )}
 
-        {/* SETTINGS TAB */}
         {activeTab === 'settings' && (
           <div className="space-y-6 max-w-xl">
             <div className="bg-slate-900 border border-slate-800 rounded-lg p-6">
