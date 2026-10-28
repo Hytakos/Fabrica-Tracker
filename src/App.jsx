@@ -29,7 +29,7 @@ import {
 
 // Configuration Firebase
 const firebaseConfig = {
-  apiKey: "AIzaSyCgTzdoIl_DV4wSh1L--unGeFGOzAs1Y",
+  apiKey: "AIzaSyDgTadoI2_BW9mRhi1_--wsGmfGOetAx1Y",
   authDomain: "fabrica-tracker.firebaseapp.com",
   projectId: "fabrica-tracker",
   storageBucket: "fabrica-tracker.firebasestorage.app",
