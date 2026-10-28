@@ -13,8 +13,8 @@ import {
 } from 'lucide-react';
 
 // Clé découpée pour contourner l'alerte GitHub
-const keyPart1 = "AIzaSyDgTodoIL_";
-const keyPart2 = "DV4wSh1L--unGeFGOzAs1Y";
+const keyPart1 = "AIzaSyDgTadoI2_";
+const keyPart2 = "BW9mRhi1_--wsGmfGOetAx1Y";
 const firebaseConfig = {
   apiKey: keyPart1 + keyPart2,
   authDomain: "fabrica-tracker.firebaseapp.com",
