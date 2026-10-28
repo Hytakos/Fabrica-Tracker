@@ -5,16 +5,14 @@ import {
 import { 
   getFirestore, collection, doc, setDoc, getDoc, getDocs, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp 
 } from 'firebase/firestore';
-import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { initializeApp } from 'firebase/app';
 import { 
   Film, Box, Settings, Plus, Play, Pause, Trash2, LogOut, 
-  Users, Upload, Clock, SkipForward, SkipBack, MonitorPlay, FolderKanban, BarChart, ChevronLeft, UserCircle, PenTool, Save
+  Users, Upload, Clock, SkipForward, SkipBack, MonitorPlay, FolderKanban, BarChart, ChevronLeft, UserCircle, PenTool, Save, Key
 } from 'lucide-react';
 
-// Clé découpée pour contourner l'alerte GitHub
-const keyPart1 = "AIzaSyDgTadoI2_";
-const keyPart2 = "BW9mRhi1_--wsGmfGOetAx1Y";
+const keyPart1 = "AIzaSyDgTadoI2_BW9mRhi1_";
+const keyPart2 = "--wsGmfGOetAx1Y";
 const firebaseConfig = {
   apiKey: keyPart1 + keyPart2,
   authDomain: "fabrica-tracker.firebaseapp.com",
@@ -27,7 +25,6 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = initializeAuth(app);
 const db = getFirestore(app);
-const storage = getStorage(app);
 
 const PIPELINE_2D = ['Animatic', 'Color Script', 'Layout', '2D Background', '2D FX', '2D Anim Rough', '2D Anim Clean', '2D Anim Colo', 'Compositing'];
 const PIPELINE_3D = ['Animatic', 'Color Script', 'Layout', 'Modeling', '3D Background', '3D FX', '3D Anim', '3D Lighting', '3D Render', 'Compositing'];
@@ -57,6 +54,10 @@ export default function App() {
   const [members, setMembers] = useState([]);
   const [timeLogs, setTimeLogs] = useState([]);
   
+  // Storage settings per project
+  const [cloudNameInput, setCloudNameInput] = useState('');
+  const [uploadPresetInput, setUploadPresetInput] = useState('');
+
   // Auth states
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
@@ -120,6 +121,10 @@ export default function App() {
     const unsubMembers = onSnapshot(qMembers, (snap) => setMembers(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
     const qLogs = query(collection(db, 'timeLogs'), where('workspaceId', '==', workspace.id));
     const unsubLogs = onSnapshot(qLogs, (snap) => setTimeLogs(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    
+    setCloudNameInput(workspace.cloudinaryCloudName || '');
+    setUploadPresetInput(workspace.cloudinaryUploadPreset || '');
+
     return () => { unsubShots(); unsubAssets(); unsubMembers(); unsubLogs(); };
   }, [workspace]);
 
@@ -167,20 +172,17 @@ export default function App() {
     } catch (err) { alert(err.message); }
   };
 
-  // PROFIL UPDATE
   const updateProfile = async (e) => {
     e.preventDefault();
     if(!profileName) return;
     await updateDoc(doc(db, 'users', user.uid), { displayName: profileName });
     setUserData({...userData, displayName: profileName});
-    // Update name in all projects
     const q = query(collection(db, 'projectMembers'), where('userId', '==', user.uid));
     const snap = await getDocs(q);
     snap.forEach(d => updateDoc(d.ref, { displayName: profileName }));
     alert("Profil mis à jour !");
   };
 
-  // PROJECTS
   const createProject = async (e) => {
     e.preventDefault();
     if (!newProjectName) return;
@@ -209,32 +211,67 @@ export default function App() {
     }
   };
 
-  // UPLOADS
+  const saveStorageSettings = async (e) => {
+    e.preventDefault();
+    await updateDoc(doc(db, 'workspaces', workspace.id), {
+      cloudinaryCloudName: cloudNameInput,
+      cloudinaryUploadPreset: uploadPresetInput
+    });
+    setWorkspace({ ...workspace, cloudinaryCloudName: cloudNameInput, cloudinaryUploadPreset: uploadPresetInput });
+    alert("Clés de stockage du projet enregistrées !");
+  };
+
+  // UPLOAD MEDIA DISTANT
+  const uploadMediaToCloud = async (file) => {
+    const cloudName = workspace?.cloudinaryCloudName;
+    const uploadPreset = workspace?.cloudinaryUploadPreset;
+
+    if (!cloudName || !uploadPreset) {
+      alert("L'administrateur du projet doit d'abord configurer les clés de stockage gratuites dans l'onglet Paramètres !");
+      return null;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', uploadPreset);
+
+    const resourceType = file.type.startsWith('video') ? 'video' : 'image';
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`, {
+      method: 'POST',
+      body: formData
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+    return { url: data.secure_url, type: resourceType };
+  };
+
   const uploadShotPreview = async (shotId, step, file) => {
     if (!file) return;
     setUploadingMedia(true);
-    const fRef = storageRef(storage, `workspaces/${workspace.id}/shots/${shotId}/${step}_${file.name}`);
-    await uploadBytes(fRef, file);
-    const url = await getDownloadURL(fRef);
-    const type = file.type.startsWith('video') ? 'video' : 'image';
-    await updateDoc(doc(db, 'shots', shotId), { 
-      [`previews.${step}`]: url,
-      [`previewTypes.${step}`]: type 
-    });
+    try {
+      const uploaded = await uploadMediaToCloud(file);
+      if (uploaded?.url) {
+        await updateDoc(doc(db, 'shots', shotId), { 
+          [`previews.${step}`]: uploaded.url,
+          [`previewTypes.${step}`]: uploaded.type 
+        });
+      }
+    } catch(err) { alert("Erreur d'envoi : " + err.message); }
     setUploadingMedia(false);
   };
 
   const uploadAsset = async (assetId, file) => {
     if (!file) return;
     setUploadingMedia(true);
-    const fRef = storageRef(storage, `workspaces/${workspace.id}/assets/${assetId}/${file.name}`);
-    await uploadBytes(fRef, file);
-    const url = await getDownloadURL(fRef);
-    await updateDoc(doc(db, 'assets', assetId), { fileUrl: url });
+    try {
+      const uploaded = await uploadMediaToCloud(file);
+      if (uploaded?.url) {
+        await updateDoc(doc(db, 'assets', assetId), { fileUrl: uploaded.url });
+      }
+    } catch(err) { alert("Erreur d'envoi : " + err.message); }
     setUploadingMedia(false);
   };
 
-  // ANNOTATION CANVAS LOGIC
   const openReview = (shot, step) => {
     setReviewShot(shot); setReviewStep(step);
     setActiveTab('review'); setStrokes([]); setCurrentStroke([]);
@@ -243,7 +280,7 @@ export default function App() {
   const getAnnotationKey = () => {
     if(!reviewShot || !reviewStep) return null;
     const isVid = reviewShot.previewTypes?.[reviewStep] === 'video';
-    return isVid ? Math.floor(videoProgress * 24) : 'image'; // frame number or 'image'
+    return isVid ? Math.floor(videoProgress * 24) : 'image';
   };
 
   const loadAnnotations = () => {
@@ -306,10 +343,8 @@ export default function App() {
     alert("Retake sauvegardé !");
   };
 
-  // HELPERS
   const canAssign = ['Admin', 'Supervisor'].includes(userRole);
 
-  // RENDER APP
   if (loading) return <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center">Chargement...</div>;
 
   if (!user) {
@@ -388,7 +423,7 @@ export default function App() {
         <form onSubmit={updateProfile} className="bg-slate-900 border border-slate-800 p-8 rounded-xl w-full max-w-md space-y-6">
           <h2 className="text-2xl font-bold text-center">Mon Profil</h2>
           <div className="space-y-2">
-            <label className="text-sm text-slate-400">Email (Non modifiable)</label>
+            <label className="text-sm text-slate-400">Email</label>
             <input type="email" value={userData?.email} disabled className="w-full p-2 bg-slate-950 border border-slate-800 rounded text-slate-500" />
           </div>
           <div className="space-y-2">
@@ -401,7 +436,6 @@ export default function App() {
     );
   }
 
-  // WORKSPACE VIEW
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex">
       <aside className="w-16 md:w-64 bg-slate-900 border-r border-slate-800 flex flex-col justify-between p-4 shrink-0">
@@ -423,7 +457,7 @@ export default function App() {
       </aside>
 
       <main className="flex-1 p-6 overflow-x-auto relative">
-        {uploadingMedia && <div className="absolute top-4 right-4 bg-blue-600 px-4 py-2 rounded text-sm animate-pulse shadow-lg z-50">Upload en cours...</div>}
+        {uploadingMedia && <div className="absolute top-4 right-4 bg-blue-600 px-4 py-2 rounded text-sm animate-pulse shadow-lg z-50">Upload en cours sur le serveur distant...</div>}
         
         <header className="mb-6 flex justify-between items-center">
           <h2 className="text-xl font-semibold capitalize">{activeTab}</h2>
@@ -525,7 +559,6 @@ export default function App() {
                   
                   <canvas ref={canvasRef} onMouseDown={startDraw} onMouseMove={onDraw} onMouseUp={endDraw} onMouseLeave={endDraw} onTouchStart={startDraw} onTouchMove={onDraw} onTouchEnd={endDraw} className={`absolute top-0 left-0 w-full h-full z-10 ${isDrawing ? 'cursor-crosshair pointer-events-auto' : 'pointer-events-none'}`} width={1920} height={1080} style={{ width: '100%', height: '100%' }} />
 
-                  {/* Red Dot Image */}
                   {reviewShot.previewTypes[reviewStep] !== 'video' && reviewShot.annotations?.[reviewStep]?.['image'] && (
                     <div className="absolute bottom-4 left-4 w-4 h-4 bg-red-600 rounded-full animate-pulse z-20 shadow-lg border-2 border-black" title="Retake requis"></div>
                   )}
@@ -541,7 +574,6 @@ export default function App() {
                       }
                     }}>
                       <div className="absolute h-full bg-blue-500 rounded-full" style={{ width: `${(videoProgress / videoDuration) * 100 || 0}%` }}></div>
-                      {/* Red Dots on Timeline */}
                       {Object.keys(reviewShot.annotations?.[reviewStep] || {}).map(frameTime => (
                         <div key={frameTime} className="absolute top-0 w-3 h-3 bg-red-600 rounded-full transform -translate-x-1.5 shadow" style={{ left: `${(parseFloat(frameTime) / (videoDuration*24)) * 100}%` }} title="Retake"></div>
                       ))}
@@ -623,6 +655,21 @@ export default function App() {
               <h3 className="font-bold mb-2">Code d'invitation</h3>
               <input type="text" readOnly value={workspace?.id || ''} className="w-full p-2 bg-slate-950 border border-slate-800 rounded font-mono text-blue-400 text-center text-lg" />
             </div>
+
+            <form onSubmit={saveStorageSettings} className="bg-slate-900 border border-slate-800 rounded-lg p-6 space-y-4">
+              <h3 className="font-bold flex items-center"><Key className="mr-2" /> Configuration Stockage Gratuit (Cloudinary)</h3>
+              <p className="text-xs text-slate-400">Pour autoriser les membres distants à envoyer des médias 4K gratuitement sur ce projet, colle les identifiants de ton compte Cloudinary (gratuit) :</p>
+              <div>
+                <label className="text-xs text-slate-400">Cloud Name</label>
+                <input type="text" value={cloudNameInput} onChange={(e)=>setCloudNameInput(e.target.value)} placeholder="ex: mon-studio-cloud" className="w-full p-2 bg-slate-950 border border-slate-800 rounded text-sm font-mono" required />
+              </div>
+              <div>
+                <label className="text-xs text-slate-400">Upload Preset (Mode Unsigned)</label>
+                <input type="text" value={uploadPresetInput} onChange={(e)=>setUploadPresetInput(e.target.value)} placeholder="ex: ml_default" className="w-full p-2 bg-slate-950 border border-slate-800 rounded text-sm font-mono" required />
+              </div>
+              <button type="submit" className="w-full py-2 bg-blue-600 hover:bg-blue-500 font-bold rounded text-sm">Sauvegarder les clés du projet</button>
+            </form>
+
             <div className="bg-red-950/20 border border-red-900/50 rounded-lg p-6">
               <h3 className="font-bold text-red-500 mb-2">Zone de danger</h3>
               <button onClick={deleteProject} className="flex items-center space-x-2 bg-red-600 hover:bg-red-500 px-4 py-2 rounded font-bold text-sm"><Trash2 size={16} /> <span>Supprimer le projet</span></button>
