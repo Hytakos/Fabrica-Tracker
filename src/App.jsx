@@ -40,7 +40,7 @@ const dict = {
     addShot: "Add Shot", addAsset: "Add Asset", seq: "Sequence", scene: "Scene", shotName: "Name", assign: "Assign", unassigned: "Unassigned", 
     todo: "To Do", wip: "WIP", rev: "Review", reuse: "Reuse", done: "Done", upload: "Upload V1", wait: "Waiting", delShot: "Delete Shot?", delAsset: "Delete Asset?", 
     drawMode: "Drawing", draw: "Draw (Retake)", saveClose: "Save & Close", clearRetake: "Delete Retake", undo: "Undo", clearAll: "Clear", brush: "Brush:", 
-    start: "Start", stopSave: "Stop & Save", task: "-- Select Task --", step: "-- Step --", export: "Export CSV",
+    start: "Start", stopSave: "Stop & Save", task: "-- Select Task --", step: "-- Step --", export: "Export Excel",
     danger: "Danger Zone", delProj: "Delete Project", keysInfo: "To allow remote members to upload 4K media for free, paste your Cloudinary credentials:", 
     saveKeys: "Save Keys", reqSeq: "Sequence: SQ + 2 digits (SQ01).", reqScene: "Scene: SC + 3 digits (SC001).", cancel: "Cancel", delVersion: "Delete version?"
   },
@@ -52,7 +52,7 @@ const dict = {
     addShot: "Ajouter Shot", addAsset: "Ajouter Asset", seq: "Séquence", scene: "Scène", shotName: "Nom", assign: "Assigner", unassigned: "Non assigné", 
     todo: "À faire", wip: "En cours", rev: "Review", reuse: "Réutiliser", done: "Terminé", upload: "Upload V1", wait: "En attente", delShot: "Supprimer ce Shot ?", delAsset: "Supprimer cet Asset ?", 
     drawMode: "Dessin Actif", draw: "Dessiner (Retake)", saveClose: "Sauver & Fermer", clearRetake: "Effacer Retake", undo: "Annuler", clearAll: "Tout effacer", brush: "Pinceau :", 
-    start: "Démarrer", stopSave: "Stop & Save", task: "-- Sélectionner Tâche --", step: "-- Étape --", export: "Export CSV",
+    start: "Démarrer", stopSave: "Stop & Save", task: "-- Sélectionner Tâche --", step: "-- Étape --", export: "Export Excel",
     danger: "Zone de danger", delProj: "Supprimer le projet", keysInfo: "Pour autoriser l'upload 4K gratuit, configure les clés Cloudinary :", 
     saveKeys: "Sauvegarder", reqSeq: "Séquence : SQ + 2 chiffres (SQ01).", reqScene: "Scène : SC + 3 chiffres (SC001).", cancel: "Annuler", delVersion: "Supprimer cette version ?"
   }
@@ -258,6 +258,18 @@ export default function App() {
     await updateDoc(doc(db, collectionName, id), { [`assignedTo.${step}`]: current.filter(u => u !== userId) });
   };
 
+  // PARAMETRES (Stockage Cloudinary)
+  const saveStorageSettings = async (e) => {
+    e.preventDefault();
+    if (!workspace) return;
+    await updateDoc(doc(db, 'workspaces', workspace.id), {
+      cloudinaryCloudName: cloudNameInput,
+      cloudinaryUploadPreset: uploadPresetInput
+    });
+    setWorkspace({ ...workspace, cloudinaryCloudName: cloudNameInput, cloudinaryUploadPreset: uploadPresetInput });
+    alert("Clés de stockage sauvegardées !");
+  };
+
   // UPLOAD CLOUDINARY
   const uploadMediaToCloud = async (file) => {
     const cloudName = workspace?.cloudinaryCloudName; const uploadPreset = workspace?.cloudinaryUploadPreset;
@@ -358,19 +370,56 @@ export default function App() {
     setStrokes([]);
   };
 
-  // CSV EXPORT
-  const exportCSV = () => {
+  // EXCEL EXPORT (Avec Couleurs)
+  const getExcelColor = (st) => {
+    switch(st) {
+      case 'wip': return 'background-color: #bfdbfe; color: #1e40af; font-weight: bold;';
+      case 'review': return 'background-color: #e9d5ff; color: #6b21a8; font-weight: bold;';
+      case 'reuse': return 'background-color: #fed7aa; color: #c2410c; font-weight: bold;';
+      case 'done': return 'background-color: #bbf7d0; color: #166534; font-weight: bold;';
+      default: return 'background-color: #f1f5f9; color: #475569;'; // todo
+    }
+  };
+
+  const exportExcel = () => {
     if(!workspace) return;
-    let csv = `Sequence,Scene,Shot Name,${workspace.pipeline.join(",")}\n`;
-    shots.forEach(s => {
-       let row = `${s.sequence},${s.scene},${s.name}`;
-       workspace.pipeline.forEach(step => { row += `,${s.status?.[step] || 'todo'}`; });
-       csv += row + "\n";
+    let html = `<html xmlns:x="urn:schemas-microsoft-com:office:excel">
+      <head><meta charset="utf-8"></head>
+      <body>
+        <table border="1" style="border-collapse: collapse; font-family: sans-serif; text-align: center;">
+          <thead>
+            <tr style="background-color: #1e293b; color: white;">
+              <th style="padding: 10px;">${t('seq')}</th>
+              <th style="padding: 10px;">${t('scene')}</th>
+              <th style="padding: 10px;">${t('shotName')}</th>
+              ${workspace.pipeline.map(step => `<th style="padding: 10px;">${step}</th>`).join('')}
+            </tr>
+          </thead>
+          <tbody>
+    `;
+    
+    const sortedShots = [...shots].sort((a,b)=> a.sequence.localeCompare(b.sequence) || a.scene.localeCompare(b.scene));
+    sortedShots.forEach(s => {
+       html += `<tr>
+          <td style="padding: 8px; font-weight: bold;">${s.sequence}</td>
+          <td style="padding: 8px;">${s.scene}</td>
+          <td style="padding: 8px; font-weight: bold;">${s.name}</td>
+       `;
+       workspace.pipeline.forEach(step => {
+          const st = s.status?.[step] || 'todo';
+          const style = getExcelColor(st);
+          const text = dict[lang][st] || st;
+          html += `<td style="padding: 8px; border: 1px solid #cbd5e1; ${style}">${text}</td>`;
+       });
+       html += `</tr>`;
     });
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    
+    html += `</tbody></table></body></html>`;
+
+    const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.href = url; link.download = `${workspace.name.replace(/\s+/g, '_')}_export.csv`;
+    link.href = url; link.download = `${workspace.name.replace(/\s+/g, '_')}_Tracker.xls`;
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
   };
 
@@ -393,7 +442,7 @@ export default function App() {
 
   // STATS MY TASKS
   const myAssignedTasks = shots.filter(s => workspace?.pipeline?.some(step => getAssignees(s, step).includes(user?.uid)));
-  const myStats = { todo: 0, wip: 0, review: 0, reuse: 0, done: 0 };
+  const myStats = { todo: 0, wip: 0, review: 0, done: 0 }; // Removed Reuse
   myAssignedTasks.forEach(s => {
     workspace?.pipeline?.forEach(step => {
       if(getAssignees(s, step).includes(user?.uid)) {
@@ -528,7 +577,7 @@ export default function App() {
             {userRole === 'Admin' && <button onClick={() => setActiveTab('settings')} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'settings' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}><Settings size={18} /> <span className="hidden md:inline font-medium">{t('settings')}</span></button>}
             
             <div className="pt-4 mt-4 border-t border-slate-800">
-              <button onClick={exportCSV} className="w-full flex items-center space-x-3 p-2 rounded text-emerald-400 hover:bg-emerald-900/30 transition-colors"><Download size={18} /> <span className="hidden md:inline font-medium">{t('export')}</span></button>
+              <button onClick={exportExcel} className="w-full flex items-center space-x-3 p-2 rounded text-emerald-400 hover:bg-emerald-900/30 transition-colors"><Download size={18} /> <span className="hidden md:inline font-medium">{t('export')}</span></button>
             </div>
           </nav>
         </div>
@@ -546,7 +595,6 @@ export default function App() {
           <h2 className="text-2xl font-bold tracking-tight">{t(activeTab)}</h2>
           <div className="flex items-center space-x-6">
             
-            {/* NOTIFICATIONS (Review) */}
             {['Admin', 'Supervisor'].includes(userRole) && (
               <div className="relative">
                 <button onClick={() => setShowNotifications(!showNotifications)} className="relative p-2 text-slate-400 hover:text-white transition">
@@ -605,7 +653,6 @@ export default function App() {
                             return (
                               <td key={step} className="p-3 border-l border-slate-800/50 align-top space-y-2">
                                 <div className="flex flex-col space-y-1.5">
-                                  {/* ASSIGNATIONS MULTIPLES */}
                                   <div className="flex flex-wrap gap-1">
                                     {assignees.map(uid => (
                                       <span key={uid} onClick={() => canAssign && removeAssignee('shots', s.id, step, uid)} className={`text-[10px] px-1.5 py-0.5 rounded flex items-center font-bold ${canAssign ? 'cursor-pointer bg-blue-900/40 text-blue-300 hover:bg-red-900/50 hover:text-red-300' : 'bg-slate-800 text-slate-400'}`}>
@@ -728,7 +775,6 @@ export default function App() {
                         
                         {canAssign ? <select className="bg-slate-950 border border-slate-800 rounded p-1 text-xs w-full outline-none" value={a.category || ''} onChange={async (e) => await updateDoc(doc(db, 'assets', a.id), { category: e.target.value })}>{ASSET_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}</select> : <div className="text-xs text-slate-400">{a.category}</div>}
                         
-                        {/* Assignation */}
                         <div className="flex flex-wrap gap-1 pt-1">
                           {assignees.map(uid => (
                             <span key={uid} onClick={() => canAssign && removeAssignee('assets', a.id, 'Global', uid)} className={`text-[10px] px-1.5 py-0.5 rounded flex items-center font-bold ${canAssign ? 'cursor-pointer bg-blue-900/40 text-blue-300 hover:bg-red-900/50 hover:text-red-300' : 'bg-slate-800 text-slate-400'}`}>
@@ -770,16 +816,16 @@ export default function App() {
                   <div className="flex flex-wrap gap-3 justify-end items-center">
                     {isDrawing && (
                       <div className="flex bg-slate-950 border border-slate-800 rounded p-1 space-x-1 mr-2">
-                        <div className="px-2 flex items-center border-r border-slate-800 space-x-2">
-                          <span className="text-xs text-slate-500 font-bold">{t('brush')}</span>
-                          {[2, 4, 8].map(sz => (
-                            <button key={sz} onClick={() => setBrushSize(sz)} className={`w-6 h-6 rounded-full flex items-center justify-center ${brushSize === sz ? 'bg-slate-700' : 'hover:bg-slate-800'}`}>
+                        <div className="px-2 flex items-center border-r border-slate-800 space-x-3">
+                          <span className="text-xs text-slate-500 font-bold mr-1">{t('brush')}</span>
+                          {[2, 4, 8, 16].map(sz => (
+                            <button key={sz} onClick={() => setBrushSize(sz)} className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${brushSize === sz ? 'bg-slate-700' : 'hover:bg-slate-800'}`}>
                               <div className="bg-red-500 rounded-full" style={{ width: sz+2, height: sz+2 }}></div>
                             </button>
                           ))}
                         </div>
-                        <button onClick={() => setStrokes(strokes.slice(0, -1))} className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded transition" title={t('undo')}><Undo size={16} /></button>
-                        <button onClick={() => setStrokes([])} className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded transition" title={t('clearAll')}><Eraser size={16} /></button>
+                        <button onClick={() => setStrokes(strokes.slice(0, -1))} className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded transition" title={t('undo')}><Undo size={18} /></button>
+                        <button onClick={() => setStrokes([])} className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded transition" title={t('clearAll')}><Eraser size={18} /></button>
                       </div>
                     )}
                     
@@ -855,7 +901,8 @@ export default function App() {
 
         {activeTab === 'stats' && (
           <div className="space-y-6">
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            {/* STATS (Sans Reuse) */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center">
                 <div className="text-3xl font-black text-slate-300">{myStats.todo}</div><div className="text-xs font-bold text-slate-500 uppercase">{t('todo')}</div>
               </div>
@@ -864,9 +911,6 @@ export default function App() {
               </div>
               <div className="bg-purple-900/30 border border-purple-800 rounded-xl p-4 text-center">
                 <div className="text-3xl font-black text-purple-400">{myStats.review}</div><div className="text-xs font-bold text-purple-500 uppercase">{t('rev')}</div>
-              </div>
-              <div className="bg-orange-900/30 border border-orange-800 rounded-xl p-4 text-center">
-                <div className="text-3xl font-black text-orange-400">{myStats.reuse}</div><div className="text-xs font-bold text-orange-500 uppercase">{t('reuse')}</div>
               </div>
               <div className="bg-green-900/30 border border-green-800 rounded-xl p-4 text-center">
                 <div className="text-3xl font-black text-green-400">{myStats.done}</div><div className="text-xs font-bold text-green-500 uppercase">{t('done')}</div>
