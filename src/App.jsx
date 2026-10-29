@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  initializeAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged 
+  initializeAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail 
 } from 'firebase/auth';
 import { 
   getFirestore, collection, doc, setDoc, getDoc, getDocs, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp, deleteField 
@@ -8,7 +8,7 @@ import {
 import { initializeApp } from 'firebase/app';
 import { 
   Film, Box, Settings, Plus, Play, Pause, Trash2, LogOut, 
-  Users, Upload, Clock, SkipForward, SkipBack, MonitorPlay, FolderKanban, BarChart, ChevronLeft, UserCircle, PenTool, Save, Key, Eraser, Undo, X, Bell, Download
+  Users, Upload, Clock, SkipForward, SkipBack, MonitorPlay, FolderKanban, BarChart, ChevronLeft, UserCircle, PenTool, Save, Key, Eraser, Undo, X, Bell, Download, Clapperboard
 } from 'lucide-react';
 
 const keyPart1 = "AIzaSyDgTadoI2_";
@@ -42,7 +42,8 @@ const dict = {
     drawMode: "Drawing", draw: "Draw (Retake)", saveClose: "Save & Close", clearRetake: "Delete Retake", undo: "Undo", clearAll: "Clear", brush: "Brush:", 
     start: "Start", stopSave: "Stop & Save", task: "-- Select Task --", step: "-- Step --", export: "Export Excel",
     danger: "Danger Zone", delProj: "Delete Project", keysInfo: "To allow file uploads, configure Cloudinary keys:", 
-    saveKeys: "Save Keys", reqSeq: "Sequence: SQ + 2 digits (SQ01).", reqScene: "Scene: SC + 3 digits (SC001).", cancel: "Cancel", delVersion: "Delete version?"
+    saveKeys: "Save Keys", reqSeq: "Sequence: SQ + 2 digits (SQ01).", reqScene: "Scene: SC + 3 digits (SC001).", cancel: "Cancel", delVersion: "Delete version?",
+    forgotPwd: "Forgot password?", resetSent: "Password reset email sent!"
   },
   fr: {
     app: "Fabrica Tracker", login: "Connexion", register: "Inscription", pseudo: "Pseudo (Obligatoire)", email: "Email", pwd: "Mot de passe", connect: "Se connecter", createAcc: "Créer un compte", 
@@ -54,7 +55,8 @@ const dict = {
     drawMode: "Dessin Actif", draw: "Dessiner (Retake)", saveClose: "Sauver & Fermer", clearRetake: "Effacer Retake", undo: "Annuler", clearAll: "Tout effacer", brush: "Pinceau :", 
     start: "Démarrer", stopSave: "Stop & Save", task: "-- Sélectionner Tâche --", step: "-- Étape --", export: "Export Excel",
     danger: "Zone de danger", delProj: "Supprimer le projet", keysInfo: "Pour autoriser l'upload de fichiers, configure les clés Cloudinary.", 
-    saveKeys: "Sauvegarder", reqSeq: "Séquence : SQ + 2 chiffres (SQ01).", reqScene: "Scène : SC + 3 chiffres (SC001).", cancel: "Annuler", delVersion: "Supprimer cette version ?"
+    saveKeys: "Sauvegarder", reqSeq: "Séquence : SQ + 2 chiffres (SQ01).", reqScene: "Scène : SC + 3 chiffres (SC001).", cancel: "Annuler", delVersion: "Supprimer cette version ?",
+    forgotPwd: "Mot de passe oublié ?", resetSent: "E-mail de réinitialisation envoyé !"
   }
 };
 
@@ -103,7 +105,7 @@ export default function App() {
 
   // REVIEW STATES
   const [reviewItem, setReviewItem] = useState(null);
-  const [reviewType, setReviewType] = useState('shots'); // 'shots' or 'assets'
+  const [reviewType, setReviewType] = useState('shots');
   const [reviewStep, setReviewStep] = useState(null);
   const [reviewVersion, setReviewVersion] = useState(null);
   const [reviewPreview, setReviewPreview] = useState(null);
@@ -152,7 +154,6 @@ export default function App() {
     return () => { unsubShots(); unsubAssets(); unsubMembers(); unsubLogs(); };
   }, [workspace]);
 
-  // Synchronisation dynamique du reviewItem pour actualiser les pastilles rouges en temps réel
   useEffect(() => {
     if (reviewItem) {
       const freshItem = reviewType === 'shots' ? shots.find(s => s.id === reviewItem.id) : assets.find(a => a.id === reviewItem.id);
@@ -180,6 +181,14 @@ export default function App() {
       } else { await signInWithEmailAndPassword(auth, authEmail, authPassword); }
       setCurrentView('dashboard');
     } catch (err) { alert(err.message); }
+  };
+
+  const handleForgotPassword = async () => {
+    if(!authEmail) return alert(t('email'));
+    try {
+      await sendPasswordResetEmail(auth, authEmail);
+      alert(t('resetSent'));
+    } catch(err) { alert(err.message); }
   };
 
   const updateProfile = async (e) => {
@@ -246,7 +255,6 @@ export default function App() {
     }
   };
 
-  // ASSIGNATIONS MULTIPLES
   const getAssignees = (item, step) => Array.isArray(item.assignedTo?.[step]) ? item.assignedTo[step] : (item.assignedTo?.[step] ? [item.assignedTo[step]] : []);
   
   const addAssignee = async (collectionName, id, step, userId) => {
@@ -261,7 +269,6 @@ export default function App() {
     await updateDoc(doc(db, collectionName, id), { [`assignedTo.${step}`]: current.filter(u => u !== userId) });
   };
 
-  // PARAMETRES
   const saveStorageSettings = async (e) => {
     e.preventDefault();
     if (!workspace) return;
@@ -273,7 +280,6 @@ export default function App() {
     alert("Clés de stockage sauvegardées !");
   };
 
-  // UPLOAD MEDIA
   const uploadMediaToCloud = async (file) => {
     const cloudName = workspace?.cloudinaryCloudName; const uploadPreset = workspace?.cloudinaryUploadPreset;
     if (!cloudName || !uploadPreset) { alert("Missing Cloudinary Keys in Settings!"); return null; }
@@ -314,7 +320,6 @@ export default function App() {
     setUploadingMedia(false);
   };
 
-  // REVIEW & DRAWING (Adapté Shots + Assets)
   const openReview = (item, step, version, previewObj, type = 'shots') => {
     setReviewItem(item); setReviewType(type); setReviewStep(step); setReviewVersion(version); setReviewPreview(previewObj);
     setActiveTab('review'); setStrokes([]); setCurrentStroke(null);
@@ -323,7 +328,7 @@ export default function App() {
   const getAnnotationKey = () => {
     if(!reviewItem || !reviewStep || !reviewPreview) return null;
     if(reviewPreview.type === 'video') return Math.floor(videoProgress * 24);
-    if(reviewType === 'assets') return `image_${reviewPreview.fileIndex}`; // Index de l'image dans l'asset
+    if(reviewType === 'assets') return `image_${reviewPreview.fileIndex}`;
     return 'image';
   };
 
@@ -369,46 +374,49 @@ export default function App() {
   const saveAnnotations = async () => {
     const key = getAnnotationKey(); if(!key || !reviewItem) return;
     await updateDoc(doc(db, reviewType, reviewItem.id), { [`annotations.${reviewStep}.v${reviewVersion}.${key}`]: JSON.stringify(strokes) });
-    setReviewItem(null); setActiveTab(reviewType); // Retourne à shots ou assets
+    setReviewItem(null); setActiveTab(reviewType);
   };
 
   const deleteRetakeFromDB = async () => {
     const key = getAnnotationKey(); if(!key || !reviewItem) return;
     
-    // Supprime de Firebase
+    // Supprime proprement de Firestore avec deleteField()
     await updateDoc(doc(db, reviewType, reviewItem.id), { [`annotations.${reviewStep}.v${reviewVersion}.${key}`]: deleteField() });
-    setStrokes([]); // Efface visuellement le trait
     
-    // Mutation locale temporaire pour que le point rouge disparaisse instantanément sans attendre Firebase
-    if (reviewItem.annotations?.[reviewStep]?.[`v${reviewVersion}`]?.[key]) {
+    // Nettoyage local immédiat de l'objet state pour enlever le point rouge sans délai
+    if (reviewItem.annotations?.[reviewStep]?.[`v${reviewVersion}`]) {
       delete reviewItem.annotations[reviewStep][`v${reviewVersion}`][key];
-      setReviewItem({ ...reviewItem }); // Force le refresh
+      if (Object.keys(reviewItem.annotations[reviewStep][`v${reviewVersion}`]).length === 0) {
+        delete reviewItem.annotations[reviewStep][`v${reviewVersion}`];
+      }
     }
+    setStrokes([]);
+    setReviewItem({ ...reviewItem });
   };
 
-  // EXCEL EXPORT (Tableau HTML stylisé pour Excel avec bgcolor)
-  const getExcelStyle = (st) => {
+  // EXPORT EXCEL OFFICIEL (Vraies couleurs d'arrière-plan par cellule)
+  const getExcelColorHex = (st) => {
     switch(st) {
-      case 'wip': return { bg: '#bfdbfe', css: 'background-color: #bfdbfe; color: #1e40af; font-weight: bold;' };
-      case 'review': return { bg: '#e9d5ff', css: 'background-color: #e9d5ff; color: #6b21a8; font-weight: bold;' };
-      case 'reuse': return { bg: '#fed7aa', css: 'background-color: #fed7aa; color: #c2410c; font-weight: bold;' };
-      case 'done': return { bg: '#bbf7d0', css: 'background-color: #bbf7d0; color: #166534; font-weight: bold;' };
-      default: return { bg: '#f1f5f9', css: 'background-color: #f1f5f9; color: #475569;' };
+      case 'wip': return '#bfdbfe';
+      case 'review': return '#e9d5ff';
+      case 'reuse': return '#fed7aa';
+      case 'done': return '#bbf7d0';
+      default: return '#f1f5f9';
     }
   };
 
   const exportExcel = () => {
     if(!workspace) return;
-    let html = `<html xmlns:x="urn:schemas-microsoft-com:office:excel">
-      <head><meta charset="utf-8"></head>
+    let html = `\uFEFF<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head><meta http-equiv="content-type" content="text/html; charset=UTF-8"></head>
       <body>
-        <table border="1" style="border-collapse: collapse; font-family: sans-serif; text-align: center;">
+        <table border="1" style="border-collapse: collapse; font-family: Arial, sans-serif; text-align: center;">
           <thead>
-            <tr>
-              <th bgcolor="#1e293b" style="padding: 10px; background-color: #1e293b; color: white;">${t('seq')}</th>
-              <th bgcolor="#1e293b" style="padding: 10px; background-color: #1e293b; color: white;">${t('scene')}</th>
-              <th bgcolor="#1e293b" style="padding: 10px; background-color: #1e293b; color: white;">${t('shotName')}</th>
-              ${workspace.pipeline.map(step => `<th bgcolor="#1e293b" style="padding: 10px; background-color: #1e293b; color: white;">${step}</th>`).join('')}
+            <tr style="background-color: #1e293b; color: white;">
+              <th style="background-color: #1e293b; color: white; padding: 10px;">${t('seq')}</th>
+              <th style="background-color: #1e293b; color: white; padding: 10px;">${t('scene')}</th>
+              <th style="background-color: #1e293b; color: white; padding: 10px;">${t('shotName')}</th>
+              ${workspace.pipeline.map(step => `<th style="background-color: #1e293b; color: white; padding: 10px;">${step}</th>`).join('')}
             </tr>
           </thead>
           <tbody>
@@ -417,29 +425,28 @@ export default function App() {
     const sortedShots = [...shots].sort((a,b)=> a.sequence.localeCompare(b.sequence) || a.scene.localeCompare(b.scene));
     sortedShots.forEach(s => {
        html += `<tr>
-          <td style="padding: 8px; font-weight: bold;">${s.sequence}</td>
-          <td style="padding: 8px;">${s.scene}</td>
-          <td style="padding: 8px; font-weight: bold;">${s.name}</td>
+          <td style="padding: 8px; font-weight: bold; background-color: #f8fafc;">${s.sequence}</td>
+          <td style="padding: 8px; background-color: #f8fafc;">${s.scene}</td>
+          <td style="padding: 8px; font-weight: bold; background-color: #f8fafc;">${s.name}</td>
        `;
        workspace.pipeline.forEach(step => {
           const st = s.status?.[step] || 'todo';
-          const style = getExcelStyle(st);
+          const bgHex = getExcelColorHex(st);
           const text = dict[lang][st] || st;
-          html += `<td bgcolor="${style.bg}" style="padding: 8px; border: 1px solid #cbd5e1; ${style.css}">${text}</td>`;
+          html += `<td bgcolor="${bgHex}" style="padding: 8px; border: 1px solid #cbd5e1; background-color: ${bgHex}; font-weight: bold;">${text}</td>`;
        });
        html += `</tr>`;
     });
     
     html += `</tbody></table></body></html>`;
 
-    const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
+    const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url; link.download = `${workspace.name.replace(/\s+/g, '_')}_Tracker.xls`;
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
   };
 
-  // HELPERS
   const canAssign = ['Admin', 'Supervisor'].includes(userRole);
   const getThumbnail = (obj) => obj ? (obj.type === 'video' ? obj.url.replace(/\.[^/.]+$/, ".jpg") : obj.url) : "";
   
@@ -453,10 +460,8 @@ export default function App() {
     }
   };
 
-  // NOTIFICATIONS (Shots in review)
   const pendingReviews = shots.filter(s => workspace?.pipeline?.some(step => s.status?.[step] === 'review'));
 
-  // STATS MY TASKS
   const myAssignedTasks = shots.filter(s => workspace?.pipeline?.some(step => getAssignees(s, step).includes(user?.uid)));
   const myStats = { todo: 0, wip: 0, review: 0, done: 0 };
   myAssignedTasks.forEach(s => {
@@ -473,7 +478,6 @@ export default function App() {
   const groupedAssets = assets.reduce((acc, a) => { (acc[a.category] = acc[a.category] || []).push(a); return acc; }, {});
   const sortedCats = Object.keys(groupedAssets).sort();
 
-  // RENDER APP
   if (loading) return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white">...</div>;
 
   if (!user) {
@@ -483,7 +487,14 @@ export default function App() {
           <span className="text-xl">{lang === 'en' ? '🇬🇧' : '🇫🇷'}</span> <span className="font-bold">{lang === 'en' ? 'EN' : 'FR'}</span>
         </button>
         <form onSubmit={handleAuth} className="bg-slate-900 border border-slate-800 p-8 rounded-xl w-full max-w-md space-y-5 shadow-2xl">
-          <h1 className="text-3xl font-black text-blue-500 text-center tracking-tight">{t('app')}</h1>
+          {/* LOGO MODERNE ET ÉPURÉ */}
+          <div className="flex flex-col items-center justify-center space-y-2 mb-2">
+            <div className="w-12 h-12 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20">
+              <Clapperboard size={26} className="text-white" />
+            </div>
+            <h1 className="text-2xl font-black text-white tracking-tight">{t('app')}</h1>
+          </div>
+
           <div className="flex space-x-2 border-b border-slate-800 pb-2">
             <button type="button" onClick={() => setAuthMode('login')} className={`flex-1 pb-2 ${authMode === 'login' ? 'text-blue-400 font-bold border-b-2 border-blue-500' : 'text-slate-500'}`}>{t('login')}</button>
             <button type="button" onClick={() => setAuthMode('register')} className={`flex-1 pb-2 ${authMode === 'register' ? 'text-blue-400 font-bold border-b-2 border-blue-500' : 'text-slate-500'}`}>{t('register')}</button>
@@ -491,6 +502,13 @@ export default function App() {
           {authMode === 'register' && <input type="text" placeholder={t('pseudo')} value={authName} onChange={(e) => setAuthName(e.target.value)} className="w-full p-3 bg-slate-950 border border-slate-800 rounded focus:border-blue-500 outline-none" />}
           <input type="email" placeholder={t('email')} value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} className="w-full p-3 bg-slate-950 border border-slate-800 rounded focus:border-blue-500 outline-none" required />
           <input type="password" placeholder={t('pwd')} value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} className="w-full p-3 bg-slate-950 border border-slate-800 rounded focus:border-blue-500 outline-none" required />
+          
+          {authMode === 'login' && (
+            <div className="text-right">
+              <button type="button" onClick={handleForgotPassword} className="text-xs text-blue-400 hover:underline">{t('forgotPwd')}</button>
+            </div>
+          )}
+
           <button type="submit" className="w-full py-3 bg-blue-600 hover:bg-blue-500 font-bold rounded transition">{authMode === 'login' ? t('connect') : t('createAcc')}</button>
         </form>
       </div>
@@ -504,7 +522,12 @@ export default function App() {
           <span className="text-xl">{lang === 'en' ? '🇬🇧' : '🇫🇷'}</span> <span className="font-bold">{lang === 'en' ? 'EN' : 'FR'}</span>
         </button>
         <header className="flex justify-between items-center mb-10 max-w-5xl mx-auto">
-          <h1 className="text-3xl font-black text-blue-500">{t('app')}</h1>
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-lg flex items-center justify-center shadow-md">
+              <Clapperboard size={22} className="text-white" />
+            </div>
+            <h1 className="text-2xl font-black text-white">{t('app')}</h1>
+          </div>
           <div className="flex items-center space-x-4">
             <button onClick={() => setCurrentView('profile')} className="flex items-center space-x-2 text-slate-400 hover:text-white bg-slate-900 px-3 py-1.5 rounded-full border border-slate-800"><UserCircle size={20} /> <span className="text-sm font-medium">{userData?.displayName}</span></button>
             <button onClick={() => signOut(auth)} className="text-red-400 hover:text-red-300 p-2"><LogOut size={20} /></button>
@@ -555,6 +578,9 @@ export default function App() {
           <h2 className="text-2xl font-bold text-center">{t('profile')}</h2>
           <div className="space-y-2"><label className="text-sm text-slate-400">{t('email')}</label><input type="email" value={userData?.email} disabled className="w-full p-2 bg-slate-950 border border-slate-800 rounded text-slate-500 cursor-not-allowed" /></div>
           <div className="space-y-2"><label className="text-sm text-slate-400">{t('pseudo')}</label><input type="text" value={profileName} onChange={(e)=>setProfileName(e.target.value)} className="w-full p-2 bg-slate-950 border border-slate-800 rounded outline-none focus:border-blue-500" required /></div>
+          
+          <button type="button" onClick={handleForgotPassword} className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-sm font-bold rounded transition">{t('forgotPwd')}</button>
+          
           <button type="submit" className="w-full py-2 bg-blue-600 hover:bg-blue-500 font-bold rounded transition">{t('saveModifs')}</button>
         </form>
       </div>
@@ -563,7 +589,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex">
-      {/* MODAL ADD SHOT */}
       {showAddShot && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
           <form onSubmit={handleAddShot} className="bg-slate-900 p-6 rounded-xl border border-slate-800 w-full max-w-sm space-y-4 shadow-2xl">
@@ -582,7 +607,14 @@ export default function App() {
       <aside className="w-16 md:w-64 bg-slate-900 border-r border-slate-800 flex flex-col justify-between p-4 shrink-0 h-screen sticky top-0">
         <div className="space-y-6">
           <button onClick={() => setCurrentView('dashboard')} className="flex items-center space-x-2 text-slate-400 hover:text-white mb-4 transition-colors"><ChevronLeft size={20} /> <span className="hidden md:inline font-bold">{t('back')}</span></button>
-          <div className="text-lg font-black text-blue-500 hidden md:block leading-tight">{workspace?.name}</div>
+          
+          <div className="flex items-center space-x-2">
+            <div className="w-8 h-8 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-lg flex items-center justify-center shrink-0">
+              <Clapperboard size={18} className="text-white" />
+            </div>
+            <div className="text-sm font-black text-white hidden md:block leading-tight truncate">{workspace?.name}</div>
+          </div>
+
           <nav className="space-y-1.5">
             <button onClick={() => setActiveTab('shots')} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'shots' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}><Film size={18} /> <span className="hidden md:inline font-medium">{t('shots')}</span></button>
             <button onClick={() => setActiveTab('assets')} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'assets' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}><Box size={18} /> <span className="hidden md:inline font-medium">{t('assets')}</span></button>
@@ -634,7 +666,6 @@ export default function App() {
           </div>
         </header>
 
-        {/* ONGLET SHOTS */}
         {activeTab === 'shots' && (
           <div className="space-y-6">
             {canAssign && <button onClick={() => setShowAddShot(true)} className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded font-bold text-sm transition shadow-lg"><Plus size={16} /> <span>{t('addShot')}</span></button>}
@@ -713,7 +744,6 @@ export default function App() {
                                         <div className="absolute inset-0 flex items-center justify-center bg-blue-600/0 group-hover/preview:bg-blue-600/20 transition duration-300">
                                           <MonitorPlay size={18} className="text-white opacity-0 group-hover/preview:opacity-100 drop-shadow-md transform scale-75 group-hover/preview:scale-100 transition-all" />
                                         </div>
-                                        {/* Point rouge dynamique */}
                                         {s.annotations?.[step]?.[`v${activePreview.version}`] && Object.keys(s.annotations[step][`v${activePreview.version}`]).length > 0 && (
                                           <div className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-black shadow" title="Retake !"></div>
                                         )}
@@ -743,7 +773,6 @@ export default function App() {
           </div>
         )}
 
-        {/* ONGLET ASSETS */}
         {activeTab === 'assets' && (
           <div className="space-y-8">
             {canAssign && <button onClick={async () => { const n = prompt(t('shotName')); if (n) await addDoc(collection(db, 'assets'), { name: n, category: 'Model Design', workspaceId: workspace.id, assignedTo: {} }); }} className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded font-bold text-sm shadow-lg"><Plus size={16} /> <span>{t('addAsset')}</span></button>}
@@ -771,7 +800,6 @@ export default function App() {
                                <div className="absolute inset-0 flex items-center justify-center bg-blue-600/0 group-hover/preview:bg-blue-600/20 transition duration-300">
                                  <MonitorPlay size={18} className="text-white opacity-0 group-hover/preview:opacity-100 drop-shadow-md transform scale-75 group-hover/preview:scale-100 transition-all" />
                                </div>
-                               {/* Point rouge dynamique Asset */}
                                {a.annotations?.Global?.[`v${activePreview.version}`]?.[`image_${i}`] && (
                                    <div className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-black shadow"></div>
                                )}
@@ -823,7 +851,6 @@ export default function App() {
           </div>
         )}
 
-        {/* ONGLET REVIEW */}
         {activeTab === 'review' && (
           <div className="max-w-6xl mx-auto flex flex-col items-center h-full">
             {!reviewItem ? (
@@ -873,7 +900,6 @@ export default function App() {
                   
                   <canvas ref={canvasRef} onMouseDown={startDraw} onMouseMove={onDraw} onMouseUp={endDraw} onMouseLeave={endDraw} onTouchStart={startDraw} onTouchMove={onDraw} onTouchEnd={endDraw} className={`absolute top-0 left-0 w-full h-full z-10 ${isDrawing ? 'cursor-crosshair pointer-events-auto' : 'pointer-events-none'}`} width={1920} height={1080} style={{ width: '100%', height: '100%' }} />
 
-                  {/* Point de retake clignotant sur l'image */}
                   {reviewPreview.type !== 'video' && reviewItem.annotations?.[reviewStep]?.[`v${reviewVersion}`]?.[getAnnotationKey()] && (
                     <div className="absolute bottom-4 left-4 w-4 h-4 bg-red-600 rounded-full animate-pulse z-20 shadow-lg border-2 border-black" title="Retake requis"></div>
                   )}
@@ -886,7 +912,6 @@ export default function App() {
                     }}>
                       <div className="absolute h-full bg-blue-600 rounded-full transition-all duration-75" style={{ width: `${(videoProgress / videoDuration) * 100 || 0}%` }}></div>
                       
-                      {/* Timeline des points de retake */}
                       {Object.keys(reviewItem.annotations?.[reviewStep]?.[`v${reviewVersion}`] || {}).map(frameTime => (
                         <div key={frameTime} className="absolute top-1/2 w-3 h-3 bg-red-500 rounded-full transform -translate-x-1.5 -translate-y-1/2 shadow-sm border border-black" style={{ left: `${(parseFloat(frameTime) / (videoDuration*24)) * 100}%` }} title="Retake"></div>
                       ))}
@@ -904,7 +929,6 @@ export default function App() {
           </div>
         )}
 
-        {/* TIME / STATS / TEAM ... */}
         {activeTab === 'time' && (
           <div className="max-w-md mx-auto bg-slate-900 border border-slate-800 p-8 rounded-2xl space-y-8 mt-10 shadow-xl">
             <h3 className="font-black text-xl text-center">{t('time')}</h3>
@@ -978,7 +1002,6 @@ export default function App() {
           </div>
         )}
 
-        {/* ONGLET PARAMETRES : SEULEMENT ADMIN */}
         {activeTab === 'settings' && userRole === 'Admin' && (
           <div className="space-y-6 max-w-2xl">
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-sm">
