@@ -8,7 +8,7 @@ import {
 import { initializeApp } from 'firebase/app';
 import { 
   Film, Box, Settings, Plus, Play, Pause, Trash2, LogOut, 
-  Users, Upload, Clock, SkipForward, SkipBack, MonitorPlay, FolderKanban, BarChart, ChevronLeft, UserCircle, PenTool, Save, Key, Eraser, Undo, X
+  Users, Upload, Clock, SkipForward, SkipBack, MonitorPlay, FolderKanban, BarChart, ChevronLeft, UserCircle, PenTool, Save, Key, Eraser, Undo, X, Bell, Download
 } from 'lucide-react';
 
 const keyPart1 = "AIzaSyDgTadoI2_";
@@ -30,31 +30,31 @@ const PIPELINE_2D = ['Animatic', 'Color Script', 'Layout', '2D Background', '2D 
 const PIPELINE_3D = ['Animatic', 'Color Script', 'Layout', 'Modeling', '3D Background', '3D FX', '3D Anim', '3D Lighting', '3D Render', 'Compositing'];
 const ASSET_CATEGORIES = ['Model Design', 'Props Design', 'Storyboard', 'Background Concept'];
 
-// DICTIONNAIRE DE TRADUCTION
+// DICTIONNAIRE
 const dict = {
   en: {
     app: "Fabrica Tracker", login: "Login", register: "Register", pseudo: "Username (Required)", email: "Email", pwd: "Password", connect: "Sign In", createAcc: "Create Account", 
-    dash: "Dashboard", myProj: "My Projects", noProj: "No projects joined.", role: "Role", createProj: "Create Project", joinProj: "Join Project", projName: "Project Name", 
+    dash: "Dashboard", myProj: "My Projects", noProj: "No projects.", role: "Role", createProj: "Create Project", joinProj: "Join Project", projName: "Project Name", 
     prod2d: "2D Production", prod3d: "3D Production", create: "Create", joinCode: "Invite Code", join: "Join", profile: "My Profile", saveModifs: "Save Changes", 
     shots: "Shots", assets: "Assets", review: "Review & Retake", time: "Time Tracker", stats: "Statistics", team: "Team", settings: "Settings", back: "Projects", logout: "Logout", 
-    addShot: "Add Shot", addAsset: "Add Asset", seq: "Sequence", scene: "Scene", shotName: "Shot Name", assign: "-- Assign --", unassigned: "Unassigned", 
-    todo: "To Do", wip: "WIP", rev: "Review", done: "Done", upload: "Upload V1", wait: "Waiting", delShot: "Delete Shot?", delAsset: "Delete Asset?", 
-    drawMode: "Draw Mode Active", draw: "Draw (Retake)", saveClose: "Save & Close", clearRetake: "Delete Retake", undo: "Undo", clearAll: "Clear", brush: "Brush:", 
-    start: "Start", stopSave: "Stop & Save", task: "-- Select Task --", step: "-- Step --", 
-    danger: "Danger Zone", delProj: "Delete Project", keysInfo: "To allow remote members to upload 4K media for free, paste your free Cloudinary credentials here:", 
-    saveKeys: "Save Project Keys", reqSeq: "Sequence must be SQ + at least 2 digits (e.g., SQ01).", reqScene: "Scene must be SC + at least 3 digits (e.g., SC001).", cancel: "Cancel", delVersion: "Delete version?"
+    addShot: "Add Shot", addAsset: "Add Asset", seq: "Sequence", scene: "Scene", shotName: "Name", assign: "Assign", unassigned: "Unassigned", 
+    todo: "To Do", wip: "WIP", rev: "Review", reuse: "Reuse", done: "Done", upload: "Upload V1", wait: "Waiting", delShot: "Delete Shot?", delAsset: "Delete Asset?", 
+    drawMode: "Drawing", draw: "Draw (Retake)", saveClose: "Save & Close", clearRetake: "Delete Retake", undo: "Undo", clearAll: "Clear", brush: "Brush:", 
+    start: "Start", stopSave: "Stop & Save", task: "-- Select Task --", step: "-- Step --", export: "Export CSV",
+    danger: "Danger Zone", delProj: "Delete Project", keysInfo: "To allow remote members to upload 4K media for free, paste your Cloudinary credentials:", 
+    saveKeys: "Save Keys", reqSeq: "Sequence: SQ + 2 digits (SQ01).", reqScene: "Scene: SC + 3 digits (SC001).", cancel: "Cancel", delVersion: "Delete version?"
   },
   fr: {
     app: "Fabrica Tracker", login: "Connexion", register: "Inscription", pseudo: "Pseudo (Obligatoire)", email: "Email", pwd: "Mot de passe", connect: "Se connecter", createAcc: "Créer un compte", 
-    dash: "Tableau de bord", myProj: "Mes Projets", noProj: "Aucun projet rejoint.", role: "Rôle", createProj: "Créer un projet", joinProj: "Rejoindre un projet", projName: "Nom du projet", 
+    dash: "Tableau de bord", myProj: "Mes Projets", noProj: "Aucun projet.", role: "Rôle", createProj: "Créer un projet", joinProj: "Rejoindre un projet", projName: "Nom du projet", 
     prod2d: "Production 2D", prod3d: "Production 3D", create: "Créer", joinCode: "Code d'invitation", join: "Rejoindre", profile: "Mon Profil", saveModifs: "Enregistrer", 
     shots: "Plans (Shots)", assets: "Assets", review: "Review & Retake", time: "Chronomètre", stats: "Statistiques", team: "Équipe", settings: "Paramètres", back: "Projets", logout: "Quitter", 
-    addShot: "Ajouter un Shot", addAsset: "Ajouter un Asset", seq: "Séquence", scene: "Scène", shotName: "Nom du Shot", assign: "-- Assigner --", unassigned: "Non assigné", 
-    todo: "À faire", wip: "En cours", rev: "Review", done: "Terminé", upload: "Upload V1", wait: "En attente", delShot: "Supprimer ce Shot ?", delAsset: "Supprimer cet Asset ?", 
-    drawMode: "Mode Dessin Actif", draw: "Dessiner (Retake)", saveClose: "Sauver et Fermer", clearRetake: "Effacer le Retake (BDD)", undo: "Annuler", clearAll: "Tout effacer", brush: "Pinceau :", 
-    start: "Démarrer", stopSave: "Stop & Save", task: "-- Sélectionner Tâche --", step: "-- Étape --", 
-    danger: "Zone de danger", delProj: "Supprimer le projet", keysInfo: "Pour autoriser les membres distants à envoyer des médias 4K gratuitement, colle les identifiants Cloudinary :", 
-    saveKeys: "Sauvegarder les clés", reqSeq: "La séquence doit être SQ + min 2 chiffres (ex: SQ01).", reqScene: "La scène doit être SC + min 3 chiffres (ex: SC001).", cancel: "Annuler", delVersion: "Supprimer cette version ?"
+    addShot: "Ajouter Shot", addAsset: "Ajouter Asset", seq: "Séquence", scene: "Scène", shotName: "Nom", assign: "Assigner", unassigned: "Non assigné", 
+    todo: "À faire", wip: "En cours", rev: "Review", reuse: "Réutiliser", done: "Terminé", upload: "Upload V1", wait: "En attente", delShot: "Supprimer ce Shot ?", delAsset: "Supprimer cet Asset ?", 
+    drawMode: "Dessin Actif", draw: "Dessiner (Retake)", saveClose: "Sauver & Fermer", clearRetake: "Effacer Retake", undo: "Annuler", clearAll: "Tout effacer", brush: "Pinceau :", 
+    start: "Démarrer", stopSave: "Stop & Save", task: "-- Sélectionner Tâche --", step: "-- Étape --", export: "Export CSV",
+    danger: "Zone de danger", delProj: "Supprimer le projet", keysInfo: "Pour autoriser l'upload 4K gratuit, configure les clés Cloudinary :", 
+    saveKeys: "Sauvegarder", reqSeq: "Séquence : SQ + 2 chiffres (SQ01).", reqScene: "Scène : SC + 3 chiffres (SC001).", cancel: "Annuler", delVersion: "Supprimer cette version ?"
   }
 };
 
@@ -91,19 +91,16 @@ export default function App() {
   const [authName, setAuthName] = useState('');
   const [authMode, setAuthMode] = useState('login');
 
-  // Timer
   const [timer, setTimer] = useState(0);
   const [isTimerActive, setIsTimerActive] = useState(false);
   const [selectedTask, setSelectedTask] = useState('');
   const [selectedStep, setSelectedStep] = useState('');
 
-  // Modals
   const [showAddShot, setShowAddShot] = useState(false);
   const [addSeq, setAddSeq] = useState('SQ01');
   const [addScene, setAddScene] = useState('SC001');
   const [addName, setAddName] = useState('SH010');
 
-  // Review
   const [reviewShot, setReviewShot] = useState(null);
   const [reviewStep, setReviewStep] = useState(null);
   const [reviewVersion, setReviewVersion] = useState(null);
@@ -120,6 +117,8 @@ export default function App() {
   const [strokes, setStrokes] = useState([]);
   const [currentStroke, setCurrentStroke] = useState(null);
   const [uploadingMedia, setUploadingMedia] = useState(false);
+
+  const [showNotifications, setShowNotifications] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -150,6 +149,14 @@ export default function App() {
     setCloudNameInput(workspace.cloudinaryCloudName || ''); setUploadPresetInput(workspace.cloudinaryUploadPreset || '');
     return () => { unsubShots(); unsubAssets(); unsubMembers(); unsubLogs(); };
   }, [workspace]);
+
+  // Sync reviewShot with live DB to instantly remove red dots
+  useEffect(() => {
+    if (reviewShot) {
+      const freshShot = shots.find(s => s.id === reviewShot.id);
+      if (freshShot) setReviewShot(freshShot);
+    }
+  }, [shots]);
 
   useEffect(() => {
     let interval = null;
@@ -200,8 +207,8 @@ export default function App() {
   };
 
   const deleteProject = async () => {
-    const conf = window.prompt(`Type "${workspace.name}" to delete:`);
-    if (conf === workspace.name) {
+    const conf = window.prompt(`Type "${workspace?.name}" to delete:`);
+    if (conf === workspace?.name) {
       const snap = await getDocs(query(collection(db, 'projectMembers'), where('workspaceId', '==', workspace.id)));
       snap.forEach(d => deleteDoc(d.ref));
       await deleteDoc(doc(db, 'workspaces', workspace.id));
@@ -223,10 +230,37 @@ export default function App() {
     await updateDoc(doc(db, 'shots', shotId), { [`previews.${step}`]: newVersions });
   };
 
+  const handleStopTimer = async () => {
+    setIsTimerActive(false);
+    if (timer > 0 && selectedTask && selectedStep && workspace) {
+      try {
+        const taskName = [...shots, ...assets].find(t => t.id === selectedTask)?.name || 'Inconnu';
+        await addDoc(collection(db, 'timeLogs'), {
+          workspaceId: workspace.id, userId: user.uid, userName: userData.displayName, taskId: selectedTask, taskName: taskName, step: selectedStep, durationSeconds: timer, date: serverTimestamp()
+        });
+        setTimer(0); alert('Temps enregistré !');
+      } catch (err) { alert(err.message); }
+    }
+  };
+
+  // ASSIGN MULTIPLE USERS
+  const getAssignees = (item, step) => Array.isArray(item.assignedTo?.[step]) ? item.assignedTo[step] : (item.assignedTo?.[step] ? [item.assignedTo[step]] : []);
+  
+  const addAssignee = async (collectionName, id, step, userId) => {
+    const item = collectionName === 'shots' ? shots.find(s=>s.id===id) : assets.find(a=>a.id===id);
+    const current = getAssignees(item, step);
+    if(!current.includes(userId)) await updateDoc(doc(db, collectionName, id), { [`assignedTo.${step}`]: [...current, userId] });
+  };
+
+  const removeAssignee = async (collectionName, id, step, userId) => {
+    const item = collectionName === 'shots' ? shots.find(s=>s.id===id) : assets.find(a=>a.id===id);
+    const current = getAssignees(item, step);
+    await updateDoc(doc(db, collectionName, id), { [`assignedTo.${step}`]: current.filter(u => u !== userId) });
+  };
+
   // UPLOAD CLOUDINARY
   const uploadMediaToCloud = async (file) => {
-    const cloudName = workspace?.cloudinaryCloudName;
-    const uploadPreset = workspace?.cloudinaryUploadPreset;
+    const cloudName = workspace?.cloudinaryCloudName; const uploadPreset = workspace?.cloudinaryUploadPreset;
     if (!cloudName || !uploadPreset) { alert("Missing Cloudinary Keys in Settings!"); return null; }
     const formData = new FormData(); formData.append('file', file); formData.append('upload_preset', uploadPreset);
     const resourceType = file.type.startsWith('video') ? 'video' : 'image';
@@ -248,12 +282,20 @@ export default function App() {
     setUploadingMedia(false);
   };
 
-  const uploadAssetMedia = async (assetId, file) => {
-    if (!file) return; setUploadingMedia(true);
+  const uploadAssetPreviews = async (assetId, filesList, currentVersions = []) => {
+    if(!filesList || filesList.length === 0) return; setUploadingMedia(true);
     try {
-      const uploaded = await uploadMediaToCloud(file);
-      if (uploaded?.url) await updateDoc(doc(db, 'assets', assetId), { fileUrl: uploaded.url });
-    } catch(err) {}
+      const files = Array.from(filesList);
+      const uploadedFiles = [];
+      for(const f of files) {
+        const res = await uploadMediaToCloud(f);
+        if(res) uploadedFiles.push(res);
+      }
+      if (uploadedFiles.length > 0) {
+        const newV = { version: currentVersions.length + 1, files: uploadedFiles, date: new Date().toISOString() };
+        await updateDoc(doc(db, 'assets', assetId), { previews: [...currentVersions, newV] });
+      }
+    } catch(err) { alert(err.message); }
     setUploadingMedia(false);
   };
 
@@ -273,17 +315,13 @@ export default function App() {
   }, [videoProgress, reviewShot, reviewStep, reviewVersion]);
 
   const drawOnCanvas = () => {
-    const canvas = canvasRef.current;
-    if(!canvas) return;
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.lineCap = 'round';
+    const canvas = canvasRef.current; if(!canvas) return;
+    const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.lineCap = 'round';
     const allStrokes = currentStroke ? [...strokes, currentStroke] : strokes;
     allStrokes.forEach(stroke => {
       if(!stroke || !stroke.points || stroke.points.length < 2) return;
       ctx.strokeStyle = 'red'; ctx.lineWidth = stroke.size || 3;
-      ctx.beginPath();
-      ctx.moveTo(stroke.points[0].x * canvas.width, stroke.points[0].y * canvas.height);
+      ctx.beginPath(); ctx.moveTo(stroke.points[0].x * canvas.width, stroke.points[0].y * canvas.height);
       for(let i=1; i<stroke.points.length; i++) ctx.lineTo(stroke.points[i].x * canvas.width, stroke.points[i].y * canvas.height);
       ctx.stroke();
     });
@@ -320,6 +358,22 @@ export default function App() {
     setStrokes([]);
   };
 
+  // CSV EXPORT
+  const exportCSV = () => {
+    if(!workspace) return;
+    let csv = `Sequence,Scene,Shot Name,${workspace.pipeline.join(",")}\n`;
+    shots.forEach(s => {
+       let row = `${s.sequence},${s.scene},${s.name}`;
+       workspace.pipeline.forEach(step => { row += `,${s.status?.[step] || 'todo'}`; });
+       csv += row + "\n";
+    });
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url; link.download = `${workspace.name.replace(/\s+/g, '_')}_export.csv`;
+    document.body.appendChild(link); link.click(); document.body.removeChild(link);
+  };
+
   // HELPERS
   const canAssign = ['Admin', 'Supervisor'].includes(userRole);
   const getThumbnail = (obj) => obj ? (obj.type === 'video' ? obj.url.replace(/\.[^/.]+$/, ".jpg") : obj.url) : "";
@@ -328,12 +382,27 @@ export default function App() {
     switch(st) {
       case 'wip': return 'bg-blue-900/40 text-blue-400 border-blue-700';
       case 'review': return 'bg-purple-900/40 text-purple-400 border-purple-700';
+      case 'reuse': return 'bg-orange-900/40 text-orange-400 border-orange-700';
       case 'done': return 'bg-green-900/40 text-green-400 border-green-700';
       default: return 'bg-slate-900 text-slate-400 border-slate-700';
     }
   };
 
-  // GROUPING
+  // NOTIFICATIONS (Shots in review)
+  const pendingReviews = shots.filter(s => workspace?.pipeline?.some(step => s.status?.[step] === 'review'));
+
+  // STATS MY TASKS
+  const myAssignedTasks = shots.filter(s => workspace?.pipeline?.some(step => getAssignees(s, step).includes(user?.uid)));
+  const myStats = { todo: 0, wip: 0, review: 0, reuse: 0, done: 0 };
+  myAssignedTasks.forEach(s => {
+    workspace?.pipeline?.forEach(step => {
+      if(getAssignees(s, step).includes(user?.uid)) {
+        const st = s.status?.[step] || 'todo';
+        if(myStats[st] !== undefined) myStats[st]++;
+      }
+    });
+  });
+
   const groupedShots = shots.reduce((acc, s) => { (acc[s.sequence] = acc[s.sequence] || []).push(s); return acc; }, {});
   const sortedSeqs = Object.keys(groupedShots).sort();
   const groupedAssets = assets.reduce((acc, a) => { (acc[a.category] = acc[a.category] || []).push(a); return acc; }, {});
@@ -434,8 +503,8 @@ export default function App() {
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
           <form onSubmit={handleAddShot} className="bg-slate-900 p-6 rounded-xl border border-slate-800 w-full max-w-sm space-y-4 shadow-2xl">
             <h3 className="font-bold text-lg mb-2">{t('addShot')}</h3>
-            <div><label className="text-xs text-slate-400">{t('seq')} (Ex: SQ01)</label><input type="text" value={addSeq} onChange={(e)=>setAddSeq(e.target.value.toUpperCase())} className="w-full p-2 mt-1 bg-slate-950 border border-slate-800 rounded font-mono" required/></div>
-            <div><label className="text-xs text-slate-400">{t('scene')} (Ex: SC001)</label><input type="text" value={addScene} onChange={(e)=>setAddScene(e.target.value.toUpperCase())} className="w-full p-2 mt-1 bg-slate-950 border border-slate-800 rounded font-mono" required/></div>
+            <div><label className="text-xs text-slate-400">{t('seq')}</label><input type="text" value={addSeq} onChange={(e)=>setAddSeq(e.target.value.toUpperCase())} className="w-full p-2 mt-1 bg-slate-950 border border-slate-800 rounded font-mono" required/></div>
+            <div><label className="text-xs text-slate-400">{t('scene')}</label><input type="text" value={addScene} onChange={(e)=>setAddScene(e.target.value.toUpperCase())} className="w-full p-2 mt-1 bg-slate-950 border border-slate-800 rounded font-mono" required/></div>
             <div><label className="text-xs text-slate-400">{t('shotName')}</label><input type="text" value={addName} onChange={(e)=>setAddName(e.target.value.toUpperCase())} className="w-full p-2 mt-1 bg-slate-950 border border-slate-800 rounded font-mono" required/></div>
             <div className="flex space-x-3 pt-2">
               <button type="button" onClick={() => setShowAddShot(false)} className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 rounded font-bold">{t('cancel')}</button>
@@ -457,6 +526,10 @@ export default function App() {
             <button onClick={() => setActiveTab('stats')} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'stats' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}><BarChart size={18} /> <span className="hidden md:inline font-medium">{t('stats')}</span></button>
             <button onClick={() => setActiveTab('team')} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'team' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}><Users size={18} /> <span className="hidden md:inline font-medium">{t('team')}</span></button>
             {userRole === 'Admin' && <button onClick={() => setActiveTab('settings')} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'settings' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}><Settings size={18} /> <span className="hidden md:inline font-medium">{t('settings')}</span></button>}
+            
+            <div className="pt-4 mt-4 border-t border-slate-800">
+              <button onClick={exportCSV} className="w-full flex items-center space-x-3 p-2 rounded text-emerald-400 hover:bg-emerald-900/30 transition-colors"><Download size={18} /> <span className="hidden md:inline font-medium">{t('export')}</span></button>
+            </div>
           </nav>
         </div>
         <div className="flex flex-col space-y-4">
@@ -468,9 +541,33 @@ export default function App() {
 
       <main className="flex-1 p-6 overflow-x-auto relative">
         {uploadingMedia && <div className="fixed top-4 right-4 bg-blue-600 px-4 py-2 rounded text-sm animate-pulse shadow-lg z-50">Upload...</div>}
+        
         <header className="mb-6 flex justify-between items-center border-b border-slate-800 pb-4">
           <h2 className="text-2xl font-bold tracking-tight">{t(activeTab)}</h2>
-          <p className="text-xs text-slate-400 uppercase tracking-wider">{t('role')} : <span className="text-blue-400 font-bold ml-1">{userRole}</span></p>
+          <div className="flex items-center space-x-6">
+            
+            {/* NOTIFICATIONS (Review) */}
+            {['Admin', 'Supervisor'].includes(userRole) && (
+              <div className="relative">
+                <button onClick={() => setShowNotifications(!showNotifications)} className="relative p-2 text-slate-400 hover:text-white transition">
+                  <Bell size={20} />
+                  {pendingReviews.length > 0 && <span className="absolute top-0 right-0 w-4 h-4 bg-red-500 text-[10px] font-bold rounded-full flex items-center justify-center text-white">{pendingReviews.length}</span>}
+                </button>
+                {showNotifications && (
+                  <div className="absolute top-10 right-0 w-64 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl z-50 p-3 max-h-64 overflow-y-auto">
+                    <h4 className="text-sm font-bold border-b border-slate-800 pb-2 mb-2">Pending Reviews</h4>
+                    {pendingReviews.length === 0 ? <p className="text-xs text-slate-500">All clear!</p> : pendingReviews.map(s => (
+                      <div key={s.id} className="text-xs p-2 bg-slate-950 rounded mb-1 border border-slate-800 cursor-pointer hover:bg-slate-800" onClick={()=>{setActiveTab('shots'); setShowNotifications(false);}}>
+                        <span className="font-bold text-blue-400">{s.name}</span> is ready for review.
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <p className="text-xs text-slate-400 uppercase tracking-wider">{t('role')} : <span className="text-blue-400 font-bold ml-1">{userRole}</span></p>
+          </div>
         </header>
 
         {/* ONGLET SHOTS */}
@@ -486,7 +583,7 @@ export default function App() {
                     <thead>
                       <tr className="border-b border-slate-800 text-slate-500 text-xs uppercase bg-slate-900">
                         <th className="p-3 sticky left-0 bg-slate-900 z-10 w-48 font-semibold">{t('scene')} / {t('shotName')}</th>
-                        {workspace?.pipeline?.map(step => <th key={step} className="p-3 min-w-[220px] border-l border-slate-800 font-semibold">{step}</th>)}
+                        {workspace?.pipeline?.map(step => <th key={step} className="p-3 min-w-[240px] border-l border-slate-800 font-semibold">{step}</th>)}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/50">
@@ -499,8 +596,8 @@ export default function App() {
                             </div>
                           </td>
                           {workspace?.pipeline?.map(step => {
-                            const isAssigned = s.assignedTo?.[step] === user.uid;
-                            const canUpload = isAssigned || canAssign;
+                            const assignees = getAssignees(s, step);
+                            const canUpload = assignees.includes(user.uid) || canAssign;
                             const versions = Array.isArray(s.previews?.[step]) ? s.previews[step] : [];
                             const activeIdx = selectedVersions[`${s.id}_${step}`] ?? (versions.length > 0 ? versions.length - 1 : -1);
                             const activePreview = activeIdx >= 0 ? versions[activeIdx] : null;
@@ -508,14 +605,24 @@ export default function App() {
                             return (
                               <td key={step} className="p-3 border-l border-slate-800/50 align-top space-y-2">
                                 <div className="flex flex-col space-y-1.5">
-                                  {canAssign ? (
-                                    <select className="bg-slate-950 border border-slate-800 rounded p-1 text-xs text-blue-300 outline-none" value={s.assignedTo?.[step] || ''} onChange={async (e) => await updateDoc(doc(db, 'shots', s.id), { [`assignedTo.${step}`]: e.target.value })}>
-                                      <option value="">{t('assign')}</option>{members.map(m => <option key={m.userId} value={m.userId}>{m.displayName}</option>)}
-                                    </select>
-                                  ) : <span className="text-xs text-blue-400 px-1 truncate">{members.find(m => m.userId === s.assignedTo?.[step])?.displayName || t('unassigned')}</span>}
+                                  {/* ASSIGNATIONS MULTIPLES */}
+                                  <div className="flex flex-wrap gap-1">
+                                    {assignees.map(uid => (
+                                      <span key={uid} onClick={() => canAssign && removeAssignee('shots', s.id, step, uid)} className={`text-[10px] px-1.5 py-0.5 rounded flex items-center font-bold ${canAssign ? 'cursor-pointer bg-blue-900/40 text-blue-300 hover:bg-red-900/50 hover:text-red-300' : 'bg-slate-800 text-slate-400'}`}>
+                                        {members.find(m => m.userId === uid)?.displayName || t('unassigned')} {canAssign && <X size={10} className="ml-1"/>}
+                                      </span>
+                                    ))}
+                                  </div>
                                   
+                                  {canAssign && (
+                                    <select className="bg-slate-950 border border-slate-800 rounded p-1 text-xs text-slate-400 outline-none w-full" value="" onChange={(e) => { if(e.target.value) addAssignee('shots', s.id, step, e.target.value) }}>
+                                      <option value="">+ {t('assign')}</option>
+                                      {members.filter(m => !assignees.includes(m.userId)).map(m => <option key={m.userId} value={m.userId}>{m.displayName}</option>)}
+                                    </select>
+                                  )}
+
                                   <select className={`rounded p-1 text-xs font-semibold outline-none transition-colors border ${getStatusColor(s.status?.[step])}`} value={s.status?.[step] || 'todo'} onChange={async (e) => await updateDoc(doc(db, 'shots', s.id), { [`status.${step}`]: e.target.value })}>
-                                    <option value="todo">{t('todo')}</option><option value="wip">{t('wip')}</option><option value="review">{t('rev')}</option><option value="done">{t('done')}</option>
+                                    <option value="todo">{t('todo')}</option><option value="wip">{t('wip')}</option><option value="review">{t('rev')}</option><option value="reuse">{t('reuse')}</option><option value="done">{t('done')}</option>
                                   </select>
                                 </div>
                                 
@@ -575,23 +682,69 @@ export default function App() {
         {/* ONGLET ASSETS */}
         {activeTab === 'assets' && (
           <div className="space-y-8">
-            {canAssign && <button onClick={async () => { const n = prompt(t('shotName')); if (n) await addDoc(collection(db, 'assets'), { name: n, category: 'Model Design', workspaceId: workspace.id, assignedTo: '' }); }} className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded font-bold text-sm shadow-lg"><Plus size={16} /> <span>{t('addAsset')}</span></button>}
+            {canAssign && <button onClick={async () => { const n = prompt(t('shotName')); if (n) await addDoc(collection(db, 'assets'), { name: n, category: 'Model Design', workspaceId: workspace.id, assignedTo: {} }); }} className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded font-bold text-sm shadow-lg"><Plus size={16} /> <span>{t('addAsset')}</span></button>}
             
             {sortedCats.length === 0 ? <p className="text-slate-500 italic p-4 text-center">Aucun asset.</p> : sortedCats.map(cat => (
               <div key={cat} className="space-y-4">
                 <h3 className="font-black text-lg text-slate-300 border-b border-slate-800 pb-2">{cat}</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {groupedAssets[cat].map(a => (
+                  {groupedAssets[cat].map(a => {
+                    const assignees = getAssignees(a, 'Global');
+                    const canUpload = assignees.includes(user.uid) || canAssign;
+                    const versions = Array.isArray(a.previews) ? a.previews : [];
+                    const activeIdx = selectedVersions[`asset_${a.id}`] ?? (versions.length > 0 ? versions.length - 1 : -1);
+                    const activePreview = activeIdx >= 0 ? versions[activeIdx] : null;
+
+                    return (
                     <div key={a.id} className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden flex flex-col relative group shadow-sm hover:border-slate-700 transition">
                       {canAssign && <button onClick={() => { if(window.confirm(t('delAsset'))) deleteDoc(doc(db, 'assets', a.id)) }} className="absolute top-2 right-2 bg-black/60 p-1.5 rounded text-slate-300 hover:text-red-500 z-10 opacity-0 group-hover:opacity-100 transition"><Trash2 size={14}/></button>}
-                      {a.fileUrl ? <img src={a.fileUrl} className="w-full h-40 object-cover bg-black" /> : <label className="w-full h-40 bg-slate-950 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-900 text-slate-600 transition"><Upload size={24} className="mb-2"/> <span className="text-xs font-medium">Upload Image</span><input type="file" accept="image/*" className="hidden" onChange={(e)=>uploadAssetMedia(a.id, e.target.files[0])}/></label>}
+                      
+                      {activePreview && activePreview.files?.length > 0 ? (
+                        <div className="relative w-full h-40 bg-black overflow-hidden flex overflow-x-auto snap-x">
+                          {activePreview.files.map((file, i) => (
+                             <img key={i} src={file.url} className="w-full h-full object-cover shrink-0 snap-center" />
+                          ))}
+                          <div className="absolute bottom-1 right-1 bg-black/70 text-xs px-1.5 rounded text-slate-300">{activePreview.files.length} img</div>
+                        </div>
+                      ) : (
+                        <label className="w-full h-40 bg-slate-950 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-900 text-slate-600 transition">
+                          <Upload size={24} className="mb-2"/> <span className="text-xs font-medium">Upload V1 (Multiple)</span>
+                          <input type="file" multiple accept="image/*" className="hidden" onChange={(e)=>uploadAssetPreviews(a.id, e.target.files, versions)}/>
+                        </label>
+                      )}
+
                       <div className="p-3 space-y-2">
-                        <div className="font-bold text-sm truncate">{a.name}</div>
+                        <div className="flex justify-between items-center">
+                          <div className="font-bold text-sm truncate pr-2">{a.name}</div>
+                          {versions.length > 0 && (
+                            <div className="flex items-center space-x-1">
+                              {canUpload && <label className="cursor-pointer text-blue-400 hover:text-blue-300" title="Nouvelle Version (Multi-images)"><Plus size={14}/><input type="file" multiple accept="image/*" className="hidden" onChange={(e)=>uploadAssetPreviews(a.id, e.target.files, versions)}/></label>}
+                              <select value={activeIdx} onChange={(e) => setSelectedVersions({...selectedVersions, [`asset_${a.id}`]: parseInt(e.target.value)})} className="bg-transparent text-xs font-bold text-slate-400 outline-none">
+                                {versions.map((v, i) => <option key={i} value={i} className="bg-slate-900">V{v.version}</option>)}
+                              </select>
+                            </div>
+                          )}
+                        </div>
+                        
                         {canAssign ? <select className="bg-slate-950 border border-slate-800 rounded p-1 text-xs w-full outline-none" value={a.category || ''} onChange={async (e) => await updateDoc(doc(db, 'assets', a.id), { category: e.target.value })}>{ASSET_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}</select> : <div className="text-xs text-slate-400">{a.category}</div>}
-                        {canAssign ? <select className="bg-slate-950 border border-slate-800 rounded p-1 text-xs text-blue-300 w-full outline-none" value={a.assignedTo || ''} onChange={async (e) => await updateDoc(doc(db, 'assets', a.id), { assignedTo: e.target.value })}><option value="">{t('assign')}</option>{members.map(m => <option key={m.userId} value={m.userId}>{m.displayName}</option>)}</select> : <div className="text-xs text-blue-400 truncate">{members.find(m => m.userId === a.assignedTo)?.displayName || t('unassigned')}</div>}
+                        
+                        {/* Assignation */}
+                        <div className="flex flex-wrap gap-1 pt-1">
+                          {assignees.map(uid => (
+                            <span key={uid} onClick={() => canAssign && removeAssignee('assets', a.id, 'Global', uid)} className={`text-[10px] px-1.5 py-0.5 rounded flex items-center font-bold ${canAssign ? 'cursor-pointer bg-blue-900/40 text-blue-300 hover:bg-red-900/50 hover:text-red-300' : 'bg-slate-800 text-slate-400'}`}>
+                              {members.find(m => m.userId === uid)?.displayName || uid} {canAssign && <X size={10} className="ml-1"/>}
+                            </span>
+                          ))}
+                        </div>
+                        {canAssign && (
+                          <select className="bg-slate-950 border border-slate-800 rounded p-1 text-xs text-slate-400 outline-none w-full" value="" onChange={(e) => { if(e.target.value) addAssignee('assets', a.id, 'Global', e.target.value) }}>
+                            <option value="">+ {t('assign')}</option>
+                            {members.filter(m => !assignees.includes(m.userId)).map(m => <option key={m.userId} value={m.userId}>{m.displayName}</option>)}
+                          </select>
+                        )}
                       </div>
                     </div>
-                  ))}
+                  )})}
                 </div>
               </div>
             ))}
@@ -604,7 +757,7 @@ export default function App() {
             {!reviewShot ? (
               <div className="flex flex-col items-center justify-center mt-32 text-slate-500 space-y-4">
                 <div className="w-24 h-24 bg-slate-900 rounded-full flex items-center justify-center border border-slate-800"><MonitorPlay size={40} className="text-slate-600" /></div>
-                <p className="font-medium text-lg">Cliquez sur la miniature d'un Shot pour lancer la review.</p>
+                <p className="font-medium text-lg">Sélectionnez une miniature pour Review.</p>
               </div>
             ) : (
               <div className="w-full flex flex-col h-[calc(100vh-8rem)]">
@@ -615,12 +768,11 @@ export default function App() {
                   </div>
                   
                   <div className="flex flex-wrap gap-3 justify-end items-center">
-                    {/* Boite à outils Dessin (Si Actif) */}
                     {isDrawing && (
                       <div className="flex bg-slate-950 border border-slate-800 rounded p-1 space-x-1 mr-2">
                         <div className="px-2 flex items-center border-r border-slate-800 space-x-2">
                           <span className="text-xs text-slate-500 font-bold">{t('brush')}</span>
-                          {[1, 3, 6].map(sz => (
+                          {[2, 4, 8].map(sz => (
                             <button key={sz} onClick={() => setBrushSize(sz)} className={`w-6 h-6 rounded-full flex items-center justify-center ${brushSize === sz ? 'bg-slate-700' : 'hover:bg-slate-800'}`}>
                               <div className="bg-red-500 rounded-full" style={{ width: sz+2, height: sz+2 }}></div>
                             </button>
@@ -636,7 +788,6 @@ export default function App() {
                     </button>
                     {isDrawing && <button onClick={saveAnnotations} className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-500 px-4 py-2.5 rounded font-bold text-sm transition shadow"><Save size={16} /> <span>{t('saveClose')}</span></button>}
                     
-                    {/* Bouton Effacer BDD */}
                     {strokes.length > 0 && <button onClick={deleteRetakeFromDB} className="flex items-center space-x-1 px-3 py-2.5 rounded font-bold text-sm text-red-400 hover:bg-red-950 transition border border-red-900/50" title={t('clearRetake')}><X size={16} /> <span className="hidden md:inline">{t('clearRetake')}</span></button>}
                   </div>
                 </div>
@@ -649,6 +800,10 @@ export default function App() {
                   )}
                   
                   <canvas ref={canvasRef} onMouseDown={startDraw} onMouseMove={onDraw} onMouseUp={endDraw} onMouseLeave={endDraw} onTouchStart={startDraw} onTouchMove={onDraw} onTouchEnd={endDraw} className={`absolute top-0 left-0 w-full h-full z-10 ${isDrawing ? 'cursor-crosshair pointer-events-auto' : 'pointer-events-none'}`} width={1920} height={1080} style={{ width: '100%', height: '100%' }} />
+
+                  {reviewPreview.type !== 'video' && reviewShot.annotations?.[reviewStep]?.[`v${reviewVersion}`]?.['image'] && (
+                    <div className="absolute bottom-4 left-4 w-4 h-4 bg-red-600 rounded-full animate-pulse z-20 shadow-lg border-2 border-black" title="Retake requis"></div>
+                  )}
                 </div>
 
                 {reviewPreview.type === 'video' && (
@@ -674,7 +829,6 @@ export default function App() {
           </div>
         )}
 
-        {/* TIME & STATS & TEAM (Idem, using translations) */}
         {activeTab === 'time' && (
           <div className="max-w-md mx-auto bg-slate-900 border border-slate-800 p-8 rounded-2xl space-y-8 mt-10 shadow-xl">
             <h3 className="font-black text-xl text-center">{t('time')}</h3>
@@ -700,16 +854,36 @@ export default function App() {
         )}
 
         {activeTab === 'stats' && (
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-sm">
-            <h3 className="font-black text-xl mb-6 flex items-center text-blue-400"><BarChart className="mr-3"/> {t('stats')}</h3>
-            <table className="w-full text-left text-sm whitespace-nowrap">
-              <thead><tr className="border-b border-slate-800 text-slate-500 text-xs uppercase bg-slate-950">{canAssign && <th className="p-3 rounded-tl">Membre</th>}<th className="p-3">Tâche</th><th className="p-3">Étape</th><th className="p-3 rounded-tr">Temps</th></tr></thead>
-              <tbody className="divide-y divide-slate-800/50">
-                {timeLogs.filter(log => canAssign || log.userId === user.uid).sort((a,b) => b.date - a.date).map(log => (
-                  <tr key={log.id} className="hover:bg-slate-800/20">{canAssign && <td className="p-3 font-medium">{log.userName}</td>}<td className="p-3">{log.taskName}</td><td className="p-3 text-slate-400">{log.step}</td><td className="p-3 text-blue-400 font-mono font-bold">{formatTime(log.durationSeconds)}</td></tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center">
+                <div className="text-3xl font-black text-slate-300">{myStats.todo}</div><div className="text-xs font-bold text-slate-500 uppercase">{t('todo')}</div>
+              </div>
+              <div className="bg-blue-900/30 border border-blue-800 rounded-xl p-4 text-center">
+                <div className="text-3xl font-black text-blue-400">{myStats.wip}</div><div className="text-xs font-bold text-blue-500 uppercase">{t('wip')}</div>
+              </div>
+              <div className="bg-purple-900/30 border border-purple-800 rounded-xl p-4 text-center">
+                <div className="text-3xl font-black text-purple-400">{myStats.review}</div><div className="text-xs font-bold text-purple-500 uppercase">{t('rev')}</div>
+              </div>
+              <div className="bg-orange-900/30 border border-orange-800 rounded-xl p-4 text-center">
+                <div className="text-3xl font-black text-orange-400">{myStats.reuse}</div><div className="text-xs font-bold text-orange-500 uppercase">{t('reuse')}</div>
+              </div>
+              <div className="bg-green-900/30 border border-green-800 rounded-xl p-4 text-center">
+                <div className="text-3xl font-black text-green-400">{myStats.done}</div><div className="text-xs font-bold text-green-500 uppercase">{t('done')}</div>
+              </div>
+            </div>
+
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-sm">
+              <h3 className="font-black text-xl mb-6 flex items-center text-blue-400"><BarChart className="mr-3"/> Chrono Logs</h3>
+              <table className="w-full text-left text-sm whitespace-nowrap">
+                <thead><tr className="border-b border-slate-800 text-slate-500 text-xs uppercase bg-slate-950">{canAssign && <th className="p-3 rounded-tl">Membre</th>}<th className="p-3">Tâche</th><th className="p-3">Étape</th><th className="p-3 rounded-tr">Temps</th></tr></thead>
+                <tbody className="divide-y divide-slate-800/50">
+                  {timeLogs.filter(log => canAssign || log.userId === user.uid).sort((a,b) => b.date - a.date).map(log => (
+                    <tr key={log.id} className="hover:bg-slate-800/20">{canAssign && <td className="p-3 font-medium">{log.userName}</td>}<td className="p-3">{log.taskName}</td><td className="p-3 text-slate-400">{log.step}</td><td className="p-3 text-blue-400 font-mono font-bold">{formatTime(log.durationSeconds)}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
@@ -731,7 +905,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ONGLET PARAMETRES */}
+        {/* ONGLET PARAMETRES : SEULEMENT ADMIN */}
         {activeTab === 'settings' && userRole === 'Admin' && (
           <div className="space-y-6 max-w-2xl">
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-sm">
