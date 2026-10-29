@@ -41,7 +41,7 @@ const dict = {
     todo: "To Do", wip: "WIP", rev: "Review", reuse: "Reuse", done: "Done", upload: "Upload V1", wait: "Waiting", delShot: "Delete Shot?", delAsset: "Delete Asset?", 
     drawMode: "Drawing", draw: "Draw (Retake)", saveClose: "Save & Close", clearRetake: "Delete Retake", undo: "Undo", clearAll: "Clear", brush: "Brush:", 
     start: "Start", stopSave: "Stop & Save", task: "-- Select Task --", step: "-- Step --", export: "Export Excel",
-    danger: "Danger Zone", delProj: "Delete Project", keysInfo: "To allow remote members to upload 4K media for free, paste your Cloudinary credentials:", 
+    danger: "Danger Zone", delProj: "Delete Project", keysInfo: "To allow file uploads, configure Cloudinary keys:", 
     saveKeys: "Save Keys", reqSeq: "Sequence: SQ + 2 digits (SQ01).", reqScene: "Scene: SC + 3 digits (SC001).", cancel: "Cancel", delVersion: "Delete version?"
   },
   fr: {
@@ -53,7 +53,7 @@ const dict = {
     todo: "À faire", wip: "En cours", rev: "Review", reuse: "Réutiliser", done: "Terminé", upload: "Upload V1", wait: "En attente", delShot: "Supprimer ce Shot ?", delAsset: "Supprimer cet Asset ?", 
     drawMode: "Dessin Actif", draw: "Dessiner (Retake)", saveClose: "Sauver & Fermer", clearRetake: "Effacer Retake", undo: "Annuler", clearAll: "Tout effacer", brush: "Pinceau :", 
     start: "Démarrer", stopSave: "Stop & Save", task: "-- Sélectionner Tâche --", step: "-- Étape --", export: "Export Excel",
-    danger: "Zone de danger", delProj: "Supprimer le projet", keysInfo: "Pour autoriser l'upload 4K gratuit, configure les clés Cloudinary :", 
+    danger: "Zone de danger", delProj: "Supprimer le projet", keysInfo: "Pour autoriser l'upload de fichiers, configure les clés Cloudinary.", 
     saveKeys: "Sauvegarder", reqSeq: "Séquence : SQ + 2 chiffres (SQ01).", reqScene: "Scène : SC + 3 chiffres (SC001).", cancel: "Annuler", delVersion: "Supprimer cette version ?"
   }
 };
@@ -101,7 +101,9 @@ export default function App() {
   const [addScene, setAddScene] = useState('SC001');
   const [addName, setAddName] = useState('SH010');
 
-  const [reviewShot, setReviewShot] = useState(null);
+  // REVIEW STATES
+  const [reviewItem, setReviewItem] = useState(null);
+  const [reviewType, setReviewType] = useState('shots'); // 'shots' or 'assets'
   const [reviewStep, setReviewStep] = useState(null);
   const [reviewVersion, setReviewVersion] = useState(null);
   const [reviewPreview, setReviewPreview] = useState(null);
@@ -150,13 +152,13 @@ export default function App() {
     return () => { unsubShots(); unsubAssets(); unsubMembers(); unsubLogs(); };
   }, [workspace]);
 
-  // Sync reviewShot with live DB to instantly remove red dots
+  // Synchronisation dynamique du reviewItem pour actualiser les pastilles rouges en temps réel
   useEffect(() => {
-    if (reviewShot) {
-      const freshShot = shots.find(s => s.id === reviewShot.id);
-      if (freshShot) setReviewShot(freshShot);
+    if (reviewItem) {
+      const freshItem = reviewType === 'shots' ? shots.find(s => s.id === reviewItem.id) : assets.find(a => a.id === reviewItem.id);
+      if (freshItem) setReviewItem(freshItem);
     }
-  }, [shots]);
+  }, [shots, assets]);
 
   useEffect(() => {
     let interval = null;
@@ -224,10 +226,11 @@ export default function App() {
     setShowAddShot(false);
   };
 
-  const deletePreview = async (shotId, step, versionIndex, currentVersions) => {
+  const deletePreview = async (id, step, versionIndex, currentVersions, collectionType = 'shots') => {
     if(!window.confirm(t('delVersion'))) return;
     const newVersions = currentVersions.filter((_, i) => i !== versionIndex);
-    await updateDoc(doc(db, 'shots', shotId), { [`previews.${step}`]: newVersions });
+    const updateObj = collectionType === 'shots' ? { [`previews.${step}`]: newVersions } : { previews: newVersions };
+    await updateDoc(doc(db, collectionType, id), updateObj);
   };
 
   const handleStopTimer = async () => {
@@ -243,7 +246,7 @@ export default function App() {
     }
   };
 
-  // ASSIGN MULTIPLE USERS
+  // ASSIGNATIONS MULTIPLES
   const getAssignees = (item, step) => Array.isArray(item.assignedTo?.[step]) ? item.assignedTo[step] : (item.assignedTo?.[step] ? [item.assignedTo[step]] : []);
   
   const addAssignee = async (collectionName, id, step, userId) => {
@@ -258,7 +261,7 @@ export default function App() {
     await updateDoc(doc(db, collectionName, id), { [`assignedTo.${step}`]: current.filter(u => u !== userId) });
   };
 
-  // PARAMETRES (Stockage Cloudinary)
+  // PARAMETRES
   const saveStorageSettings = async (e) => {
     e.preventDefault();
     if (!workspace) return;
@@ -270,7 +273,7 @@ export default function App() {
     alert("Clés de stockage sauvegardées !");
   };
 
-  // UPLOAD CLOUDINARY
+  // UPLOAD MEDIA
   const uploadMediaToCloud = async (file) => {
     const cloudName = workspace?.cloudinaryCloudName; const uploadPreset = workspace?.cloudinaryUploadPreset;
     if (!cloudName || !uploadPreset) { alert("Missing Cloudinary Keys in Settings!"); return null; }
@@ -311,20 +314,25 @@ export default function App() {
     setUploadingMedia(false);
   };
 
-  // REVIEW & DRAWING
-  const openReview = (shot, step, version, previewObj) => {
-    setReviewShot(shot); setReviewStep(step); setReviewVersion(version); setReviewPreview(previewObj);
+  // REVIEW & DRAWING (Adapté Shots + Assets)
+  const openReview = (item, step, version, previewObj, type = 'shots') => {
+    setReviewItem(item); setReviewType(type); setReviewStep(step); setReviewVersion(version); setReviewPreview(previewObj);
     setActiveTab('review'); setStrokes([]); setCurrentStroke(null);
   };
 
-  const getAnnotationKey = () => (!reviewShot || !reviewStep || !reviewPreview) ? null : (reviewPreview.type === 'video' ? Math.floor(videoProgress * 24) : 'image');
+  const getAnnotationKey = () => {
+    if(!reviewItem || !reviewStep || !reviewPreview) return null;
+    if(reviewPreview.type === 'video') return Math.floor(videoProgress * 24);
+    if(reviewType === 'assets') return `image_${reviewPreview.fileIndex}`; // Index de l'image dans l'asset
+    return 'image';
+  };
 
   useEffect(() => {
     const key = getAnnotationKey();
-    if(key && reviewShot?.annotations?.[reviewStep]?.[`v${reviewVersion}`]?.[key]) {
-      setStrokes(JSON.parse(reviewShot.annotations[reviewStep][`v${reviewVersion}`][key]));
+    if(key && reviewItem?.annotations?.[reviewStep]?.[`v${reviewVersion}`]?.[key]) {
+      setStrokes(JSON.parse(reviewItem.annotations[reviewStep][`v${reviewVersion}`][key]));
     } else setStrokes([]);
-  }, [videoProgress, reviewShot, reviewStep, reviewVersion]);
+  }, [videoProgress, reviewItem, reviewStep, reviewVersion]);
 
   const drawOnCanvas = () => {
     const canvas = canvasRef.current; if(!canvas) return;
@@ -359,25 +367,33 @@ export default function App() {
   };
 
   const saveAnnotations = async () => {
-    const key = getAnnotationKey(); if(!key || !reviewShot) return;
-    await updateDoc(doc(db, 'shots', reviewShot.id), { [`annotations.${reviewStep}.v${reviewVersion}.${key}`]: JSON.stringify(strokes) });
-    setReviewShot(null); setActiveTab('shots');
+    const key = getAnnotationKey(); if(!key || !reviewItem) return;
+    await updateDoc(doc(db, reviewType, reviewItem.id), { [`annotations.${reviewStep}.v${reviewVersion}.${key}`]: JSON.stringify(strokes) });
+    setReviewItem(null); setActiveTab(reviewType); // Retourne à shots ou assets
   };
 
   const deleteRetakeFromDB = async () => {
-    const key = getAnnotationKey(); if(!key || !reviewShot) return;
-    await updateDoc(doc(db, 'shots', reviewShot.id), { [`annotations.${reviewStep}.v${reviewVersion}.${key}`]: deleteField() });
-    setStrokes([]);
+    const key = getAnnotationKey(); if(!key || !reviewItem) return;
+    
+    // Supprime de Firebase
+    await updateDoc(doc(db, reviewType, reviewItem.id), { [`annotations.${reviewStep}.v${reviewVersion}.${key}`]: deleteField() });
+    setStrokes([]); // Efface visuellement le trait
+    
+    // Mutation locale temporaire pour que le point rouge disparaisse instantanément sans attendre Firebase
+    if (reviewItem.annotations?.[reviewStep]?.[`v${reviewVersion}`]?.[key]) {
+      delete reviewItem.annotations[reviewStep][`v${reviewVersion}`][key];
+      setReviewItem({ ...reviewItem }); // Force le refresh
+    }
   };
 
-  // EXCEL EXPORT (Avec Couleurs)
-  const getExcelColor = (st) => {
+  // EXCEL EXPORT (Tableau HTML stylisé pour Excel avec bgcolor)
+  const getExcelStyle = (st) => {
     switch(st) {
-      case 'wip': return 'background-color: #bfdbfe; color: #1e40af; font-weight: bold;';
-      case 'review': return 'background-color: #e9d5ff; color: #6b21a8; font-weight: bold;';
-      case 'reuse': return 'background-color: #fed7aa; color: #c2410c; font-weight: bold;';
-      case 'done': return 'background-color: #bbf7d0; color: #166534; font-weight: bold;';
-      default: return 'background-color: #f1f5f9; color: #475569;'; // todo
+      case 'wip': return { bg: '#bfdbfe', css: 'background-color: #bfdbfe; color: #1e40af; font-weight: bold;' };
+      case 'review': return { bg: '#e9d5ff', css: 'background-color: #e9d5ff; color: #6b21a8; font-weight: bold;' };
+      case 'reuse': return { bg: '#fed7aa', css: 'background-color: #fed7aa; color: #c2410c; font-weight: bold;' };
+      case 'done': return { bg: '#bbf7d0', css: 'background-color: #bbf7d0; color: #166534; font-weight: bold;' };
+      default: return { bg: '#f1f5f9', css: 'background-color: #f1f5f9; color: #475569;' };
     }
   };
 
@@ -388,11 +404,11 @@ export default function App() {
       <body>
         <table border="1" style="border-collapse: collapse; font-family: sans-serif; text-align: center;">
           <thead>
-            <tr style="background-color: #1e293b; color: white;">
-              <th style="padding: 10px;">${t('seq')}</th>
-              <th style="padding: 10px;">${t('scene')}</th>
-              <th style="padding: 10px;">${t('shotName')}</th>
-              ${workspace.pipeline.map(step => `<th style="padding: 10px;">${step}</th>`).join('')}
+            <tr>
+              <th bgcolor="#1e293b" style="padding: 10px; background-color: #1e293b; color: white;">${t('seq')}</th>
+              <th bgcolor="#1e293b" style="padding: 10px; background-color: #1e293b; color: white;">${t('scene')}</th>
+              <th bgcolor="#1e293b" style="padding: 10px; background-color: #1e293b; color: white;">${t('shotName')}</th>
+              ${workspace.pipeline.map(step => `<th bgcolor="#1e293b" style="padding: 10px; background-color: #1e293b; color: white;">${step}</th>`).join('')}
             </tr>
           </thead>
           <tbody>
@@ -407,9 +423,9 @@ export default function App() {
        `;
        workspace.pipeline.forEach(step => {
           const st = s.status?.[step] || 'todo';
-          const style = getExcelColor(st);
+          const style = getExcelStyle(st);
           const text = dict[lang][st] || st;
-          html += `<td style="padding: 8px; border: 1px solid #cbd5e1; ${style}">${text}</td>`;
+          html += `<td bgcolor="${style.bg}" style="padding: 8px; border: 1px solid #cbd5e1; ${style.css}">${text}</td>`;
        });
        html += `</tr>`;
     });
@@ -442,7 +458,7 @@ export default function App() {
 
   // STATS MY TASKS
   const myAssignedTasks = shots.filter(s => workspace?.pipeline?.some(step => getAssignees(s, step).includes(user?.uid)));
-  const myStats = { todo: 0, wip: 0, review: 0, done: 0 }; // Removed Reuse
+  const myStats = { todo: 0, wip: 0, review: 0, done: 0 };
   myAssignedTasks.forEach(s => {
     workspace?.pipeline?.forEach(step => {
       if(getAssignees(s, step).includes(user?.uid)) {
@@ -687,16 +703,17 @@ export default function App() {
                                             <label className="cursor-pointer hover:text-blue-400 transition" title="Upload New Version"><Upload size={14}/><input type="file" accept="image/*,video/mp4,video/quicktime" className="hidden" onChange={(e)=>uploadShotPreview(s.id, step, e.target.files[0], versions)} /></label>
                                           )}
                                           {canUpload && (
-                                            <button onClick={() => deletePreview(s.id, step, activeIdx, versions)} className="hover:text-red-400 transition" title="Delete Version"><Trash2 size={14}/></button>
+                                            <button onClick={() => deletePreview(s.id, step, activeIdx, versions, 'shots')} className="hover:text-red-400 transition" title="Delete Version"><Trash2 size={14}/></button>
                                           )}
                                         </div>
                                       </div>
                                       
-                                      <div className="relative w-full h-12 bg-slate-950 rounded border border-slate-800 group/preview cursor-pointer overflow-hidden shadow-sm" onClick={() => openReview(s, step, activePreview.version, activePreview)}>
+                                      <div className="relative w-full h-12 bg-slate-950 rounded border border-slate-800 group/preview cursor-pointer overflow-hidden shadow-sm" onClick={() => openReview(s, step, activePreview.version, activePreview, 'shots')}>
                                         <img src={getThumbnail(activePreview)} className="w-full h-full object-cover opacity-60 group-hover/preview:opacity-100 transition duration-300" />
                                         <div className="absolute inset-0 flex items-center justify-center bg-blue-600/0 group-hover/preview:bg-blue-600/20 transition duration-300">
                                           <MonitorPlay size={18} className="text-white opacity-0 group-hover/preview:opacity-100 drop-shadow-md transform scale-75 group-hover/preview:scale-100 transition-all" />
                                         </div>
+                                        {/* Point rouge dynamique */}
                                         {s.annotations?.[step]?.[`v${activePreview.version}`] && Object.keys(s.annotations[step][`v${activePreview.version}`]).length > 0 && (
                                           <div className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-black shadow" title="Retake !"></div>
                                         )}
@@ -743,15 +760,24 @@ export default function App() {
                     const activePreview = activeIdx >= 0 ? versions[activeIdx] : null;
 
                     return (
-                    <div key={a.id} className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden flex flex-col relative group shadow-sm hover:border-slate-700 transition">
-                      {canAssign && <button onClick={() => { if(window.confirm(t('delAsset'))) deleteDoc(doc(db, 'assets', a.id)) }} className="absolute top-2 right-2 bg-black/60 p-1.5 rounded text-slate-300 hover:text-red-500 z-10 opacity-0 group-hover:opacity-100 transition"><Trash2 size={14}/></button>}
+                    <div key={a.id} className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden flex flex-col relative shadow-sm hover:border-slate-700 transition group/asset">
+                      {canAssign && <button onClick={() => { if(window.confirm(t('delAsset'))) deleteDoc(doc(db, 'assets', a.id)) }} className="absolute top-2 right-2 bg-black/60 p-1.5 rounded text-slate-300 hover:text-red-500 z-10 opacity-0 group-hover/asset:opacity-100 transition"><Trash2 size={14}/></button>}
                       
                       {activePreview && activePreview.files?.length > 0 ? (
                         <div className="relative w-full h-40 bg-black overflow-hidden flex overflow-x-auto snap-x">
                           {activePreview.files.map((file, i) => (
-                             <img key={i} src={file.url} className="w-full h-full object-cover shrink-0 snap-center" />
+                             <div key={i} className="relative shrink-0 snap-center w-full h-full cursor-pointer group/preview" onClick={() => openReview(a, 'Global', activePreview.version, {url: file.url, type: 'image', fileIndex: i}, 'assets')}>
+                               <img src={file.url} className="w-full h-full object-cover opacity-80 group-hover/preview:opacity-100 transition" />
+                               <div className="absolute inset-0 flex items-center justify-center bg-blue-600/0 group-hover/preview:bg-blue-600/20 transition duration-300">
+                                 <MonitorPlay size={18} className="text-white opacity-0 group-hover/preview:opacity-100 drop-shadow-md transform scale-75 group-hover/preview:scale-100 transition-all" />
+                               </div>
+                               {/* Point rouge dynamique Asset */}
+                               {a.annotations?.Global?.[`v${activePreview.version}`]?.[`image_${i}`] && (
+                                   <div className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-black shadow"></div>
+                               )}
+                             </div>
                           ))}
-                          <div className="absolute bottom-1 right-1 bg-black/70 text-xs px-1.5 rounded text-slate-300">{activePreview.files.length} img</div>
+                          <div className="absolute bottom-1 right-1 bg-black/70 text-xs px-1.5 rounded text-slate-300 pointer-events-none">{activePreview.files.length} img</div>
                         </div>
                       ) : (
                         <label className="w-full h-40 bg-slate-950 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-900 text-slate-600 transition">
@@ -800,7 +826,7 @@ export default function App() {
         {/* ONGLET REVIEW */}
         {activeTab === 'review' && (
           <div className="max-w-6xl mx-auto flex flex-col items-center h-full">
-            {!reviewShot ? (
+            {!reviewItem ? (
               <div className="flex flex-col items-center justify-center mt-32 text-slate-500 space-y-4">
                 <div className="w-24 h-24 bg-slate-900 rounded-full flex items-center justify-center border border-slate-800"><MonitorPlay size={40} className="text-slate-600" /></div>
                 <p className="font-medium text-lg">Sélectionnez une miniature pour Review.</p>
@@ -809,7 +835,7 @@ export default function App() {
               <div className="w-full flex flex-col h-[calc(100vh-8rem)]">
                 <div className="flex justify-between items-center mb-4 bg-slate-900 p-4 rounded-xl border border-slate-800 shadow-sm shrink-0">
                   <div>
-                    <h3 className="font-black text-xl">{reviewShot.name} <span className="text-blue-500 text-sm ml-2 px-2 py-0.5 bg-blue-900/30 rounded-full">{reviewStep}</span></h3>
+                    <h3 className="font-black text-xl">{reviewItem.name} {reviewStep !== 'Global' && <span className="text-blue-500 text-sm ml-2 px-2 py-0.5 bg-blue-900/30 rounded-full">{reviewStep}</span>}</h3>
                     <p className="text-xs text-slate-400 font-bold mt-1 tracking-wider uppercase">Version {reviewVersion}</p>
                   </div>
                   
@@ -847,7 +873,8 @@ export default function App() {
                   
                   <canvas ref={canvasRef} onMouseDown={startDraw} onMouseMove={onDraw} onMouseUp={endDraw} onMouseLeave={endDraw} onTouchStart={startDraw} onTouchMove={onDraw} onTouchEnd={endDraw} className={`absolute top-0 left-0 w-full h-full z-10 ${isDrawing ? 'cursor-crosshair pointer-events-auto' : 'pointer-events-none'}`} width={1920} height={1080} style={{ width: '100%', height: '100%' }} />
 
-                  {reviewPreview.type !== 'video' && reviewShot.annotations?.[reviewStep]?.[`v${reviewVersion}`]?.['image'] && (
+                  {/* Point de retake clignotant sur l'image */}
+                  {reviewPreview.type !== 'video' && reviewItem.annotations?.[reviewStep]?.[`v${reviewVersion}`]?.[getAnnotationKey()] && (
                     <div className="absolute bottom-4 left-4 w-4 h-4 bg-red-600 rounded-full animate-pulse z-20 shadow-lg border-2 border-black" title="Retake requis"></div>
                   )}
                 </div>
@@ -858,7 +885,9 @@ export default function App() {
                       if(videoRef.current) { const rect = e.currentTarget.getBoundingClientRect(); videoRef.current.currentTime = ((e.clientX - rect.left) / rect.width) * videoDuration; }
                     }}>
                       <div className="absolute h-full bg-blue-600 rounded-full transition-all duration-75" style={{ width: `${(videoProgress / videoDuration) * 100 || 0}%` }}></div>
-                      {Object.keys(reviewShot.annotations?.[reviewStep]?.[`v${reviewVersion}`] || {}).map(frameTime => (
+                      
+                      {/* Timeline des points de retake */}
+                      {Object.keys(reviewItem.annotations?.[reviewStep]?.[`v${reviewVersion}`] || {}).map(frameTime => (
                         <div key={frameTime} className="absolute top-1/2 w-3 h-3 bg-red-500 rounded-full transform -translate-x-1.5 -translate-y-1/2 shadow-sm border border-black" style={{ left: `${(parseFloat(frameTime) / (videoDuration*24)) * 100}%` }} title="Retake"></div>
                       ))}
                     </div>
@@ -875,6 +904,7 @@ export default function App() {
           </div>
         )}
 
+        {/* TIME / STATS / TEAM ... */}
         {activeTab === 'time' && (
           <div className="max-w-md mx-auto bg-slate-900 border border-slate-800 p-8 rounded-2xl space-y-8 mt-10 shadow-xl">
             <h3 className="font-black text-xl text-center">{t('time')}</h3>
@@ -901,7 +931,6 @@ export default function App() {
 
         {activeTab === 'stats' && (
           <div className="space-y-6">
-            {/* STATS (Sans Reuse) */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center">
                 <div className="text-3xl font-black text-slate-300">{myStats.todo}</div><div className="text-xs font-bold text-slate-500 uppercase">{t('todo')}</div>
