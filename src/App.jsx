@@ -11,8 +11,8 @@ import {
   Users, Upload, Clock, SkipForward, SkipBack, MonitorPlay, FolderKanban, BarChart, ChevronLeft, UserCircle, PenTool, Save, Key
 } from 'lucide-react';
 
-const keyPart1 = "AIzaSyDgTadoI2_BW9mRhi1_";
-const keyPart2 = "--wsGmfGOetAx1Y";
+const keyPart1 = "AIzaSyDgTadoI2_";
+const keyPart2 = "BW9mRhi1_--wsGmfGOetAx1Y";
 const firebaseConfig = {
   apiKey: keyPart1 + keyPart2,
   authDomain: "fabrica-tracker.firebaseapp.com",
@@ -58,6 +58,9 @@ export default function App() {
   const [cloudNameInput, setCloudNameInput] = useState('');
   const [uploadPresetInput, setUploadPresetInput] = useState('');
 
+  // Versioning state (UI only)
+  const [selectedVersions, setSelectedVersions] = useState({});
+
   // Auth states
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
@@ -73,6 +76,9 @@ export default function App() {
   // Review & Annotation States
   const [reviewShot, setReviewShot] = useState(null);
   const [reviewStep, setReviewStep] = useState(null);
+  const [reviewVersion, setReviewVersion] = useState(null);
+  const [reviewPreview, setReviewPreview] = useState(null);
+  
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -115,10 +121,13 @@ export default function App() {
     if (!workspace) return;
     const qShots = query(collection(db, 'shots'), where('workspaceId', '==', workspace.id));
     const unsubShots = onSnapshot(qShots, (snap) => setShots(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    
     const qAssets = query(collection(db, 'assets'), where('workspaceId', '==', workspace.id));
     const unsubAssets = onSnapshot(qAssets, (snap) => setAssets(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    
     const qMembers = query(collection(db, 'projectMembers'), where('workspaceId', '==', workspace.id));
     const unsubMembers = onSnapshot(qMembers, (snap) => setMembers(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    
     const qLogs = query(collection(db, 'timeLogs'), where('workspaceId', '==', workspace.id));
     const unsubLogs = onSnapshot(qLogs, (snap) => setTimeLogs(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
     
@@ -156,7 +165,7 @@ export default function App() {
     }
   };
 
-  // AUTH
+  // AUTH & PROFIL
   const handleAuth = async (e) => {
     e.preventDefault();
     try {
@@ -183,6 +192,7 @@ export default function App() {
     alert("Profil mis à jour !");
   };
 
+  // PROJECTS
   const createProject = async (e) => {
     e.preventDefault();
     if (!newProjectName) return;
@@ -202,13 +212,24 @@ export default function App() {
   };
 
   const deleteProject = async () => {
-    if (window.confirm("Supprimer définitivement ce projet pour tout le monde ?")) {
+    const confirmation = window.prompt(`ATTENTION ! Cette action est irréversible.\nPour confirmer la suppression, tape le nom du projet : "${workspace.name}"`);
+    if (confirmation === workspace.name) {
       const q = query(collection(db, 'projectMembers'), where('workspaceId', '==', workspace.id));
       const snap = await getDocs(q);
       snap.forEach(d => deleteDoc(d.ref));
       await deleteDoc(doc(db, 'workspaces', workspace.id));
       setCurrentView('dashboard');
+    } else if (confirmation !== null) {
+      alert("Le nom saisi est incorrect. Suppression annulée.");
     }
+  };
+
+  const deleteShot = async (id) => {
+    if(window.confirm("Supprimer définitivement ce Shot ?")) await deleteDoc(doc(db, 'shots', id));
+  };
+
+  const deleteAsset = async (id) => {
+    if(window.confirm("Supprimer définitivement cet Asset ?")) await deleteDoc(doc(db, 'assets', id));
   };
 
   const saveStorageSettings = async (e) => {
@@ -221,78 +242,71 @@ export default function App() {
     alert("Clés de stockage du projet enregistrées !");
   };
 
-  // UPLOAD MEDIA DISTANT
+  // UPLOAD MEDIA (CLOUDINARY)
   const uploadMediaToCloud = async (file) => {
     const cloudName = workspace?.cloudinaryCloudName;
     const uploadPreset = workspace?.cloudinaryUploadPreset;
-
     if (!cloudName || !uploadPreset) {
-      alert("L'administrateur du projet doit d'abord configurer les clés de stockage gratuites dans l'onglet Paramètres !");
+      alert("L'administrateur doit configurer les clés Cloudinary gratuites dans l'onglet Paramètres !");
       return null;
     }
-
     const formData = new FormData();
     formData.append('file', file);
     formData.append('upload_preset', uploadPreset);
-
     const resourceType = file.type.startsWith('video') ? 'video' : 'image';
-    const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`, {
-      method: 'POST',
-      body: formData
-    });
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`, { method: 'POST', body: formData });
     const data = await res.json();
     if (data.error) throw new Error(data.error.message);
     return { url: data.secure_url, type: resourceType };
   };
 
-  const uploadShotPreview = async (shotId, step, file) => {
+  const uploadShotPreview = async (shotId, step, file, currentVersions = []) => {
     if (!file) return;
     setUploadingMedia(true);
     try {
       const uploaded = await uploadMediaToCloud(file);
       if (uploaded?.url) {
+        const newVersionNum = currentVersions.length + 1;
+        const newVersion = { url: uploaded.url, type: uploaded.type, version: newVersionNum, date: new Date().toISOString() };
         await updateDoc(doc(db, 'shots', shotId), { 
-          [`previews.${step}`]: uploaded.url,
-          [`previewTypes.${step}`]: uploaded.type 
+          [`previews.${step}`]: [...currentVersions, newVersion]
         });
       }
     } catch(err) { alert("Erreur d'envoi : " + err.message); }
     setUploadingMedia(false);
   };
 
-  const uploadAsset = async (assetId, file) => {
+  const uploadAssetMedia = async (assetId, file) => {
     if (!file) return;
     setUploadingMedia(true);
     try {
       const uploaded = await uploadMediaToCloud(file);
-      if (uploaded?.url) {
-        await updateDoc(doc(db, 'assets', assetId), { fileUrl: uploaded.url });
-      }
+      if (uploaded?.url) await updateDoc(doc(db, 'assets', assetId), { fileUrl: uploaded.url });
     } catch(err) { alert("Erreur d'envoi : " + err.message); }
     setUploadingMedia(false);
   };
 
-  const openReview = (shot, step) => {
-    setReviewShot(shot); setReviewStep(step);
+  // REVIEW & ANNOTATIONS
+  const openReview = (shot, step, version, previewObj) => {
+    setReviewShot(shot); setReviewStep(step); setReviewVersion(version); setReviewPreview(previewObj);
     setActiveTab('review'); setStrokes([]); setCurrentStroke([]);
   };
 
   const getAnnotationKey = () => {
-    if(!reviewShot || !reviewStep) return null;
-    const isVid = reviewShot.previewTypes?.[reviewStep] === 'video';
-    return isVid ? Math.floor(videoProgress * 24) : 'image';
+    if(!reviewShot || !reviewStep || !reviewPreview) return null;
+    return reviewPreview.type === 'video' ? Math.floor(videoProgress * 24) : 'image';
   };
 
   const loadAnnotations = () => {
     const key = getAnnotationKey();
-    if(key && reviewShot.annotations?.[reviewStep]?.[key]) {
-      setStrokes(JSON.parse(reviewShot.annotations[reviewStep][key]));
+    if(key && reviewShot.annotations?.[reviewStep]?.[`v${reviewVersion}`]?.[key]) {
+      setStrokes(JSON.parse(reviewShot.annotations[reviewStep][`v${reviewVersion}`][key]));
     } else {
       setStrokes([]);
     }
   };
 
-  useEffect(() => { loadAnnotations(); }, [videoProgress, reviewShot, reviewStep]);
+  useEffect(() => { loadAnnotations(); }, [videoProgress, reviewShot, reviewStep, reviewVersion]);
 
   const drawOnCanvas = () => {
     const canvas = canvasRef.current;
@@ -319,7 +333,6 @@ export default function App() {
     const y = (e.clientY || e.touches?.[0].clientY) - rect.top;
     setCurrentStroke([{ x: x/rect.width, y: y/rect.height }]);
   };
-
   const onDraw = (e) => {
     if(!isDrawing || currentStroke.length === 0) return;
     const rect = canvasRef.current.getBoundingClientRect();
@@ -327,7 +340,6 @@ export default function App() {
     const y = (e.clientY || e.touches?.[0].clientY) - rect.top;
     setCurrentStroke([...currentStroke, { x: x/rect.width, y: y/rect.height }]);
   };
-
   const endDraw = () => {
     if(!isDrawing || currentStroke.length === 0) return;
     setStrokes([...strokes, currentStroke]);
@@ -338,13 +350,25 @@ export default function App() {
     const key = getAnnotationKey();
     if(!key || !reviewShot) return;
     await updateDoc(doc(db, 'shots', reviewShot.id), {
-      [`annotations.${reviewStep}.${key}`]: JSON.stringify(strokes)
+      [`annotations.${reviewStep}.v${reviewVersion}.${key}`]: JSON.stringify(strokes)
     });
-    alert("Retake sauvegardé !");
+    alert("Retake sauvegardé avec succès !");
+    
+    // Ferme la review et retourne au tableau
+    setReviewShot(null); setReviewStep(null); setReviewVersion(null); setReviewPreview(null);
+    setActiveTab('shots');
   };
 
+  // HELPERS
   const canAssign = ['Admin', 'Supervisor'].includes(userRole);
+  
+  // Génère la miniature (Pour Cloudinary, remplacer l'extension vidéo par .jpg génère l'image 1ere frame)
+  const getThumbnail = (previewObj) => {
+    if (!previewObj) return "";
+    return previewObj.type === 'video' ? previewObj.url.replace(/\.[^/.]+$/, ".jpg") : previewObj.url;
+  };
 
+  // RENDU APPLICATION
   if (loading) return <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center">Chargement...</div>;
 
   if (!user) {
@@ -445,13 +469,17 @@ export default function App() {
           </button>
           <div className="text-xl font-bold text-blue-500 hidden md:block">{workspace?.name}</div>
           <nav className="space-y-2">
-            <button onClick={() => setActiveTab('shots')} className={`w-full flex items-center space-x-3 p-2 rounded ${activeTab === 'shots' ? 'bg-blue-600' : 'hover:bg-slate-800'}`}><Film size={20} /> <span className="hidden md:inline">Plans</span></button>
-            <button onClick={() => setActiveTab('assets')} className={`w-full flex items-center space-x-3 p-2 rounded ${activeTab === 'assets' ? 'bg-blue-600' : 'hover:bg-slate-800'}`}><Box size={20} /> <span className="hidden md:inline">Assets (Concept)</span></button>
+            <button onClick={() => setActiveTab('shots')} className={`w-full flex items-center space-x-3 p-2 rounded ${activeTab === 'shots' ? 'bg-blue-600' : 'hover:bg-slate-800'}`}><Film size={20} /> <span className="hidden md:inline">Shots</span></button>
+            <button onClick={() => setActiveTab('assets')} className={`w-full flex items-center space-x-3 p-2 rounded ${activeTab === 'assets' ? 'bg-blue-600' : 'hover:bg-slate-800'}`}><Box size={20} /> <span className="hidden md:inline">Assets</span></button>
             <button onClick={() => setActiveTab('review')} className={`w-full flex items-center space-x-3 p-2 rounded ${activeTab === 'review' ? 'bg-blue-600' : 'hover:bg-slate-800'}`}><MonitorPlay size={20} /> <span className="hidden md:inline">Review & Retake</span></button>
             <button onClick={() => setActiveTab('time')} className={`w-full flex items-center space-x-3 p-2 rounded ${activeTab === 'time' ? 'bg-blue-600' : 'hover:bg-slate-800'}`}><Clock size={20} /> <span className="hidden md:inline">Chronomètre</span></button>
             <button onClick={() => setActiveTab('stats')} className={`w-full flex items-center space-x-3 p-2 rounded ${activeTab === 'stats' ? 'bg-blue-600' : 'hover:bg-slate-800'}`}><BarChart size={20} /> <span className="hidden md:inline">Statistiques</span></button>
             <button onClick={() => setActiveTab('team')} className={`w-full flex items-center space-x-3 p-2 rounded ${activeTab === 'team' ? 'bg-blue-600' : 'hover:bg-slate-800'}`}><Users size={20} /> <span className="hidden md:inline">Équipe</span></button>
-            <button onClick={() => setActiveTab('settings')} className={`w-full flex items-center space-x-3 p-2 rounded ${activeTab === 'settings' ? 'bg-blue-600' : 'hover:bg-slate-800'}`}><Settings size={20} /> <span className="hidden md:inline">Paramètres</span></button>
+            
+            {/* L'onglet paramètre est caché si on n'est pas Admin */}
+            {userRole === 'Admin' && (
+              <button onClick={() => setActiveTab('settings')} className={`w-full flex items-center space-x-3 p-2 rounded ${activeTab === 'settings' ? 'bg-blue-600' : 'hover:bg-slate-800'}`}><Settings size={20} /> <span className="hidden md:inline">Paramètres</span></button>
+            )}
           </nav>
         </div>
       </aside>
@@ -464,49 +492,96 @@ export default function App() {
           <p className="text-xs text-slate-400">Rôle : <span className="text-blue-400 font-bold">{userRole}</span></p>
         </header>
 
+        {/* ONGLET SHOTS */}
         {activeTab === 'shots' && (
           <div className="space-y-4">
-            {canAssign && <button onClick={async () => { const n = prompt('Nom du plan :'); if (n) await addDoc(collection(db, 'shots'), { name: n, workspaceId: workspace.id, status: {}, assignedTo: {}, previews: {} }); }} className="flex items-center space-x-2 bg-blue-600 px-3 py-2 rounded font-bold text-sm"><Plus size={16} /> <span>Ajouter un plan</span></button>}
+            {canAssign && <button onClick={async () => { const n = prompt('Nom du Shot :'); if (n) await addDoc(collection(db, 'shots'), { name: n, workspaceId: workspace.id, status: {}, assignedTo: {}, previews: {} }); }} className="flex items-center space-x-2 bg-blue-600 px-3 py-2 rounded font-bold text-sm"><Plus size={16} /> <span>Ajouter un Shot</span></button>}
             <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 overflow-x-auto">
               <table className="w-full text-left text-sm whitespace-nowrap">
                 <thead>
                   <tr className="border-b border-slate-800 text-slate-400">
-                    <th className="p-2 sticky left-0 bg-slate-900 z-10">Plan</th>
-                    {workspace?.pipeline?.map(step => <th key={step} className="p-2 min-w-[200px] border-l border-slate-800">{step}</th>)}
+                    <th className="p-2 sticky left-0 bg-slate-900 z-10 w-48">Shot</th>
+                    {workspace?.pipeline?.map(step => <th key={step} className="p-2 min-w-[220px] border-l border-slate-800">{step}</th>)}
                   </tr>
                 </thead>
                 <tbody>
                   {shots.map(s => (
                     <tr key={s.id} className="border-b border-slate-800/50">
-                      <td className="p-2 font-medium sticky left-0 bg-slate-900 z-10">{s.name}</td>
-                      {workspace?.pipeline?.map(step => (
-                        <td key={step} className="p-2 border-l border-slate-800/50 space-y-2">
-                          <div className="flex flex-col space-y-1">
-                            {canAssign ? (
-                              <select className="bg-slate-950 border border-slate-800 rounded p-1 text-xs text-blue-300" value={s.assignedTo?.[step] || ''} onChange={async (e) => await updateDoc(doc(db, 'shots', s.id), { [`assignedTo.${step}`]: e.target.value })}>
-                                <option value="">-- Assigner --</option>{members.map(m => <option key={m.userId} value={m.userId}>{m.displayName}</option>)}
+                      <td className="p-2 font-medium sticky left-0 bg-slate-900 z-10">
+                        <div className="flex items-center justify-between">
+                          <span>{s.name}</span>
+                          {canAssign && <button onClick={() => deleteShot(s.id)} className="text-slate-600 hover:text-red-500"><Trash2 size={16}/></button>}
+                        </div>
+                      </td>
+                      {workspace?.pipeline?.map(step => {
+                        // Logique de Versioning et Permissions
+                        const isAssigned = s.assignedTo?.[step] === user.uid;
+                        const canUpload = isAssigned || canAssign;
+                        const versions = Array.isArray(s.previews?.[step]) ? s.previews[step] : [];
+                        
+                        // Détermine l'index actif (sélectionné manuellement, sinon le dernier)
+                        const activeIdx = selectedVersions[`${s.id}_${step}`] ?? (versions.length > 0 ? versions.length - 1 : -1);
+                        const activePreview = activeIdx >= 0 ? versions[activeIdx] : null;
+
+                        return (
+                          <td key={step} className="p-2 border-l border-slate-800/50 space-y-2">
+                            <div className="flex flex-col space-y-1">
+                              {canAssign ? (
+                                <select className="bg-slate-950 border border-slate-800 rounded p-1 text-xs text-blue-300" value={s.assignedTo?.[step] || ''} onChange={async (e) => await updateDoc(doc(db, 'shots', s.id), { [`assignedTo.${step}`]: e.target.value })}>
+                                  <option value="">-- Assigner --</option>{members.map(m => <option key={m.userId} value={m.userId}>{m.displayName}</option>)}
+                                </select>
+                              ) : <span className="text-xs text-blue-400">{members.find(m => m.userId === s.assignedTo?.[step])?.displayName || 'Non assigné'}</span>}
+                              
+                              <select className="bg-slate-950 border border-slate-800 rounded p-1 text-xs" value={s.status?.[step] || 'todo'} onChange={async (e) => await updateDoc(doc(db, 'shots', s.id), { [`status.${step}`]: e.target.value })}>
+                                <option value="todo">À faire</option><option value="wip">En cours</option><option value="review">Review</option><option value="done">Terminé</option>
                               </select>
-                            ) : <span className="text-xs text-blue-400">{members.find(m => m.userId === s.assignedTo?.[step])?.displayName || 'Non assigné'}</span>}
-                            <select className="bg-slate-950 border border-slate-800 rounded p-1 text-xs" value={s.status?.[step] || 'todo'} onChange={async (e) => await updateDoc(doc(db, 'shots', s.id), { [`status.${step}`]: e.target.value })}>
-                              <option value="todo">À faire</option><option value="wip">En cours</option><option value="review">Review</option><option value="done">Terminé</option>
-                            </select>
-                          </div>
-                          
-                          <div className="flex items-center space-x-2 pt-2 border-t border-slate-800">
-                            {s.previews?.[step] ? (
-                              <>
-                                {s.previewTypes?.[step] === 'video' ? <div className="w-10 h-10 bg-slate-800 flex items-center justify-center rounded"><Film size={16}/></div> : <img src={s.previews[step]} className="w-10 h-10 object-cover rounded bg-black" />}
-                                <button onClick={() => openReview(s, step)} className="text-xs bg-slate-800 hover:bg-slate-700 px-2 py-1 rounded w-full flex justify-center"><MonitorPlay size={14}/></button>
-                              </>
-                            ) : (
-                              <label className="text-xs flex items-center justify-center space-x-1 bg-slate-800 hover:bg-slate-700 w-full py-1 rounded cursor-pointer">
-                                <Upload size={12}/> <span>Upload Preview</span>
-                                <input type="file" accept="image/*,video/mp4,video/quicktime" className="hidden" onChange={(e)=>uploadShotPreview(s.id, step, e.target.files[0])} />
-                              </label>
-                            )}
-                          </div>
-                        </td>
-                      ))}
+                            </div>
+                            
+                            <div className="flex items-center space-x-2 pt-2 border-t border-slate-800 h-20">
+                              {activePreview ? (
+                                <div className="flex flex-col w-full space-y-1">
+                                  <div className="flex justify-between items-center px-1">
+                                    {/* Selecteur de versions */}
+                                    {versions.length > 1 ? (
+                                      <select value={activeIdx} onChange={(e) => setSelectedVersions({...selectedVersions, [`${s.id}_${step}`]: parseInt(e.target.value)})} className="bg-slate-950 text-xs rounded border border-slate-700 py-0.5">
+                                        {versions.map((v, i) => <option key={i} value={i}>V{v.version}</option>)}
+                                      </select>
+                                    ) : <span className="text-xs font-bold text-slate-500">V1</span>}
+                                    
+                                    {/* Bouton Upload Nouvelle Version */}
+                                    {canUpload && (
+                                      <label className="cursor-pointer text-blue-400 hover:text-blue-300 flex items-center space-x-1" title="Uploader une nouvelle version">
+                                        <Upload size={14}/>
+                                        <input type="file" accept="image/*,video/mp4,video/quicktime" className="hidden" onChange={(e)=>uploadShotPreview(s.id, step, e.target.files[0], versions)} />
+                                      </label>
+                                    )}
+                                  </div>
+                                  
+                                  {/* Miniature cliquable pour Review */}
+                                  <div className="relative w-full h-12 bg-black rounded group cursor-pointer" onClick={() => openReview(s, step, activePreview.version, activePreview)}>
+                                    <img src={getThumbnail(activePreview)} className="w-full h-full object-cover rounded opacity-70 group-hover:opacity-100 transition-opacity" />
+                                    <MonitorPlay size={18} className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-white opacity-0 group-hover:opacity-100 drop-shadow-lg" />
+                                    
+                                    {/* Indicateur point rouge de Retake */}
+                                    {s.annotations?.[step]?.[`v${activePreview.version}`] && Object.keys(s.annotations[step][`v${activePreview.version}`]).length > 0 && (
+                                      <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-600 rounded-full border border-black shadow" title="Retake requis !"></div>
+                                    )}
+                                  </div>
+                                </div>
+                              ) : (
+                                canUpload ? (
+                                  <label className="text-xs flex items-center justify-center space-x-1 bg-slate-800 hover:bg-slate-700 w-full py-2 rounded cursor-pointer h-full">
+                                    <Upload size={14}/> <span>Upload V1</span>
+                                    <input type="file" accept="image/*,video/mp4,video/quicktime" className="hidden" onChange={(e)=>uploadShotPreview(s.id, step, e.target.files[0], versions)} />
+                                  </label>
+                                ) : (
+                                  <div className="text-xs text-slate-600 w-full text-center italic">En attente</div>
+                                )
+                              )}
+                            </div>
+                          </td>
+                        );
+                      })}
                     </tr>
                   ))}
                 </tbody>
@@ -515,13 +590,15 @@ export default function App() {
           </div>
         )}
 
+        {/* ONGLET ASSETS */}
         {activeTab === 'assets' && (
           <div className="space-y-4">
             {canAssign && <button onClick={async () => { const n = prompt("Nom de l'Asset :"); if (n) await addDoc(collection(db, 'assets'), { name: n, category: 'Model Design', workspaceId: workspace.id, assignedTo: '' }); }} className="flex items-center space-x-2 bg-blue-600 px-3 py-2 rounded text-sm font-bold"><Plus size={16} /> <span>Ajouter un Concept/Asset</span></button>}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {assets.map(a => (
-                <div key={a.id} className="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden flex flex-col">
-                  {a.fileUrl ? <img src={a.fileUrl} className="w-full h-48 object-cover bg-black" /> : <label className="w-full h-48 bg-slate-950 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-900 text-slate-500"><Upload size={24} className="mb-2"/> <span className="text-xs">Upload Image</span><input type="file" accept="image/*" className="hidden" onChange={(e)=>uploadAsset(a.id, e.target.files[0])}/></label>}
+                <div key={a.id} className="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden flex flex-col relative">
+                  {canAssign && <button onClick={() => deleteAsset(a.id)} className="absolute top-2 right-2 bg-slate-900/80 p-1 rounded hover:text-red-500 z-10"><Trash2 size={16}/></button>}
+                  {a.fileUrl ? <img src={a.fileUrl} className="w-full h-48 object-cover bg-black" /> : <label className="w-full h-48 bg-slate-950 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-900 text-slate-500"><Upload size={24} className="mb-2"/> <span className="text-xs">Upload Image</span><input type="file" accept="image/*" className="hidden" onChange={(e)=>uploadAssetMedia(a.id, e.target.files[0])}/></label>}
                   <div className="p-4 space-y-2">
                     <div className="font-bold text-lg">{a.name}</div>
                     {canAssign ? <select className="bg-slate-950 border border-slate-800 rounded p-1 text-xs w-full" value={a.category || ''} onChange={async (e) => await updateDoc(doc(db, 'assets', a.id), { category: e.target.value })}>{ASSET_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}</select> : <div className="text-xs text-slate-400">{a.category}</div>}
@@ -533,38 +610,43 @@ export default function App() {
           </div>
         )}
 
+        {/* ONGLET REVIEW */}
         {activeTab === 'review' && (
           <div className="space-y-4 max-w-5xl mx-auto flex flex-col items-center">
             {!reviewShot ? (
               <div className="text-center mt-20 text-slate-500">
                 <MonitorPlay size={48} className="mx-auto mb-4 opacity-50" />
-                <p>Sélectionnez une preview depuis l'onglet "Plans" pour lancer une review.</p>
+                <p>Cliquez sur la miniature d'un Shot pour lancer la review.</p>
               </div>
             ) : (
               <div className="w-full">
                 <div className="flex justify-between items-center mb-4 bg-slate-900 p-4 rounded-lg border border-slate-800">
-                  <h3 className="font-bold text-lg">Review : {reviewShot.name} <span className="text-blue-500 text-sm ml-2">({reviewStep})</span></h3>
+                  <div>
+                    <h3 className="font-bold text-lg">Review : {reviewShot.name} <span className="text-blue-500 text-sm ml-2">({reviewStep})</span></h3>
+                    <p className="text-xs text-slate-400">Version affichée : V{reviewVersion}</p>
+                  </div>
                   <div className="flex space-x-4">
                     <button onClick={() => setIsDrawing(!isDrawing)} className={`flex items-center space-x-2 px-3 py-2 rounded font-bold text-sm ${isDrawing ? 'bg-red-600' : 'bg-slate-700'}`}><PenTool size={16} /> <span>{isDrawing ? 'Mode Dessin Actif' : 'Dessiner (Retake)'}</span></button>
-                    {isDrawing && <button onClick={saveAnnotations} className="flex items-center space-x-2 bg-blue-600 px-3 py-2 rounded font-bold text-sm"><Save size={16} /> <span>Sauver le Retake</span></button>}
+                    {isDrawing && <button onClick={saveAnnotations} className="flex items-center space-x-2 bg-blue-600 px-3 py-2 rounded font-bold text-sm"><Save size={16} /> <span>Sauver et Fermer</span></button>}
                   </div>
                 </div>
 
                 <div className="relative bg-black rounded-lg overflow-hidden aspect-video border border-slate-800 flex justify-center items-center">
-                  {reviewShot.previewTypes[reviewStep] === 'video' ? (
-                    <video ref={videoRef} src={reviewShot.previews[reviewStep]} className="w-full h-full" onTimeUpdate={(e) => setVideoProgress(e.target.currentTime)} onLoadedMetadata={(e) => setVideoDuration(e.target.duration)} onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)} />
+                  {reviewPreview.type === 'video' ? (
+                    <video ref={videoRef} src={reviewPreview.url} className="w-full h-full" onTimeUpdate={(e) => setVideoProgress(e.target.currentTime)} onLoadedMetadata={(e) => setVideoDuration(e.target.duration)} onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)} />
                   ) : (
-                    <img src={reviewShot.previews[reviewStep]} className="w-full h-full object-contain" />
+                    <img src={reviewPreview.url} className="w-full h-full object-contain" />
                   )}
                   
                   <canvas ref={canvasRef} onMouseDown={startDraw} onMouseMove={onDraw} onMouseUp={endDraw} onMouseLeave={endDraw} onTouchStart={startDraw} onTouchMove={onDraw} onTouchEnd={endDraw} className={`absolute top-0 left-0 w-full h-full z-10 ${isDrawing ? 'cursor-crosshair pointer-events-auto' : 'pointer-events-none'}`} width={1920} height={1080} style={{ width: '100%', height: '100%' }} />
 
-                  {reviewShot.previewTypes[reviewStep] !== 'video' && reviewShot.annotations?.[reviewStep]?.['image'] && (
+                  {/* Point rouge image statique */}
+                  {reviewPreview.type !== 'video' && reviewShot.annotations?.[reviewStep]?.[`v${reviewVersion}`]?.['image'] && (
                     <div className="absolute bottom-4 left-4 w-4 h-4 bg-red-600 rounded-full animate-pulse z-20 shadow-lg border-2 border-black" title="Retake requis"></div>
                   )}
                 </div>
 
-                {reviewShot.previewTypes[reviewStep] === 'video' && (
+                {reviewPreview.type === 'video' && (
                   <div className="mt-4 bg-slate-900 p-4 rounded-lg border border-slate-800">
                     <div className="relative w-full h-3 bg-slate-700 rounded-full cursor-pointer mb-4" onClick={(e) => {
                       if(videoRef.current) {
@@ -574,8 +656,9 @@ export default function App() {
                       }
                     }}>
                       <div className="absolute h-full bg-blue-500 rounded-full" style={{ width: `${(videoProgress / videoDuration) * 100 || 0}%` }}></div>
-                      {Object.keys(reviewShot.annotations?.[reviewStep] || {}).map(frameTime => (
-                        <div key={frameTime} className="absolute top-0 w-3 h-3 bg-red-600 rounded-full transform -translate-x-1.5 shadow" style={{ left: `${(parseFloat(frameTime) / (videoDuration*24)) * 100}%` }} title="Retake"></div>
+                      {/* Points rouges sur la timeline */}
+                      {Object.keys(reviewShot.annotations?.[reviewStep]?.[`v${reviewVersion}`] || {}).map(frameTime => (
+                        <div key={frameTime} className="absolute top-0 w-3 h-3 bg-red-600 rounded-full transform -translate-x-1.5 shadow" style={{ left: `${(parseFloat(frameTime) / (videoDuration*24)) * 100}%` }} title="Retake !"></div>
                       ))}
                     </div>
 
@@ -591,12 +674,13 @@ export default function App() {
           </div>
         )}
 
+        {/* AUTRES ONGLETS IDENTIQUES */}
         {activeTab === 'time' && (
           <div className="max-w-md bg-slate-900 border border-slate-800 p-6 rounded-xl space-y-6">
             <h3 className="font-bold text-center">Enregistrer mon travail</h3>
             <div className="space-y-4">
               <select value={selectedTask} onChange={(e) => setSelectedTask(e.target.value)} className="w-full p-2 bg-slate-950 border border-slate-800 rounded" disabled={isTimerActive}>
-                <option value="">-- Sélectionner un Plan / Asset --</option>
+                <option value="">-- Sélectionner un Shot / Asset --</option>
                 {[...shots, ...assets].map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
               <select value={selectedStep} onChange={(e) => setSelectedStep(e.target.value)} className="w-full p-2 bg-slate-950 border border-slate-800 rounded" disabled={isTimerActive}>
@@ -649,6 +733,7 @@ export default function App() {
           </div>
         )}
 
+        {/* ONGLET PARAMETRES : PROTÉGÉ */}
         {activeTab === 'settings' && userRole === 'Admin' && (
           <div className="space-y-6 max-w-xl">
             <div className="bg-slate-900 border border-slate-800 rounded-lg p-6">
