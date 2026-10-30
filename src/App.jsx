@@ -36,6 +36,7 @@ const TEMPLATES = {
   'Game': ['Concept Art', 'Modeling Low Poly', 'UV Mapping', 'Texturing', 'Rigging', 'Animation', 'VFX', 'Integration Engine']
 };
 const ASSET_CATEGORIES = ['Model Design', 'Props Design', 'Storyboard', 'Background Concept'];
+const FRAMERATE = 25; // Standard 25 fps
 
 const generateCloudinarySignature = async (publicId, timestamp, apiSecret) => {
   const msg = `public_id=${publicId}&timestamp=${timestamp}${apiSecret}`;
@@ -69,8 +70,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   
   const [currentView, setCurrentView] = useState('dashboard');
-  const [dashTab, setDashTab] = useState('projects'); 
-  const [activeTab, setActiveTab] = useState('assets');
+  const [activeTab, setActiveTab] = useState('shots');
   
   const [myProjects, setMyProjects] = useState([]);
   const [newProjectName, setNewProjectName] = useState('');
@@ -80,9 +80,7 @@ export default function App() {
   const [profileName, setProfileName] = useState('');
   const [emailNotifs, setEmailNotifs] = useState(false);
   const [browserNotifs, setBrowserNotifs] = useState(false);
-  const [deleteConfirmText, setDeleteConfirmText] = useState('');
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-
+  
   const [workspace, setWorkspace] = useState(null);
   const [userPermissions, setUserPermissions] = useState({ canEdit: false, canAssign: false, role: 'Guest' });
   const [shots, setShots] = useState([]);
@@ -119,7 +117,6 @@ export default function App() {
   const [batchActionStep, setBatchActionStep] = useState('');
   const [batchActionStatus, setBatchActionStatus] = useState('');
 
-  // REVIEW PANEL STATES
   const [reviewItem, setReviewItem] = useState(null);
   const [reviewType, setReviewType] = useState('shots');
   const [reviewStep, setReviewStep] = useState(null);
@@ -153,7 +150,6 @@ export default function App() {
   
   const [logoPixelated, setLogoPixelated] = useState(false);
   
-  // WIDGET MESSAGERIE PRIVEE
   const [isChatWidgetOpen, setIsChatWidgetOpen] = useState(false);
   const [friendsList, setFriendsList] = useState([]);
   const [friendInput, setFriendInput] = useState('');
@@ -275,7 +271,7 @@ export default function App() {
     } else { setBrowserNotifs(false); await updateDoc(doc(db, 'users', user.uid), { browserNotifs: false }); }
   };
 
-  // RACCOURCIS CLAVIER REVIEW
+  // RACCOURCIS CLAVIER REVIEW (Fixé à 25 FPS)
   useEffect(() => {
     if (!reviewItem) return;
     const handleKeyDown = (e) => {
@@ -284,8 +280,8 @@ export default function App() {
         e.preventDefault();
         if (videoRef.current) { if(isPlaying) { videoRef.current.pause(); compareVideoRef.current?.pause(); } else { videoRef.current.play(); compareVideoRef.current?.play(); } }
       }
-      if (e.code === 'ArrowLeft' && videoRef.current) { videoRef.current.pause(); videoRef.current.currentTime -= (1/24); if(compareVideoRef.current){compareVideoRef.current.pause(); compareVideoRef.current.currentTime -= (1/24);} }
-      if (e.code === 'ArrowRight' && videoRef.current) { videoRef.current.pause(); videoRef.current.currentTime += (1/24); if(compareVideoRef.current){compareVideoRef.current.pause(); compareVideoRef.current.currentTime += (1/24);} }
+      if (e.code === 'ArrowLeft' && videoRef.current) { videoRef.current.pause(); videoRef.current.currentTime -= (1/FRAMERATE); if(compareVideoRef.current){compareVideoRef.current.pause(); compareVideoRef.current.currentTime -= (1/FRAMERATE);} }
+      if (e.code === 'ArrowRight' && videoRef.current) { videoRef.current.pause(); videoRef.current.currentTime += (1/FRAMERATE); if(compareVideoRef.current){compareVideoRef.current.pause(); compareVideoRef.current.currentTime += (1/FRAMERATE);} }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); setStrokes(prev => prev.slice(0, -1)); }
       
       const statusMap = {'1':'todo', '2':'wip', '3':'review', '4':'reuse', '5':'done'};
@@ -334,12 +330,6 @@ export default function App() {
     openModal("Profil à jour", "Modifications enregistrées.");
   };
 
-  const handleDeleteAccount = async () => {
-    if (deleteConfirmText !== user.email) return;
-    try { await deleteDoc(doc(db, 'users', user.uid)); await user.delete(); } 
-    catch (err) { openModal("Erreur de sécurité", "Veuillez vous déconnecter/reconnecter avant de supprimer."); }
-  };
-
   const createProject = async (e) => {
     e.preventDefault();
     if (!newProjectName) return;
@@ -357,16 +347,30 @@ export default function App() {
     setJoinCode('');
   };
 
-  const addFriend = async (e) => {
-    e.preventDefault();
-    if(!friendInput || friendInput === user.uid) return openModal("Erreur", "ID Invalide");
-    if(friendsList.find(f => f.id === friendInput)) return openModal("Erreur", "Déjà ami");
-    try {
-      const friendDoc = await getDoc(doc(db, 'users', friendInput));
-      if(!friendDoc.exists()) return openModal("Erreur", "Utilisateur introuvable");
-      await addDoc(collection(db, 'friendships'), { users: [user.uid, friendInput], names: { [user.uid]: userData.displayName, [friendInput]: friendDoc.data().displayName }, createdAt: serverTimestamp() });
-      setFriendInput(''); openModal("Succès", "Ami ajouté !");
-    } catch(err) { openModal("Erreur", err.message); }
+  // EXPORT CSV / EXCEL DES PLANS
+  const exportToCSV = () => {
+    if (!workspace || !shots.length) return openModal("Erreur", "Aucune donnée à exporter.");
+    const headers = ['Séquence', 'Scène', 'Nom', ...workspace.pipeline];
+    let csvContent = '\uFEFF' + headers.join(',') + '\n';
+    
+    const sortedShots = [...shots].sort((a,b) => a.sequence.localeCompare(b.sequence) || a.scene.localeCompare(b.scene));
+    
+    sortedShots.forEach(s => {
+      const row = [s.sequence, s.scene, s.name];
+      workspace.pipeline.forEach(step => {
+         row.push(s.status?.[step] || 'todo');
+      });
+      csvContent += row.join(',') + '\n';
+    });
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `${workspace.name}_Export_Plans.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const postPm = async (e) => {
@@ -375,7 +379,6 @@ export default function App() {
     setNewPmMsg('');
   };
 
-  // OPTIMISATION MEDIA (q_auto, f_auto) ajoutée aux URLs Cloudinary
   const uploadMediaToCloud = async (file, cropOptions = null) => {
     const cloudName = workspace?.cloudinaryCloudName || cloudNameInput; 
     const uploadPreset = workspace?.cloudinaryUploadPreset || uploadPresetInput;
@@ -387,33 +390,11 @@ export default function App() {
     if (data.error) throw new Error(data.error.message);
     
     let finalUrl = data.secure_url;
-    // Forçage de la compression et optimisation format
     const optimizeParams = "q_auto,f_auto"; 
     const combinedParams = cropOptions ? `${cropOptions},${optimizeParams}` : optimizeParams;
     finalUrl = finalUrl.replace('/upload/', `/upload/${combinedParams}/`);
     
     return { url: finalUrl, type: resourceType };
-  };
-
-  const uploadBanner = async (e) => {
-    const file = e.target.files[0]; if(!file || !workspace) return;
-    setUploadingMedia(true);
-    try {
-      const uploaded = await uploadMediaToCloud(file, "c_fill,w_1200,h_300");
-      if(uploaded?.url) {
-        await updateDoc(doc(db, 'workspaces', workspace.id), { bannerUrl: uploaded.url });
-        const snap = await getDocs(query(collection(db, 'projectMembers'), where('workspaceId', '==', workspace.id)));
-        snap.forEach(d => updateDoc(d.ref, { bannerUrl: uploaded.url }));
-      }
-    } catch(err) { openModal("Erreur", err.message); }
-    setUploadingMedia(false);
-  };
-
-  const removeBanner = async () => {
-    if(!workspace) return;
-    await updateDoc(doc(db, 'workspaces', workspace.id), { bannerUrl: deleteField() });
-    const snap = await getDocs(query(collection(db, 'projectMembers'), where('workspaceId', '==', workspace.id)));
-    snap.forEach(d => updateDoc(d.ref, { bannerUrl: deleteField() }));
   };
 
   const deleteMediaFromCloudinary = async (url) => {
@@ -532,9 +513,10 @@ export default function App() {
     setCompareMode(false); setCompareVersion(''); setStrokes([]); setCurrentStroke(null); setDrawMode('pen');
   };
 
+  // FPS mis à 25 pour les annotations vidéo
   const getAnnotationKey = () => {
     if(!reviewItem || !reviewStep || !reviewPreview) return null;
-    if(reviewPreview.type === 'video') return Math.floor(videoProgress * 24);
+    if(reviewPreview.type === 'video') return Math.floor(videoProgress * FRAMERATE);
     if(reviewType === 'assets') return `image_${reviewPreview.fileIndex}`;
     return 'image';
   };
@@ -604,7 +586,6 @@ export default function App() {
     setNewChatMsg('');
   };
 
-  // REORGANISATION DE PIPELINE (Haut / Bas)
   const movePipelineStep = async (idx, direction) => {
     if (!workspace) return;
     const newPipe = [...workspace.pipeline];
@@ -614,7 +595,6 @@ export default function App() {
   };
   const saveCustomPipeline = async (newPipeline) => { await updateDoc(doc(db, 'workspaces', workspace.id), { pipeline: newPipeline }); };
   
-  // MISE A JOUR DES DATES DE SEQUENCES (GANTT)
   const saveSequenceDates = async (seq, start, end) => {
     if (!workspace) return;
     const dates = workspace.sequenceDates || {};
@@ -632,9 +612,8 @@ export default function App() {
   
   const getThumbnail = (obj) => {
     if (!obj) return "";
-    const cropParams = "w_400,h_225,c_fill,q_auto,f_auto"; // OPTIMISATION AUTOMATIQUE IMAGE
+    const cropParams = "w_400,h_225,c_fill,q_auto,f_auto"; 
     const url = obj.type === 'video' ? obj.url.replace(/\.[^/.]+$/, ".jpg") : obj.url;
-    // Remplacement intelligent du '/upload/'
     return url.replace(/\/upload\/(?:v\d+\/)?/, `/upload/${cropParams}/`); 
   };
   
@@ -653,6 +632,15 @@ export default function App() {
     const matchStatus = filterStatus ? workspace?.pipeline?.some(step => s.status?.[step] === filterStatus) : true;
     const matchAssignee = filterAssignee ? workspace?.pipeline?.some(step => getAssignees(s, step).includes(filterAssignee)) : true;
     return matchSearch && matchStatus && matchAssignee;
+  });
+
+  // STATISTIQUES CALCULEES POUR L'ONGLET STATS
+  const myStats = { todo: 0, wip: 0, review: 0, done: 0 };
+  shots.forEach(s => {
+    workspace?.pipeline?.forEach(step => {
+      const st = s.status?.[step] || 'todo';
+      if (myStats[st] !== undefined) myStats[st]++;
+    });
   });
 
   const groupedShots = filteredShots.reduce((acc, s) => { (acc[s.sequence] = acc[s.sequence] || []).push(s); return acc; }, {});
@@ -918,7 +906,10 @@ export default function App() {
                   <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)} className={inputClass + " flex-1"}><option value="">{t('allStatus')}</option><option value="todo">{t('todo')}</option><option value="wip">{t('wip')}</option><option value="review">{t('reviewStatus')}</option><option value="reuse">{t('reuse')}</option><option value="done">{t('done')}</option></select>
                   <select value={filterAssignee} onChange={e=>setFilterAssignee(e.target.value)} className={inputClass + " flex-1"}><option value="">{t('allMembers')}</option>{members.map(m=><option key={m.userId} value={m.userId}>{m.displayName}</option>)}</select>
                 </div>
-                {userPermissions.canAssign && <button onClick={() => setShowAddShot(true)} className="w-full xl:w-auto flex items-center justify-center space-x-2 bg-blue-600 text-white hover:bg-blue-500 px-4 py-2 rounded font-bold text-sm shrink-0"><Plus size={16} /> <span>{t('addShot')}</span></button>}
+                <div className="flex items-center gap-2 w-full xl:w-auto">
+                  <button onClick={exportToCSV} className="w-full xl:w-auto flex items-center justify-center space-x-2 bg-green-600 text-white hover:bg-green-500 px-4 py-2 rounded font-bold text-sm shrink-0"><Download size={16} /> <span>Export CSV</span></button>
+                  {userPermissions.canAssign && <button onClick={() => setShowAddShot(true)} className="w-full xl:w-auto flex items-center justify-center space-x-2 bg-blue-600 text-white hover:bg-blue-500 px-4 py-2 rounded font-bold text-sm shrink-0"><Plus size={16} /> <span>{t('addShot')}</span></button>}
+                </div>
               </div>
 
               {userPermissions.canEdit && batchSelection.length > 0 && (
@@ -1077,7 +1068,6 @@ export default function App() {
                            const start = workspace?.sequenceDates?.[seq]?.start || '';
                            const end = workspace?.sequenceDates?.[seq]?.end || '';
                            
-                           // Calcul très basique de la position (jan-dec 2026) pour la demo Gantt visuelle
                            const getGanttStyle = (s, e) => {
                              if(!s || !e) return {width: '0%', left: '0%', opacity: 0};
                              const sDate = new Date(s); const eDate = new Date(e);
@@ -1142,6 +1132,10 @@ export default function App() {
 
           {activeTab === 'stats' && (
             <div className="space-y-6 max-w-6xl mx-auto">
+              <div className="flex justify-between items-center">
+                 <h3 className="text-xl font-bold">Vue d'ensemble</h3>
+                 <button onClick={exportToCSV} className="flex items-center space-x-2 bg-green-600 text-white hover:bg-green-500 px-4 py-2 rounded font-bold text-sm"><Download size={16} /> <span>Exporter Tableau</span></button>
+              </div>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className={`border rounded-xl p-4 text-center ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}><div className="text-3xl font-black text-slate-400">{myStats.todo}</div><div className="text-xs font-bold text-slate-500 uppercase">To Do</div></div>
                 <div className="bg-blue-100 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-xl p-4 text-center"><div className="text-3xl font-black text-blue-500">{myStats.wip}</div><div className="text-xs font-bold text-blue-600 dark:text-blue-500 uppercase">WIP</div></div>
@@ -1292,13 +1286,13 @@ export default function App() {
                     <div className={`relative w-full h-2 rounded-full cursor-pointer mb-3 border ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-slate-200 border-slate-300'}`} onClick={(e) => { if(videoRef.current) { const rect = e.currentTarget.getBoundingClientRect(); const time = ((e.clientX - rect.left) / rect.width) * videoDuration; videoRef.current.currentTime = time; if(compareVideoRef.current) compareVideoRef.current.currentTime = time; } }}>
                       <div className="absolute h-full bg-blue-600 rounded-full transition-all duration-75" style={{ width: `${(videoProgress / videoDuration) * 100 || 0}%` }}></div>
                       {Object.keys(reviewItem.annotations?.[reviewStep]?.[`v${reviewVersion}`] || {}).map(frameTime => (
-                        <div key={frameTime} className="absolute top-1/2 w-2 h-2 bg-red-500 rounded-full transform -translate-x-1 -translate-y-1/2 shadow-sm border border-black" style={{ left: `${(parseFloat(frameTime) / (videoDuration*25)) * 100}%` }}></div>
+                        <div key={frameTime} className="absolute top-1/2 w-2 h-2 bg-red-500 rounded-full transform -translate-x-1 -translate-y-1/2 shadow-sm border border-black" style={{ left: `${(parseFloat(frameTime) / (videoDuration*FRAMERATE)) * 100}%` }}></div>
                       ))}
                     </div>
                     <div className="flex justify-center items-center space-x-6">
-                      <button onClick={() => { if(videoRef.current) { videoRef.current.pause(); videoRef.current.currentTime -= (1/24); if(compareVideoRef.current){compareVideoRef.current.pause(); compareVideoRef.current.currentTime -= (1/25);} } }} className="p-1.5 text-slate-400 hover:text-blue-500 rounded-full transition"><SkipBack size={20} /></button>
+                      <button onClick={() => { if(videoRef.current) { videoRef.current.pause(); videoRef.current.currentTime -= (1/FRAMERATE); if(compareVideoRef.current){compareVideoRef.current.pause(); compareVideoRef.current.currentTime -= (1/FRAMERATE);} } }} className="p-1.5 text-slate-400 hover:text-blue-500 rounded-full transition"><SkipBack size={20} /></button>
                       <button onClick={() => { if(isPlaying){ videoRef.current?.pause(); compareVideoRef.current?.pause(); } else { videoRef.current?.play(); compareVideoRef.current?.play(); } }} className="p-3 bg-blue-600 hover:bg-blue-500 text-white rounded-full transition shadow transform hover:scale-105">{isPlaying ? <Pause size={20} fill="currentColor"/> : <Play size={20} fill="currentColor" className="ml-0.5" />}</button>
-                      <button onClick={() => { if(videoRef.current) { videoRef.current.pause(); videoRef.current.currentTime += (1/24); if(compareVideoRef.current){compareVideoRef.current.pause(); compareVideoRef.current.currentTime += (1/25);} } }} className="p-1.5 text-slate-400 hover:text-blue-500 rounded-full transition"><SkipForward size={20} /></button>
+                      <button onClick={() => { if(videoRef.current) { videoRef.current.pause(); videoRef.current.currentTime += (1/FRAMERATE); if(compareVideoRef.current){compareVideoRef.current.pause(); compareVideoRef.current.currentTime += (1/FRAMERATE);} } }} className="p-1.5 text-slate-400 hover:text-blue-500 rounded-full transition"><SkipForward size={20} /></button>
                     </div>
                   </div>
                 )}
