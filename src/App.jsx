@@ -8,7 +8,7 @@ import {
 import { initializeApp } from 'firebase/app';
 import { 
   Film, Box, Settings, Plus, Play, Pause, Trash2, LogOut, 
-  Users, Upload, Clock, SkipForward, SkipBack, MonitorPlay, FolderKanban, BarChart, ChevronLeft, UserCircle, PenTool, Save, Key, Eraser, Undo, X, Bell, Download, Clapperboard, AlertTriangle, MessageSquare, Type, CheckSquare, Search, HelpCircle, Moon, Sun, Edit3, UserPlus, HeartHandshake, Image as ImageIcon
+  Users, Upload, Clock, SkipForward, SkipBack, MonitorPlay, FolderKanban, BarChart, ChevronLeft, UserCircle, PenTool, Save, Key, Eraser, Undo, X, Bell, Download, Clapperboard, AlertTriangle, MessageSquare, Type, CheckSquare, Search, HelpCircle, Moon, Sun, Edit3, UserPlus, HeartHandshake, Image as ImageIcon, MessageCircle, GripVertical
 } from 'lucide-react';
 
 const keyPart1 = "AIzaSyDgTadoI2_";
@@ -40,13 +40,13 @@ const generateCloudinarySignature = async (publicId, timestamp, apiSecret) => {
 
 const dict = {
   fr: {
-    projects: "Mes Projets", friends: "Mes Amis", assets: "Assets", shots: "Plans", review: "Validation & Retakes", time: "Chronomètre", stats: "Statistiques", team: "Équipe", settings: "Paramètres", help: "Aide & Guide",
+    projects: "Mes Projets", friends: "Mes Amis", assets: "Assets", shots: "Plans", time: "Chronomètre", stats: "Statistiques", team: "Équipe", settings: "Paramètres", help: "Aide & Guide",
     ok: "Ok", cancel: "Annuler", batchAction: "Multi-action", manualTime: "Saisie manuelle", join: "Rejoindre", addFriend: "Ajouter Ami", friendId: "ID Utilisateur de l'ami", myId: "Mon ID", sharedProj: "projet(s) en commun",
     createProj: "Créer un projet", joinProj: "Rejoindre un projet", projName: "Nom du projet", joinCode: "Code d'invitation", searchShot: "Rechercher...", allStatus: "Tous les statuts", allMembers: "Toute l'équipe", addShot: "Ajouter un plan",
     todo: "À faire", wip: "En cours", reviewStatus: "En validation", reuse: "Réutiliser", done: "Terminé", upload: "Envoyer un fichier", wait: "En attente"
   },
   en: {
-    projects: "My Projects", friends: "My Friends", assets: "Assets", shots: "Shots", review: "Review & Retake", time: "Time Tracker", stats: "Statistics", team: "Team", settings: "Settings", help: "Help & Guide",
+    projects: "My Projects", friends: "My Friends", assets: "Assets", shots: "Shots", time: "Time Tracker", stats: "Statistics", team: "Team", settings: "Settings", help: "Help & Guide",
     ok: "Ok", cancel: "Cancel", batchAction: "Batch Action", manualTime: "Manual Entry", join: "Join", addFriend: "Add Friend", friendId: "Friend's User ID", myId: "My ID", sharedProj: "shared project(s)",
     createProj: "Create Project", joinProj: "Join Project", projName: "Project Name", joinCode: "Invite Code", searchShot: "Search...", allStatus: "All Statuses", allMembers: "All Members", addShot: "Add Shot",
     todo: "To Do", wip: "WIP", reviewStatus: "Review", reuse: "Reuse", done: "Done", upload: "Upload File", wait: "Waiting"
@@ -112,6 +112,7 @@ export default function App() {
   const [batchActionStep, setBatchActionStep] = useState('');
   const [batchActionStatus, setBatchActionStatus] = useState('');
 
+  // REVIEW PANEL STATES
   const [reviewItem, setReviewItem] = useState(null);
   const [reviewType, setReviewType] = useState('shots');
   const [reviewStep, setReviewStep] = useState(null);
@@ -119,6 +120,8 @@ export default function App() {
   const [reviewPreview, setReviewPreview] = useState(null);
   const [compareMode, setCompareMode] = useState(false);
   const [compareVersion, setCompareVersion] = useState('');
+  const [reviewPanelWidth, setReviewPanelWidth] = useState(500);
+  const [isResizing, setIsResizing] = useState(false);
   
   const [chatMessages, setChatMessages] = useState([]);
   const [newChatMsg, setNewChatMsg] = useState('');
@@ -141,11 +144,12 @@ export default function App() {
   const [showNotifications, setShowNotifications] = useState(false);
   
   const [logoPixelated, setLogoPixelated] = useState(false);
+  
+  // WIDGET MESSAGERIE PRIVEE
+  const [isChatWidgetOpen, setIsChatWidgetOpen] = useState(false);
   const [friendsList, setFriendsList] = useState([]);
   const [friendInput, setFriendInput] = useState('');
   const [activeFriend, setActiveFriend] = useState(null);
-  const [sharedProjects, setSharedProjects] = useState([]);
-  const [showSharedProjects, setShowSharedProjects] = useState(false);
   const [pmMessages, setPmMessages] = useState([]);
   const [newPmMsg, setNewPmMsg] = useState('');
 
@@ -199,6 +203,7 @@ export default function App() {
     return () => { unsubShots(); unsubAssets(); unsubMembers(); unsubLogs(); };
   }, [workspace]);
 
+  // Écouteur pour les commentaires de la Review active
   useEffect(() => {
     if (!reviewItem || !reviewStep) return;
     const q = query(collection(db, `${reviewType}/${reviewItem.id}/comments`), orderBy('date', 'asc'));
@@ -210,23 +215,30 @@ export default function App() {
     if (reviewItem) {
       const freshItem = reviewType === 'shots' ? shots.find(s => s.id === reviewItem.id) : assets.find(a => a.id === reviewItem.id);
       if (freshItem) setReviewItem(freshItem);
+      else setReviewItem(null); // ferme le panel si supprimé
     }
   }, [shots, assets]);
 
+  // Écouteur pour les messages privés du widget
   useEffect(() => {
     if (!activeFriend) return;
     const q = query(collection(db, `friendships/${activeFriend.friendshipId}/messages`), orderBy('date', 'asc'));
     const unsub = onSnapshot(q, (snap) => setPmMessages(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-    
-    const fetchShared = async () => {
-      const memSnaps = await getDocs(query(collection(db, 'projectMembers'), where('userId', '==', activeFriend.id)));
-      const fProjects = memSnaps.docs.map(d => d.data());
-      const shared = myProjects.filter(mp => fProjects.some(fp => fp.workspaceId === mp.workspaceId));
-      setSharedProjects(shared);
-    };
-    fetchShared();
     return () => unsub();
-  }, [activeFriend, myProjects]);
+  }, [activeFriend]);
+
+  // Logique du redimensionnement du panneau latéral
+  useEffect(() => {
+    if (!isResizing) return;
+    const handleMouseMove = (e) => {
+      const newWidth = document.body.clientWidth - e.clientX;
+      setReviewPanelWidth(Math.max(320, Math.min(newWidth, document.body.clientWidth - 200)));
+    };
+    const handleMouseUp = () => setIsResizing(false);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => { window.removeEventListener('mousemove', handleMouseMove); window.removeEventListener('mouseup', handleMouseUp); };
+  }, [isResizing]);
 
   useEffect(() => {
     let interval = null;
@@ -457,7 +469,7 @@ export default function App() {
       const shot = shots.find(s => s.id === id);
       if (shot && batchActionStatus) await changeStatus(shot, batchActionStep, batchActionStatus, 'shots');
     }
-    setBatchSelection([]); openModal(t('batchAction'), "Action en lot appliquée.");
+    setBatchSelection([]); openModal(t('batchAction'), "Multi-action appliquée.");
   };
 
   const uploadShotPreview = async (shotId, step, file, currentVersions = []) => {
@@ -487,7 +499,7 @@ export default function App() {
 
   const openReview = (item, step, version, previewObj, type = 'shots') => {
     setReviewItem(item); setReviewType(type); setReviewStep(step); setReviewVersion(version); setReviewPreview(previewObj);
-    setCompareMode(false); setCompareVersion(''); setActiveTab('review'); setStrokes([]); setCurrentStroke(null); setDrawMode('pen');
+    setCompareMode(false); setCompareVersion(''); setStrokes([]); setCurrentStroke(null); setDrawMode('pen');
   };
 
   const getAnnotationKey = () => {
@@ -731,12 +743,63 @@ export default function App() {
     );
   }
 
+  // WIDGET GLOBAL DE MESSAGERIE PRIVEE (Renderé au-dessus de tout)
+  const renderChatWidget = () => (
+    <div className="fixed bottom-6 right-6 z-[100] flex flex-col items-end">
+      {isChatWidgetOpen && (
+        <div className={`w-80 h-[28rem] mb-4 rounded-xl shadow-2xl border flex flex-col overflow-hidden transform transition-all ${theme==='dark'?'bg-slate-900 border-slate-700':'bg-white border-slate-200'}`}>
+          {!activeFriend ? (
+             <div className="flex flex-col h-full">
+               <div className={`p-4 border-b font-bold flex justify-between items-center ${theme==='dark'?'border-slate-800 bg-slate-950/50':'border-slate-200 bg-slate-50'}`}>
+                  <div className="flex items-center"><MessageCircle size={18} className="mr-2 text-blue-500"/> Mes Messages</div>
+                  <button onClick={()=>setIsChatWidgetOpen(false)} className="text-slate-400 hover:text-red-500"><X size={18}/></button>
+               </div>
+               <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                 {friendsList.length === 0 ? <p className="text-xs text-center text-slate-500 italic mt-10">Ajoutez des amis dans le Dashboard.</p> : null}
+                 {friendsList.map(f => (
+                   <button key={f.id} onClick={() => setActiveFriend(f)} className={`w-full flex items-center p-3 rounded-lg transition text-left ${theme==='dark'?'hover:bg-slate-800':'hover:bg-slate-100'}`}>
+                     <UserCircle size={24} className="text-slate-400 mr-3 shrink-0"/>
+                     <span className="font-bold text-sm truncate">{f.displayName}</span>
+                   </button>
+                 ))}
+               </div>
+             </div>
+          ) : (
+             <div className="flex flex-col h-full">
+               <div className={`p-3 border-b flex justify-between items-center shadow-sm ${theme==='dark'?'border-slate-800 bg-slate-950/50':'border-slate-200 bg-slate-50'}`}>
+                  <button onClick={()=>setActiveFriend(null)} className="p-1 text-slate-400 hover:text-blue-500"><ChevronLeft size={20}/></button>
+                  <span className="font-bold text-sm truncate flex-1 text-center">{activeFriend.displayName}</span>
+                  <button onClick={()=>setIsChatWidgetOpen(false)} className="p-1 text-slate-400 hover:text-red-500"><X size={20}/></button>
+               </div>
+               <div className="flex-1 overflow-y-auto p-3 space-y-3 bg-slate-50 dark:bg-slate-950/30">
+                 {pmMessages.length === 0 ? <p className="text-xs text-center text-slate-500 italic mt-10">Dites bonjour !</p> : null}
+                 {pmMessages.map(msg => (
+                    <div key={msg.id} className={`p-2.5 rounded-xl text-xs max-w-[85%] shadow-sm ${msg.authorId === user.uid ? 'bg-blue-600 text-white ml-auto rounded-br-none' : (theme==='dark'?'bg-slate-800 text-slate-200 mr-auto rounded-bl-none':'bg-white border text-slate-700 mr-auto rounded-bl-none')}`}>
+                      <p className="whitespace-pre-wrap">{msg.text}</p>
+                    </div>
+                 ))}
+               </div>
+               <form onSubmit={postPm} className={`p-2 border-t flex space-x-2 ${theme==='dark'?'border-slate-800 bg-slate-900':'border-slate-200 bg-white'}`}>
+                  <input type="text" value={newPmMsg} onChange={e=>setNewPmMsg(e.target.value)} placeholder="Message..." className={`flex-1 p-2 rounded-lg outline-none text-sm ${theme==='dark'?'bg-slate-950 border-slate-700 border':'bg-slate-100 border-slate-300 border focus:border-blue-500'}`} />
+                  <button type="submit" className="bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-500 transition"><Plus size={18}/></button>
+               </form>
+             </div>
+          )}
+        </div>
+      )}
+      <button onClick={() => setIsChatWidgetOpen(!isChatWidgetOpen)} className="w-14 h-14 bg-blue-600 hover:bg-blue-500 text-white rounded-full flex items-center justify-center shadow-2xl transform hover:scale-105 transition">
+         {isChatWidgetOpen ? <X size={24}/> : <MessageCircle size={24}/>}
+      </button>
+    </div>
+  );
+
   if (currentView === 'dashboard') {
     return (
-      <div className={`min-h-screen p-6 relative ${theme === 'dark' ? 'dark bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'}`}>
+      <div className={`min-h-screen p-6 relative flex flex-col ${theme === 'dark' ? 'dark bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'}`}>
         <style>{pixelateStyle}</style>
+        {renderChatWidget()}
         
-        <header className="flex flex-col md:flex-row justify-between items-center mb-10 max-w-5xl mx-auto space-y-4 md:space-y-0">
+        <header className="flex flex-col md:flex-row justify-between items-center mb-10 max-w-5xl mx-auto w-full space-y-4 md:space-y-0">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-lg flex items-center justify-center shadow-md"><Clapperboard size={22} className="text-white" /></div>
             <h1 onClick={triggerEasterEgg} className="text-2xl font-black cursor-pointer select-none" style={{ animation: logoPixelated ? 'pixelateAnim 0.5s ease-in-out' : 'none' }}>Fabrica Tracker</h1>
@@ -751,15 +814,15 @@ export default function App() {
           </div>
         </header>
 
-        <div className="max-w-5xl mx-auto mb-6 flex space-x-4 border-b dark:border-slate-800 pb-2">
+        <div className="max-w-5xl mx-auto w-full mb-6 flex space-x-4 border-b dark:border-slate-800 pb-2">
           <button onClick={()=>setDashTab('projects')} className={`font-bold text-lg ${dashTab === 'projects' ? 'text-blue-500 border-b-2 border-blue-500' : 'text-slate-400'}`}>{t('projects')}</button>
           <button onClick={()=>setDashTab('friends')} className={`font-bold text-lg ${dashTab === 'friends' ? 'text-blue-500 border-b-2 border-blue-500' : 'text-slate-400'}`}>{t('friends')}</button>
         </div>
 
-        <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="max-w-5xl mx-auto w-full grid grid-cols-1 md:grid-cols-3 gap-6">
           {dashTab === 'projects' && (
             <>
-              <div className={`md:col-span-2 border p-6 rounded-xl ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200 shadow'}`}>
+              <div className={`md:col-span-2 border p-6 rounded-xl flex-1 ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200 shadow'}`}>
                 <h2 className="text-xl font-bold mb-4 flex items-center"><FolderKanban className="mr-2 text-blue-500" /> {t('projects')}</h2>
                 <div className="space-y-3">
                   {myProjects.length === 0 ? <p className="text-slate-500 italic">Aucun projet.</p> : null}
@@ -771,7 +834,7 @@ export default function App() {
                           const wsDoc = await getDoc(doc(db, 'workspaces', p.workspaceId));
                           if(wsDoc.exists()) { setWorkspace({ id: wsDoc.id, ...wsDoc.data() }); setUserRole(p.role); setCurrentView('workspace'); setActiveTab('assets'); }
                         }}>
-                          <div><h3 className="font-bold text-lg drop-shadow-md">{p.workspaceName}</h3><p className="text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider mt-1 drop-shadow">Rôle : <span className="text-blue-600 dark:text-blue-400 font-bold">{p.role}</span></p></div>
+                          <div><h3 className="font-bold text-lg drop-shadow-md">{p.workspaceName}</h3><p className="text-xs text-slate-800 font-bold dark:text-slate-300 uppercase tracking-wider mt-1 drop-shadow-md">Rôle : <span className="text-blue-600 dark:text-blue-400 font-black">{p.role}</span></p></div>
                         </div>
                         <div className="flex items-center space-x-3 bg-white/50 dark:bg-slate-950/50 p-1.5 rounded-full backdrop-blur-md">
                           {p.role === 'Admin' && <button onClick={() => {
@@ -780,7 +843,7 @@ export default function App() {
                               updateDoc(doc(db, 'workspaces', p.workspaceId), { name: newName });
                               getDocs(query(collection(db, 'projectMembers'), where('workspaceId', '==', p.workspaceId))).then(snap => snap.forEach(m => updateDoc(m.ref, { workspaceName: newName })));
                             }
-                          }} className="p-2 text-slate-600 dark:text-slate-400 hover:text-blue-600 transition"><Edit3 size={18}/></button>}
+                          }} className="p-2 text-slate-800 dark:text-slate-300 hover:text-blue-600 transition"><Edit3 size={18}/></button>}
                           <div onClick={async () => {
                             const wsDoc = await getDoc(doc(db, 'workspaces', p.workspaceId));
                             if(wsDoc.exists()) { setWorkspace({ id: wsDoc.id, ...wsDoc.data() }); setUserRole(p.role); setCurrentView('workspace'); setActiveTab('assets'); }
@@ -813,7 +876,7 @@ export default function App() {
                 <div className="space-y-3">
                   {friendsList.length === 0 ? <p className="text-slate-500 italic">Aucun ami ajouté.</p> : null}
                   {friendsList.map(f => (
-                    <div key={f.id} onClick={() => { setActiveFriend(f); setShowSharedProjects(false); }} className={`border p-4 rounded-lg cursor-pointer flex justify-between items-center transition ${theme==='dark'?'bg-slate-950 border-slate-800 hover:border-blue-500':'bg-slate-50 border-slate-200 hover:border-blue-500'} ${activeFriend?.id === f.id ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/10' : ''}`}>
+                    <div key={f.id} onClick={() => { setActiveFriend(f); setIsChatWidgetOpen(true); }} className={`border p-4 rounded-lg cursor-pointer flex justify-between items-center transition ${theme==='dark'?'bg-slate-950 border-slate-800 hover:border-blue-500':'bg-slate-50 border-slate-200 hover:border-blue-500'}`}>
                       <div className="flex items-center space-x-3"><UserCircle size={32} className="text-slate-400"/> <div><h3 className="font-bold text-lg">{f.displayName}</h3></div></div>
                       <MessageSquare size={18} className="text-blue-500"/>
                     </div>
@@ -836,7 +899,7 @@ export default function App() {
         </div>
 
         {modal.isOpen && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4 backdrop-blur-sm">
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[200] p-4 backdrop-blur-sm">
             <div className={`p-6 rounded-xl border w-full max-w-sm space-y-4 shadow-2xl ${theme==='dark'?'bg-slate-900 border-slate-800 text-white':'bg-white border-slate-200 text-slate-900'}`}>
               <h3 className="font-bold text-lg">{modal.title}</h3><p className="text-sm opacity-80">{modal.msg}</p>
               <div className="flex space-x-3 pt-4">
@@ -844,49 +907,6 @@ export default function App() {
                 <button onClick={modal.onConfirm || closeModal} className="flex-1 py-2 bg-blue-600 text-white rounded font-bold transition hover:bg-blue-500">{t('ok')}</button>
               </div>
             </div>
-          </div>
-        )}
-
-        {activeFriend && (
-          <div className="fixed inset-0 bg-black/60 flex justify-end z-[90] backdrop-blur-sm">
-             <div className={`w-full max-w-md h-full shadow-2xl flex flex-col ${theme==='dark'?'bg-slate-950 border-l border-slate-800':'bg-slate-50 border-l border-slate-200'}`}>
-                <div className={`p-6 border-b flex justify-between items-center ${theme==='dark'?'border-slate-800 bg-slate-900':'border-slate-200 bg-white'}`}>
-                  <div className="flex items-center space-x-3"><UserCircle size={32} className="text-slate-400"/> <h2 className="text-xl font-bold">{activeFriend.displayName}</h2></div>
-                  <button onClick={() => setActiveFriend(null)} className="p-2 text-slate-400 hover:text-red-500"><X size={20}/></button>
-                </div>
-                <div className="p-4">
-                  <button onClick={()=>setShowSharedProjects(!showSharedProjects)} className={`w-full p-4 rounded-xl flex justify-between items-center border font-bold transition ${theme==='dark'?'bg-slate-900 border-slate-800 hover:bg-slate-800':'bg-white border-slate-200 hover:bg-slate-100'}`}>
-                    <span className="flex items-center"><HeartHandshake className="mr-2 text-purple-500"/> {sharedProjects.length} {t('sharedProj')}</span>
-                    <ChevronLeft className={`transform transition ${showSharedProjects ? '-rotate-90' : 'rotate-180'}`} size={18}/>
-                  </button>
-                  {showSharedProjects && (
-                    <div className="mt-2 space-y-2 p-2 max-h-40 overflow-y-auto">
-                      {sharedProjects.length === 0 ? <p className="text-xs text-center text-slate-500">Aucun projet en commun.</p> : sharedProjects.map(p => (
-                        <div key={p.id} className={`p-2 rounded text-sm font-bold border cursor-pointer hover:border-blue-500 ${theme==='dark'?'bg-slate-950 border-slate-800':'bg-slate-100 border-slate-200'}`} onClick={async () => {
-                          const wsDoc = await getDoc(doc(db, 'workspaces', p.workspaceId));
-                          if(wsDoc.exists()) { setWorkspace({ id: wsDoc.id, ...wsDoc.data() }); setUserRole(p.role); setCurrentView('workspace'); setActiveTab('assets'); setActiveFriend(null); }
-                        }}>{p.workspaceName}</div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div className={`flex-1 flex flex-col mt-2 border-t overflow-hidden ${theme==='dark'?'border-slate-800':'border-slate-200'}`}>
-                  <div className={`p-3 text-center text-xs font-bold uppercase tracking-wider ${theme==='dark'?'bg-slate-900 text-slate-500':'bg-white text-slate-400'}`}>Message Privé</div>
-                  <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                    {pmMessages.length === 0 ? <p className="text-xs text-center text-slate-500 italic mt-10">Dites bonjour !</p> : null}
-                    {pmMessages.map(msg => (
-                        <div key={msg.id} className={`p-3 rounded-xl text-sm max-w-[80%] ${msg.authorId === user.uid ? 'bg-blue-600 text-white ml-auto rounded-tr-none' : (theme==='dark'?'bg-slate-800 text-slate-200 mr-auto rounded-tl-none':'bg-white border text-slate-700 mr-auto rounded-tl-none')}`}>
-                          <p>{msg.text}</p>
-                          <div className={`text-[10px] text-right mt-1 opacity-70`}>{new Date(msg.date?.toDate()).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
-                        </div>
-                    ))}
-                  </div>
-                  <form onSubmit={postPm} className={`p-3 border-t flex space-x-2 ${theme==='dark'?'border-slate-800 bg-slate-900':'border-slate-200 bg-white'}`}>
-                    <input type="text" value={newPmMsg} onChange={e=>setNewPmMsg(e.target.value)} placeholder="Message..." className={`flex-1 p-2 rounded outline-none text-sm ${theme==='dark'?'bg-slate-950 border-slate-700 border':'bg-slate-100 border-slate-300 border focus:border-blue-500'}`} />
-                    <button type="submit" className="bg-blue-600 text-white p-2 rounded hover:bg-blue-500 transition"><Plus size={18}/></button>
-                  </form>
-                </div>
-             </div>
           </div>
         )}
       </div>
@@ -938,11 +958,12 @@ export default function App() {
   }
 
   return (
-    <div className={`min-h-screen flex ${theme === 'dark' ? 'dark bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'}`}>
+    <div className={`h-screen flex overflow-hidden ${theme === 'dark' ? 'dark bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'}`}>
       <style>{pixelateStyle}</style>
+      {renderChatWidget()}
       
       {modal.isOpen && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[200] p-4 backdrop-blur-sm">
           <div className={`p-6 rounded-xl border w-full max-w-sm space-y-4 shadow-2xl ${theme==='dark'?'bg-slate-900 border-slate-800 text-white':'bg-white border-slate-200 text-slate-900'}`}>
             <h3 className="font-bold text-lg">{modal.title}</h3><p className="text-sm opacity-80">{modal.msg}</p>
             <div className="flex space-x-3 pt-4">
@@ -968,7 +989,7 @@ export default function App() {
         </div>
       )}
 
-      <aside className={`w-16 md:w-64 border-r flex flex-col justify-between shrink-0 h-screen sticky top-0 ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
+      <aside className={`w-16 md:w-64 border-r flex flex-col justify-between shrink-0 h-full z-20 ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
         <div className="space-y-4">
           <div className="relative p-4 border-b border-slate-200 dark:border-slate-800 bg-cover bg-center" style={workspace?.bannerUrl ? {backgroundImage: `url(${workspace.bannerUrl})`} : {}}>
             {workspace?.bannerUrl && <div className="absolute inset-0 bg-white/70 dark:bg-slate-950/70 backdrop-blur-sm"></div>}
@@ -981,15 +1002,14 @@ export default function App() {
             </div>
           </div>
           
-          <nav className="space-y-1.5 px-4">
-            <button onClick={() => setActiveTab('assets')} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'assets' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Box size={18} /> <span className="hidden md:inline font-medium">{t('assets')}</span></button>
-            <button onClick={() => setActiveTab('shots')} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'shots' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Film size={18} /> <span className="hidden md:inline font-medium">{t('shots')}</span></button>
-            <button onClick={() => setActiveTab('review')} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'review' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><MonitorPlay size={18} /> <span className="hidden md:inline font-medium">{t('review')}</span></button>
-            <button onClick={() => setActiveTab('time')} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'time' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Clock size={18} /> <span className="hidden md:inline font-medium">{t('time')}</span></button>
-            <button onClick={() => setActiveTab('stats')} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'stats' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><BarChart size={18} /> <span className="hidden md:inline font-medium">{t('stats')}</span></button>
-            <button onClick={() => setActiveTab('team')} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'team' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Users size={18} /> <span className="hidden md:inline font-medium">{t('team')}</span></button>
-            {isAdmin && <button onClick={() => setActiveTab('settings')} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'settings' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Settings size={18} /> <span className="hidden md:inline font-medium">{t('settings')}</span></button>}
-            <button onClick={() => setActiveTab('help')} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'help' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><HelpCircle size={18} /> <span className="hidden md:inline font-medium">{t('help')}</span></button>
+          <nav className="space-y-1.5 px-4 overflow-y-auto">
+            <button onClick={() => {setActiveTab('assets'); setReviewItem(null);}} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'assets' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Box size={18} /> <span className="hidden md:inline font-medium">{t('assets')}</span></button>
+            <button onClick={() => {setActiveTab('shots'); setReviewItem(null);}} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'shots' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Film size={18} /> <span className="hidden md:inline font-medium">{t('shots')}</span></button>
+            <button onClick={() => {setActiveTab('time'); setReviewItem(null);}} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'time' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Clock size={18} /> <span className="hidden md:inline font-medium">{t('time')}</span></button>
+            <button onClick={() => {setActiveTab('stats'); setReviewItem(null);}} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'stats' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><BarChart size={18} /> <span className="hidden md:inline font-medium">{t('stats')}</span></button>
+            <button onClick={() => {setActiveTab('team'); setReviewItem(null);}} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'team' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Users size={18} /> <span className="hidden md:inline font-medium">{t('team')}</span></button>
+            {isAdmin && <button onClick={() => {setActiveTab('settings'); setReviewItem(null);}} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'settings' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Settings size={18} /> <span className="hidden md:inline font-medium">{t('settings')}</span></button>}
+            <button onClick={() => {setActiveTab('help'); setReviewItem(null);}} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'help' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><HelpCircle size={18} /> <span className="hidden md:inline font-medium">{t('help')}</span></button>
           </nav>
         </div>
         <div className="p-4">
@@ -997,464 +1017,475 @@ export default function App() {
         </div>
       </aside>
 
-      <main className={`flex-1 p-6 overflow-x-auto relative ${theme==='dark'?'bg-slate-950':'bg-slate-50'}`}>
-        {uploadingMedia && <div className="fixed top-4 right-4 bg-blue-600 text-white px-4 py-2 rounded text-sm animate-pulse shadow-lg z-50">Transfert...</div>}
-        
-        <header className="mb-6 flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-4">
-          <h2 className="text-2xl font-bold tracking-tight uppercase">{t(activeTab)}</h2>
-          <div className="flex items-center space-x-6">
-            {canAssign && (
-              <div className="relative">
-                <button onClick={() => setShowNotifications(!showNotifications)} className="relative p-2 text-slate-400 hover:text-blue-500 transition">
-                  <Bell size={20} />
-                  {pendingReviews.length > 0 && <span className="absolute top-0 right-0 w-4 h-4 bg-red-500 text-[10px] font-bold rounded-full flex items-center justify-center text-white">{pendingReviews.length}</span>}
-                </button>
-                {showNotifications && (
-                  <div className={`absolute top-10 right-0 w-64 border rounded-lg shadow-2xl z-50 p-3 max-h-64 overflow-y-auto ${theme==='dark'?'bg-slate-900 border-slate-700':'bg-white border-slate-200'}`}>
-                    <h4 className="text-sm font-bold border-b border-slate-200 dark:border-slate-800 pb-2 mb-2">À Valider (Mes Assignations)</h4>
-                    {pendingReviews.length === 0 ? <p className="text-xs text-slate-500">Rien à voir !</p> : pendingReviews.map(s => (
-                      <div key={s.id} className="text-xs p-2 rounded mb-1 border cursor-pointer hover:bg-blue-50 dark:hover:bg-slate-800 border-slate-200 dark:border-slate-800" onClick={()=>{setActiveTab('shots'); setShowNotifications(false);}}>
-                        <span className="font-bold text-blue-500">{s.name}</span> prêt pour validation.
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-            <p className="text-xs text-slate-500 uppercase tracking-wider">Rôle : <span className="text-blue-500 font-bold ml-1">{userRole}</span></p>
-          </div>
-        </header>
-
-        {activeTab === 'shots' && (
-          <div className="space-y-6">
-            <div className={`p-4 rounded-xl border flex flex-col md:flex-row gap-4 items-center justify-between ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200 shadow-sm'}`}>
-              <div className="flex flex-1 gap-2 w-full">
-                <div className="relative flex-1"><Search className="absolute left-3 top-2.5 text-slate-400" size={16}/><input type="text" placeholder={t('searchShot')} value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} className={`${inputClass} pl-10`} /></div>
-                <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)} className={inputClass + " flex-1"}><option value="">{t('allStatus')}</option><option value="todo">{t('todo')}</option><option value="wip">{t('wip')}</option><option value="review">{t('reviewStatus')}</option><option value="reuse">{t('reuse')}</option><option value="done">{t('done')}</option></select>
-                <select value={filterAssignee} onChange={e=>setFilterAssignee(e.target.value)} className={inputClass + " flex-1"}><option value="">{t('allMembers')}</option>{members.map(m=><option key={m.userId} value={m.userId}>{m.displayName}</option>)}</select>
-              </div>
-              {canAssign && <button onClick={() => setShowAddShot(true)} className="flex items-center space-x-2 bg-blue-600 text-white hover:bg-blue-500 px-4 py-2 rounded font-bold text-sm shrink-0"><Plus size={16} /> <span>{t('addShot')}</span></button>}
+      <div className="flex-1 flex overflow-hidden relative">
+        <main className={`flex-1 p-6 overflow-y-auto overflow-x-hidden relative ${theme==='dark'?'bg-slate-950':'bg-slate-50'}`}>
+          {uploadingMedia && <div className="fixed top-4 right-4 bg-blue-600 text-white px-4 py-2 rounded text-sm animate-pulse shadow-lg z-50">Transfert...</div>}
+          
+          <header className="mb-6 flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-4">
+            <h2 className="text-2xl font-bold tracking-tight uppercase">{t(activeTab)}</h2>
+            <div className="flex items-center space-x-6">
+              {canAssign && (
+                <div className="relative">
+                  <button onClick={() => setShowNotifications(!showNotifications)} className="relative p-2 text-slate-400 hover:text-blue-500 transition">
+                    <Bell size={20} />
+                    {pendingReviews.length > 0 && <span className="absolute top-0 right-0 w-4 h-4 bg-red-500 text-[10px] font-bold rounded-full flex items-center justify-center text-white">{pendingReviews.length}</span>}
+                  </button>
+                  {showNotifications && (
+                    <div className={`absolute top-10 right-0 w-64 border rounded-lg shadow-2xl z-50 p-3 max-h-64 overflow-y-auto ${theme==='dark'?'bg-slate-900 border-slate-700':'bg-white border-slate-200'}`}>
+                      <h4 className="text-sm font-bold border-b border-slate-200 dark:border-slate-800 pb-2 mb-2">À Valider (Mes Assignations)</h4>
+                      {pendingReviews.length === 0 ? <p className="text-xs text-slate-500">Rien à voir !</p> : pendingReviews.map(s => (
+                        <div key={s.id} className="text-xs p-2 rounded mb-1 border cursor-pointer hover:bg-blue-50 dark:hover:bg-slate-800 border-slate-200 dark:border-slate-800" onClick={()=>{setActiveTab('shots'); setShowNotifications(false);}}>
+                          <span className="font-bold text-blue-500">{s.name}</span> prêt pour validation.
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              <p className="text-xs text-slate-500 uppercase tracking-wider">Rôle : <span className="text-blue-500 font-bold ml-1">{userRole}</span></p>
             </div>
+          </header>
 
-            {canEdit && batchSelection.length > 0 && (
-              <div className="bg-blue-600 text-white p-3 rounded-xl flex items-center justify-between shadow-lg sticky top-0 z-40">
-                <div className="font-bold flex items-center"><CheckSquare className="mr-2"/> {batchSelection.length} sélectionnés</div>
-                <div className="flex space-x-2 items-center">
-                  <select value={batchActionStep} onChange={e=>setBatchActionStep(e.target.value)} className="bg-blue-800 text-white border-none rounded p-1.5 text-sm outline-none"><option value="">-- Étape --</option>{workspace?.pipeline?.map(p=><option key={p} value={p}>{p}</option>)}</select>
-                  <select value={batchActionStatus} onChange={e=>setBatchActionStatus(e.target.value)} className="bg-blue-800 text-white border-none rounded p-1.5 text-sm outline-none"><option value="">-- Statut --</option><option value="todo">{t('todo')}</option><option value="wip">{t('wip')}</option><option value="review">{t('reviewStatus')}</option><option value="done">{t('done')}</option></select>
-                  <button onClick={applyBatchAction} className="bg-white text-blue-600 px-3 py-1.5 rounded font-bold text-sm hover:bg-blue-50">Appliquer</button>
+          {activeTab === 'shots' && (
+            <div className="space-y-6">
+              <div className={`p-4 rounded-xl border flex flex-col xl:flex-row gap-4 items-center justify-between ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200 shadow-sm'}`}>
+                <div className="flex flex-col md:flex-row flex-1 gap-2 w-full">
+                  <div className="relative flex-1"><Search className="absolute left-3 top-2.5 text-slate-400" size={16}/><input type="text" placeholder={t('searchShot')} value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} className={`${inputClass} pl-10`} /></div>
+                  <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)} className={inputClass + " flex-1"}><option value="">{t('allStatus')}</option><option value="todo">{t('todo')}</option><option value="wip">{t('wip')}</option><option value="review">{t('reviewStatus')}</option><option value="reuse">{t('reuse')}</option><option value="done">{t('done')}</option></select>
+                  <select value={filterAssignee} onChange={e=>setFilterAssignee(e.target.value)} className={inputClass + " flex-1"}><option value="">{t('allMembers')}</option>{members.map(m=><option key={m.userId} value={m.userId}>{m.displayName}</option>)}</select>
+                </div>
+                {canAssign && <button onClick={() => setShowAddShot(true)} className="w-full xl:w-auto flex items-center justify-center space-x-2 bg-blue-600 text-white hover:bg-blue-500 px-4 py-2 rounded font-bold text-sm shrink-0"><Plus size={16} /> <span>{t('addShot')}</span></button>}
+              </div>
+
+              {canEdit && batchSelection.length > 0 && (
+                <div className="bg-blue-600 text-white p-3 rounded-xl flex items-center justify-between shadow-lg sticky top-0 z-40">
+                  <div className="font-bold flex items-center"><CheckSquare className="mr-2"/> {batchSelection.length} sélectionnés</div>
+                  <div className="flex space-x-2 items-center">
+                    <select value={batchActionStep} onChange={e=>setBatchActionStep(e.target.value)} className="bg-blue-800 text-white border-none rounded p-1.5 text-sm outline-none"><option value="">-- Étape --</option>{workspace?.pipeline?.map(p=><option key={p} value={p}>{p}</option>)}</select>
+                    <select value={batchActionStatus} onChange={e=>setBatchActionStatus(e.target.value)} className="bg-blue-800 text-white border-none rounded p-1.5 text-sm outline-none"><option value="">-- Statut --</option><option value="todo">{t('todo')}</option><option value="wip">{t('wip')}</option><option value="review">{t('reviewStatus')}</option><option value="done">{t('done')}</option></select>
+                    <button onClick={applyBatchAction} className="bg-white text-blue-600 px-3 py-1.5 rounded font-bold text-sm hover:bg-blue-50">Appliquer</button>
+                  </div>
+                </div>
+              )}
+
+              {sortedSeqs.map(seq => (
+                <div key={seq} className={`border rounded-xl overflow-hidden shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
+                  <div className={`p-3 border-b font-black text-blue-500 tracking-widest text-sm flex items-center ${theme==='dark'?'bg-slate-950/50 border-slate-800':'bg-slate-50 border-slate-200'}`}><Film size={16} className="mr-2 opacity-50"/> {seq}</div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm whitespace-nowrap">
+                      <thead>
+                        <tr className={`border-b text-xs uppercase ${theme==='dark'?'border-slate-800 text-slate-500 bg-slate-900':'border-slate-200 text-slate-600 bg-white'}`}>
+                          <th className="p-3 sticky left-0 z-10 w-48 font-semibold bg-inherit">
+                            {canEdit && <input type="checkbox" onChange={(e) => setBatchSelection(e.target.checked ? groupedShots[seq].map(s=>s.id) : batchSelection.filter(id => !groupedShots[seq].map(s=>s.id).includes(id))) } className="mr-2 cursor-pointer"/>} Scène / Nom
+                          </th>
+                          {workspace?.pipeline?.map(step => <th key={step} className={`p-3 min-w-[240px] border-l font-semibold ${theme==='dark'?'border-slate-800':'border-slate-200'}`}>{step}</th>)}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 dark:divide-slate-800/50">
+                        {groupedShots[seq].sort((a,b)=> a.scene.localeCompare(b.scene)).map(s => (
+                          <tr key={s.id} className="hover:bg-slate-100 dark:hover:bg-slate-800/20 transition-colors group">
+                            <td className={`p-3 font-medium sticky left-0 z-10 align-top ${theme==='dark'?'bg-slate-900':'bg-white'}`}>
+                              <div className="flex justify-between items-start">
+                                <div className="flex items-start">{canEdit && <input type="checkbox" checked={batchSelection.includes(s.id)} onChange={(e) => setBatchSelection(e.target.checked ? [...batchSelection, s.id] : batchSelection.filter(id=>id!==s.id))} className="mr-3 mt-1 cursor-pointer"/>}<div><div className="text-slate-400 font-mono text-xs mb-0.5">{s.scene}</div><div className="font-bold text-base">{s.name}</div></div></div>
+                                {canAssign && <button onClick={() => openModal("Supprimer Plan", `Détruire définitivement le plan ${s.name} ?`, async () => { await deleteDoc(doc(db, 'shots', s.id)); closeModal(); })} className="text-slate-400 hover:text-red-500 transition opacity-0 group-hover:opacity-100"><Trash2 size={16}/></button>}
+                              </div>
+                            </td>
+                            {workspace?.pipeline?.map(step => {
+                              const assignees = getAssignees(s, step);
+                              const isMyTask = assignees.includes(user.uid);
+                              const canUpload = (isMyTask || canAssign) && userRole !== 'Guest';
+                              const versions = Array.isArray(s.previews?.[step]) ? s.previews[step] : [];
+                              const activeIdx = selectedVersions[`${s.id}_${step}`] ?? (versions.length > 0 ? versions.length - 1 : -1);
+                              const activePreview = activeIdx >= 0 ? versions[activeIdx] : null;
+
+                              return (
+                                <td key={step} className={`p-3 border-l align-top space-y-2 ${theme==='dark'?'border-slate-800/50':'border-slate-200'}`}>
+                                  <div className="flex flex-col space-y-1.5">
+                                    <div className="flex flex-wrap gap-1">
+                                      {assignees.map(uid => (
+                                        <span key={uid} onClick={() => canAssign && removeAssignee('shots', s.id, step, uid)} className={`text-[10px] px-1.5 py-0.5 rounded flex items-center font-bold ${canAssign ? 'cursor-pointer bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 hover:bg-red-100 dark:hover:bg-red-900/50 hover:text-red-600 dark:hover:text-red-300' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}`}>
+                                          {members.find(m => m.userId === uid)?.displayName || 'Inconnu'} {canAssign && <X size={10} className="ml-1"/>}
+                                        </span>
+                                      ))}
+                                    </div>
+                                    {canAssign && (<select className={`${inputClass} !p-1 !text-xs !py-1`} value="" onChange={(e) => { if(e.target.value) addAssignee('shots', s.id, step, e.target.value) }}><option value="">+ Assigner</option>{members.filter(m => !assignees.includes(m.userId)).map(m => <option key={m.userId} value={m.userId}>{m.displayName}</option>)}</select>)}
+                                    <select disabled={userRole==='Guest'} className={`rounded p-1 text-xs font-semibold outline-none transition-colors border ${getStatusColor(s.status?.[step])}`} value={s.status?.[step] || 'todo'} onChange={(e) => changeStatus(s, step, e.target.value, 'shots')}><option value="todo">{t('todo')}</option><option value="wip">{t('wip')}</option><option value="review">{t('reviewStatus')}</option><option value="reuse">{t('reuse')}</option><option value="done">{t('done')}</option></select>
+                                  </div>
+                                  <div className={`pt-2 border-t h-[4.5rem] ${theme==='dark'?'border-slate-800/50':'border-slate-200'}`}>
+                                    {activePreview ? (
+                                      <div className="flex flex-col w-full space-y-1">
+                                        <div className="flex justify-between items-center px-0.5">
+                                          {versions.length > 1 ? (<select value={activeIdx} onChange={(e) => setSelectedVersions({...selectedVersions, [`${s.id}_${step}`]: parseInt(e.target.value)})} className="bg-transparent text-xs text-slate-500 font-bold outline-none">{versions.map((v, i) => <option key={i} value={i} className="dark:bg-slate-900">V{v.version}</option>)}</select>) : <span className="text-xs font-bold text-slate-400">V1</span>}
+                                          <div className="flex space-x-2 text-slate-400">{canUpload && <label className="cursor-pointer hover:text-blue-500 transition" title="Upload"><Upload size={14}/><input type="file" accept="image/*,video/mp4,video/quicktime" className="hidden" onChange={(e)=>uploadShotPreview(s.id, step, e.target.files[0], versions)} /></label>}{canUpload && <button onClick={() => confirmDeletePreview(s.id, step, activeIdx, versions, 'shots')} className="hover:text-red-500 transition"><Trash2 size={14}/></button>}</div>
+                                        </div>
+                                        <div className="relative w-full h-12 bg-black rounded border border-slate-800 group/preview cursor-pointer overflow-hidden shadow-sm" onClick={() => openReview(s, step, activePreview.version, activePreview, 'shots')}>
+                                          <img src={getThumbnail(activePreview)} className="w-full h-full object-cover opacity-60 group-hover/preview:opacity-100 transition duration-300" />
+                                          <div className="absolute inset-0 flex items-center justify-center bg-blue-600/0 group-hover/preview:bg-blue-600/20 transition duration-300"><MonitorPlay size={18} className="text-white opacity-0 group-hover/preview:opacity-100 drop-shadow-md transform scale-75 group-hover/preview:scale-100 transition-all" /></div>
+                                          {s.annotations?.[step]?.[`v${activePreview.version}`] && Object.keys(s.annotations[step][`v${activePreview.version}`]).length > 0 && (<div className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-black shadow"></div>)}
+                                        </div>
+                                      </div>
+                                    ) : (canUpload ? (<label className={`text-xs flex flex-col items-center justify-center border border-dashed text-slate-400 w-full rounded cursor-pointer h-full transition group/up ${theme==='dark'?'bg-slate-950 border-slate-700 hover:border-blue-500':'bg-slate-50 border-slate-300 hover:border-blue-500 hover:text-blue-600'}`}><Upload size={16} className="mb-1 group-hover/up:-translate-y-0.5 transition-transform"/> <span>{t('upload')}</span><input type="file" accept="image/*,video/mp4,video/quicktime" className="hidden" onChange={(e)=>uploadShotPreview(s.id, step, e.target.files[0], versions)} /></label>) : (<div className={`text-xs w-full h-full flex items-center justify-center italic rounded ${theme==='dark'?'text-slate-600 bg-slate-950/50':'text-slate-400 bg-slate-100'}`}>{t('wait')}</div>))}
+                                  </div>
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {activeTab === 'assets' && (
+            <div className="space-y-8">
+              {canAssign && <button onClick={() => { const n = prompt("Nom de l'asset"); if (n) addDoc(collection(db, 'assets'), { name: n, category: 'Model Design', workspaceId: workspace.id, assignedTo: {} }); }} className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded font-bold text-sm shadow-lg"><Plus size={16} /> <span>Ajouter Asset</span></button>}
+              
+              {sortedCats.map(cat => (
+                <div key={cat} className="space-y-4">
+                  <h3 className={`font-black text-lg border-b pb-2 ${theme==='dark'?'text-slate-300 border-slate-800':'text-slate-700 border-slate-200'}`}>{cat}</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                    {groupedAssets[cat].map(a => {
+                      const assignees = getAssignees(a, 'Global');
+                      const canUpload = (assignees.includes(user.uid) || canAssign) && userRole !== 'Guest';
+                      const versions = Array.isArray(a.previews) ? a.previews : [];
+                      const activeIdx = selectedVersions[`asset_${a.id}`] ?? (versions.length > 0 ? versions.length - 1 : -1);
+                      const activePreview = activeIdx >= 0 ? versions[activeIdx] : null;
+
+                      return (
+                      <div key={a.id} className={`border rounded-xl overflow-hidden flex flex-col relative shadow-sm hover:border-slate-400 transition group/asset ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
+                        {canAssign && <button onClick={() => openModal("Supprimer", "Détruire cet asset ?", async()=>{await deleteDoc(doc(db, 'assets', a.id)); closeModal()})} className="absolute top-2 right-2 bg-black/60 p-1.5 rounded text-white hover:text-red-500 z-10 opacity-0 group-hover/asset:opacity-100 transition"><Trash2 size={14}/></button>}
+                        {activePreview && activePreview.files?.length > 0 ? (
+                          <div className="relative w-full h-40 bg-black overflow-hidden flex overflow-x-auto snap-x">
+                            {activePreview.files.map((file, i) => (
+                               <div key={i} className="relative shrink-0 snap-center w-full h-full cursor-pointer group/preview" onClick={() => openReview(a, 'Global', activePreview.version, {url: file.url, type: 'image', fileIndex: i}, 'assets')}>
+                                 <img src={getThumbnail(file)} className="w-full h-full object-cover opacity-80 group-hover/preview:opacity-100 transition" />
+                                 <div className="absolute inset-0 flex items-center justify-center bg-blue-600/0 group-hover/preview:bg-blue-600/20 transition"><MonitorPlay size={18} className="text-white opacity-0 group-hover/preview:opacity-100 drop-shadow-md transform scale-75 group-hover/preview:scale-100 transition-all" /></div>
+                                 {a.annotations?.Global?.[`v${activePreview.version}`]?.[`image_${i}`] && <div className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-black shadow"></div>}
+                               </div>
+                            ))}
+                            <div className="absolute bottom-1 right-1 bg-black/70 text-xs px-1.5 rounded text-white pointer-events-none">{activePreview.files.length} img</div>
+                          </div>
+                        ) : (
+                          <label className={`w-full h-40 flex flex-col items-center justify-center cursor-pointer transition ${theme==='dark'?'bg-slate-950 hover:bg-slate-900 text-slate-600':'bg-slate-100 hover:bg-slate-200 text-slate-400'}`}>
+                            <Upload size={24} className="mb-2"/> <span className="text-xs font-medium">Upload V1 (Multiple)</span><input disabled={!canUpload} type="file" multiple accept="image/*" className="hidden" onChange={(e)=>uploadAssetPreviews(a.id, e.target.files, versions)}/>
+                          </label>
+                        )}
+                        <div className="p-3 space-y-2">
+                          <div className="flex justify-between items-center">
+                            <div className="font-bold text-sm truncate pr-2">{a.name}</div>
+                            {versions.length > 0 && (<div className="flex items-center space-x-1">{canUpload && <label className="cursor-pointer text-blue-500 hover:text-blue-400" title="Nouvelle Version (Multi-images)"><Plus size={14}/><input type="file" multiple accept="image/*" className="hidden" onChange={(e)=>uploadAssetPreviews(a.id, e.target.files, versions)}/></label>}<select value={activeIdx} onChange={(e) => setSelectedVersions({...selectedVersions, [`asset_${a.id}`]: parseInt(e.target.value)})} className="bg-transparent text-xs font-bold text-slate-500 outline-none">{versions.map((v, i) => <option key={i} value={i}>V{v.version}</option>)}</select></div>)}
+                          </div>
+                          {canAssign ? <select className={`${inputClass} !p-1 !text-xs`} value={a.category || ''} onChange={async (e) => await updateDoc(doc(db, 'assets', a.id), { category: e.target.value })}>{ASSET_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}</select> : <div className="text-xs text-slate-500">{a.category}</div>}
+                          <div className="flex flex-wrap gap-1 pt-1">
+                            {assignees.map(uid => (<span key={uid} onClick={() => canAssign && removeAssignee('assets', a.id, 'Global', uid)} className={`text-[10px] px-1.5 py-0.5 rounded flex items-center font-bold ${canAssign ? 'cursor-pointer bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300 hover:bg-red-100 hover:text-red-600' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}`}>{members.find(m => m.userId === uid)?.displayName || uid} {canAssign && <X size={10} className="ml-1"/>}</span>))}
+                          </div>
+                          {canAssign && (<select className={`${inputClass} !p-1 !text-xs`} value="" onChange={(e) => { if(e.target.value) addAssignee('assets', a.id, 'Global', e.target.value) }}><option value="">+ Assigner</option>{members.filter(m => !assignees.includes(m.userId)).map(m => <option key={m.userId} value={m.userId}>{m.displayName}</option>)}</select>)}
+                        </div>
+                      </div>
+                    )})}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {activeTab === 'time' && (
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 max-w-5xl mx-auto mt-6">
+              <div className={`border p-8 rounded-2xl space-y-8 shadow-xl flex flex-col justify-center ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
+                <h3 className="font-black text-xl text-center">Chronomètre en Direct</h3>
+                <div className="space-y-4">
+                  <select value={selectedTask} onChange={(e) => setSelectedTask(e.target.value)} className={inputClass} disabled={isTimerActive}><option value="">Sélectionner Plan/Asset</option>{[...shots, ...assets].map(tk => <option key={tk.id} value={tk.id}>{tk.name}</option>)}</select>
+                  <select value={selectedStep} onChange={(e) => setSelectedStep(e.target.value)} className={inputClass} disabled={isTimerActive}><option value="">Étape de production</option>{workspace?.pipeline?.map(step => <option key={step} value={step}>{step}</option>)}</select>
+                </div>
+                <div className="text-center">
+                  <div className="text-5xl sm:text-6xl font-black font-mono tracking-widest mb-8 text-blue-500 drop-shadow break-all">{formatTime(timer)}</div>
+                  <div className="flex justify-center">
+                    {!isTimerActive ? (<button onClick={() => { if(!selectedTask || !selectedStep) return openModal("Erreur", "Sélectionnez tâche et étape."); setIsTimerActive(true); }} className="flex items-center space-x-2 bg-green-600 hover:bg-green-500 text-white px-8 py-4 rounded-xl font-bold text-lg shadow-lg transition transform hover:scale-105"><Play size={20} fill="currentColor"/> <span>Démarrer</span></button>) : (<button onClick={handleStopTimer} className="flex items-center space-x-2 bg-yellow-500 hover:bg-yellow-400 text-black px-8 py-4 rounded-xl font-bold text-lg shadow-lg transition"><Pause size={20} fill="currentColor"/> <span>Stop & Sauver</span></button>)}
+                  </div>
                 </div>
               </div>
-            )}
 
-            {sortedSeqs.map(seq => (
-              <div key={seq} className={`border rounded-xl overflow-hidden shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
-                <div className={`p-3 border-b font-black text-blue-500 tracking-widest text-sm flex items-center ${theme==='dark'?'bg-slate-950/50 border-slate-800':'bg-slate-50 border-slate-200'}`}><Film size={16} className="mr-2 opacity-50"/> {seq}</div>
+              <div className={`border p-8 rounded-2xl space-y-6 shadow-xl flex flex-col justify-center ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
+                <div>
+                  <h3 className="font-black text-xl mb-4">{t('manualTime')}</h3>
+                  <form onSubmit={handleAddManualTime} className="space-y-4">
+                    <div className="flex space-x-4"><div className="flex-1"><label className="text-xs text-slate-500">Heures</label><input type="number" min="0" value={manualTime.h} onChange={e=>setManualTime({...manualTime, h: e.target.value})} className={inputClass}/></div><div className="flex-1"><label className="text-xs text-slate-500">Minutes</label><input type="number" min="0" max="59" value={manualTime.m} onChange={e=>setManualTime({...manualTime, m: e.target.value})} className={inputClass}/></div></div>
+                    <button type="submit" className="w-full bg-blue-600 text-white font-bold p-3 rounded-lg hover:bg-blue-500 transition">Ajouter au log</button>
+                  </form>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'stats' && (
+            <div className="space-y-6 max-w-6xl mx-auto">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className={`border rounded-xl p-4 text-center ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}><div className="text-3xl font-black text-slate-400">{myStats.todo}</div><div className="text-xs font-bold text-slate-500 uppercase">To Do</div></div>
+                <div className="bg-blue-100 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-xl p-4 text-center"><div className="text-3xl font-black text-blue-500">{myStats.wip}</div><div className="text-xs font-bold text-blue-600 dark:text-blue-500 uppercase">WIP</div></div>
+                <div className="bg-purple-100 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-800 rounded-xl p-4 text-center"><div className="text-3xl font-black text-purple-500">{myStats.review}</div><div className="text-xs font-bold text-purple-600 dark:text-purple-500 uppercase">Review</div></div>
+                <div className="bg-green-100 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-xl p-4 text-center"><div className="text-3xl font-black text-green-500">{myStats.done}</div><div className="text-xs font-bold text-green-600 dark:text-green-500 uppercase">Done</div></div>
+              </div>
+
+              <div className={`border rounded-xl p-6 shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
+                <h3 className="font-black text-xl mb-4 text-blue-500">Progression Globale du Projet</h3>
+                {(() => {
+                  let totalTasks = 0; let doneTasks = 0;
+                  shots.forEach(s => workspace?.pipeline?.forEach(step => { totalTasks++; if(s.status?.[step]==='done') doneTasks++; }));
+                  const pct = totalTasks > 0 ? Math.round((doneTasks/totalTasks)*100) : 0;
+                  return (
+                    <div>
+                      <div className="flex justify-between mb-1 text-sm font-bold"><span className="text-slate-500">{doneTasks} Terminées</span> <span className="text-blue-500">{pct}%</span></div>
+                      <div className={`w-full h-4 rounded-full overflow-hidden ${theme==='dark'?'bg-slate-950':'bg-slate-200'}`}>
+                        <div className="h-full bg-blue-600 transition-all duration-1000" style={{ width: `${pct}%` }}></div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              <div className={`border rounded-xl p-6 shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
+                <h3 className="font-black text-xl mb-6 flex items-center text-blue-500"><BarChart className="mr-3"/> Logs Récents</h3>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-sm whitespace-nowrap">
-                    <thead>
-                      <tr className={`border-b text-xs uppercase ${theme==='dark'?'border-slate-800 text-slate-500 bg-slate-900':'border-slate-200 text-slate-600 bg-white'}`}>
-                        <th className="p-3 sticky left-0 z-10 w-48 font-semibold bg-inherit">
-                          {canEdit && <input type="checkbox" onChange={(e) => setBatchSelection(e.target.checked ? groupedShots[seq].map(s=>s.id) : batchSelection.filter(id => !groupedShots[seq].map(s=>s.id).includes(id))) } className="mr-2 cursor-pointer"/>} Scène / Nom
-                        </th>
-                        {workspace?.pipeline?.map(step => <th key={step} className={`p-3 min-w-[240px] border-l font-semibold ${theme==='dark'?'border-slate-800':'border-slate-200'}`}>{step}</th>)}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800/50">
-                      {groupedShots[seq].sort((a,b)=> a.scene.localeCompare(b.scene)).map(s => (
-                        <tr key={s.id} className="hover:bg-slate-100 dark:hover:bg-slate-800/20 transition-colors group">
-                          <td className={`p-3 font-medium sticky left-0 z-10 align-top ${theme==='dark'?'bg-slate-900':'bg-white'}`}>
-                            <div className="flex justify-between items-start">
-                              <div className="flex items-start">{canEdit && <input type="checkbox" checked={batchSelection.includes(s.id)} onChange={(e) => setBatchSelection(e.target.checked ? [...batchSelection, s.id] : batchSelection.filter(id=>id!==s.id))} className="mr-3 mt-1 cursor-pointer"/>}<div><div className="text-slate-400 font-mono text-xs mb-0.5">{s.scene}</div><div className="font-bold text-base">{s.name}</div></div></div>
-                              {canAssign && <button onClick={() => openModal("Supprimer Plan", `Détruire définitivement le plan ${s.name} ?`, async () => { await deleteDoc(doc(db, 'shots', s.id)); closeModal(); })} className="text-slate-400 hover:text-red-500 transition opacity-0 group-hover:opacity-100"><Trash2 size={16}/></button>}
-                            </div>
-                          </td>
-                          {workspace?.pipeline?.map(step => {
-                            const assignees = getAssignees(s, step);
-                            const isMyTask = assignees.includes(user.uid);
-                            const canUpload = (isMyTask || canAssign) && userRole !== 'Guest';
-                            const versions = Array.isArray(s.previews?.[step]) ? s.previews[step] : [];
-                            const activeIdx = selectedVersions[`${s.id}_${step}`] ?? (versions.length > 0 ? versions.length - 1 : -1);
-                            const activePreview = activeIdx >= 0 ? versions[activeIdx] : null;
-
-                            return (
-                              <td key={step} className={`p-3 border-l align-top space-y-2 ${theme==='dark'?'border-slate-800/50':'border-slate-200'}`}>
-                                <div className="flex flex-col space-y-1.5">
-                                  <div className="flex flex-wrap gap-1">
-                                    {assignees.map(uid => (
-                                      <span key={uid} onClick={() => canAssign && removeAssignee('shots', s.id, step, uid)} className={`text-[10px] px-1.5 py-0.5 rounded flex items-center font-bold ${canAssign ? 'cursor-pointer bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 hover:bg-red-100 dark:hover:bg-red-900/50 hover:text-red-600 dark:hover:text-red-300' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}`}>
-                                        {members.find(m => m.userId === uid)?.displayName || 'Inconnu'} {canAssign && <X size={10} className="ml-1"/>}
-                                      </span>
-                                    ))}
-                                  </div>
-                                  {canAssign && (<select className={`${inputClass} !p-1 !text-xs !py-1`} value="" onChange={(e) => { if(e.target.value) addAssignee('shots', s.id, step, e.target.value) }}><option value="">+ Assigner</option>{members.filter(m => !assignees.includes(m.userId)).map(m => <option key={m.userId} value={m.userId}>{m.displayName}</option>)}</select>)}
-                                  <select disabled={userRole==='Guest'} className={`rounded p-1 text-xs font-semibold outline-none transition-colors border ${getStatusColor(s.status?.[step])}`} value={s.status?.[step] || 'todo'} onChange={(e) => changeStatus(s, step, e.target.value, 'shots')}><option value="todo">{t('todo')}</option><option value="wip">{t('wip')}</option><option value="review">{t('reviewStatus')}</option><option value="reuse">{t('reuse')}</option><option value="done">{t('done')}</option></select>
-                                </div>
-                                <div className={`pt-2 border-t h-[4.5rem] ${theme==='dark'?'border-slate-800/50':'border-slate-200'}`}>
-                                  {activePreview ? (
-                                    <div className="flex flex-col w-full space-y-1">
-                                      <div className="flex justify-between items-center px-0.5">
-                                        {versions.length > 1 ? (<select value={activeIdx} onChange={(e) => setSelectedVersions({...selectedVersions, [`${s.id}_${step}`]: parseInt(e.target.value)})} className="bg-transparent text-xs text-slate-500 font-bold outline-none">{versions.map((v, i) => <option key={i} value={i} className="dark:bg-slate-900">V{v.version}</option>)}</select>) : <span className="text-xs font-bold text-slate-400">V1</span>}
-                                        <div className="flex space-x-2 text-slate-400">{canUpload && <label className="cursor-pointer hover:text-blue-500 transition" title="Upload"><Upload size={14}/><input type="file" accept="image/*,video/mp4,video/quicktime" className="hidden" onChange={(e)=>uploadShotPreview(s.id, step, e.target.files[0], versions)} /></label>}{canUpload && <button onClick={() => confirmDeletePreview(s.id, step, activeIdx, versions, 'shots')} className="hover:text-red-500 transition"><Trash2 size={14}/></button>}</div>
-                                      </div>
-                                      <div className="relative w-full h-12 bg-black rounded border border-slate-800 group/preview cursor-pointer overflow-hidden shadow-sm" onClick={() => openReview(s, step, activePreview.version, activePreview, 'shots')}>
-                                        <img src={getThumbnail(activePreview)} className="w-full h-full object-cover opacity-60 group-hover/preview:opacity-100 transition duration-300" />
-                                        <div className="absolute inset-0 flex items-center justify-center bg-blue-600/0 group-hover/preview:bg-blue-600/20 transition duration-300"><MonitorPlay size={18} className="text-white opacity-0 group-hover/preview:opacity-100 drop-shadow-md transform scale-75 group-hover/preview:scale-100 transition-all" /></div>
-                                        {s.annotations?.[step]?.[`v${activePreview.version}`] && Object.keys(s.annotations[step][`v${activePreview.version}`]).length > 0 && (<div className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-black shadow"></div>)}
-                                      </div>
-                                    </div>
-                                  ) : (canUpload ? (<label className={`text-xs flex flex-col items-center justify-center border border-dashed text-slate-400 w-full rounded cursor-pointer h-full transition group/up ${theme==='dark'?'bg-slate-950 border-slate-700 hover:border-blue-500':'bg-slate-50 border-slate-300 hover:border-blue-500 hover:text-blue-600'}`}><Upload size={16} className="mb-1 group-hover/up:-translate-y-0.5 transition-transform"/> <span>{t('upload')}</span><input type="file" accept="image/*,video/mp4,video/quicktime" className="hidden" onChange={(e)=>uploadShotPreview(s.id, step, e.target.files[0], versions)} /></label>) : (<div className={`text-xs w-full h-full flex items-center justify-center italic rounded ${theme==='dark'?'text-slate-600 bg-slate-950/50':'text-slate-400 bg-slate-100'}`}>{t('wait')}</div>))}
-                                </div>
-                              </td>
-                            );
-                          })}
-                        </tr>
+                    <thead><tr className={`border-b text-xs uppercase ${theme==='dark'?'border-slate-800 bg-slate-950 text-slate-500':'border-slate-200 bg-slate-50 text-slate-600'}`}>{canAssign && <th className="p-3">Membre</th>}<th className="p-3">Tâche</th><th className="p-3">Étape</th><th className="p-3">Temps</th></tr></thead>
+                    <tbody className={`divide-y ${theme==='dark'?'divide-slate-800/50':'divide-slate-200'}`}>
+                      {timeLogs.filter(log => canAssign || log.userId === user.uid).sort((a,b) => b.date - a.date).slice(0,20).map(log => (
+                        <tr key={log.id} className="hover:bg-slate-100 dark:hover:bg-slate-800/20">{canAssign && <td className="p-3 font-medium">{log.userName}</td>}<td className="p-3">{log.taskName}</td><td className="p-3 text-slate-500">{log.step}</td><td className="p-3 text-blue-500 font-mono font-bold">{formatTime(log.durationSeconds)}</td></tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
+            </div>
+          )}
 
-        {activeTab === 'assets' && (
-          <div className="space-y-8">
-            {canAssign && <button onClick={() => { const n = prompt("Nom de l'asset"); if (n) addDoc(collection(db, 'assets'), { name: n, category: 'Model Design', workspaceId: workspace.id, assignedTo: {} }); }} className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded font-bold text-sm shadow-lg"><Plus size={16} /> <span>Ajouter Asset</span></button>}
-            
-            {sortedCats.map(cat => (
-              <div key={cat} className="space-y-4">
-                <h3 className={`font-black text-lg border-b pb-2 ${theme==='dark'?'text-slate-300 border-slate-800':'text-slate-700 border-slate-200'}`}>{cat}</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {groupedAssets[cat].map(a => {
-                    const assignees = getAssignees(a, 'Global');
-                    const canUpload = (assignees.includes(user.uid) || canAssign) && userRole !== 'Guest';
-                    const versions = Array.isArray(a.previews) ? a.previews : [];
-                    const activeIdx = selectedVersions[`asset_${a.id}`] ?? (versions.length > 0 ? versions.length - 1 : -1);
-                    const activePreview = activeIdx >= 0 ? versions[activeIdx] : null;
+          {activeTab === 'team' && (
+            <div className={`border rounded-xl p-6 max-w-3xl mx-auto shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
+              <h3 className="font-black text-xl mb-6 text-blue-500">Membres ({members.length})</h3>
+              <div className="space-y-3">
+                {members.map(m => (
+                  <div key={m.id} className={`flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 p-4 rounded-lg border ${theme==='dark'?'bg-slate-950 border-slate-800':'bg-slate-50 border-slate-200'}`}>
+                    <div className="flex items-center space-x-3"><UserCircle size={32} className="text-slate-400 shrink-0"/><div><div className="font-bold text-base">{m.displayName}</div><div className="text-xs text-slate-500 font-mono">{m.email}</div></div></div>
+                    {isAdmin && m.userId !== user.uid ? (<select className={`${inputClass} !p-1.5 !w-auto !text-sm !font-bold !text-blue-500`} value={m.role} onChange={async (e) => await updateDoc(doc(db, 'projectMembers', m.id), { role: e.target.value })}><option value="Guest">Guest (Lecture seule)</option><option value="Artist">Artist</option><option value="Supervisor">Supervisor</option><option value="Admin">Admin</option></select>) : <span className="text-sm text-blue-600 dark:text-blue-400 font-bold px-3 py-1 bg-blue-100 dark:bg-blue-900/20 rounded-full text-center">{m.role}</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
-                    return (
-                    <div key={a.id} className={`border rounded-xl overflow-hidden flex flex-col relative shadow-sm hover:border-slate-400 transition group/asset ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
-                      {canAssign && <button onClick={() => openModal("Supprimer", "Détruire cet asset ?", async()=>{await deleteDoc(doc(db, 'assets', a.id)); closeModal()})} className="absolute top-2 right-2 bg-black/60 p-1.5 rounded text-white hover:text-red-500 z-10 opacity-0 group-hover/asset:opacity-100 transition"><Trash2 size={14}/></button>}
-                      {activePreview && activePreview.files?.length > 0 ? (
-                        <div className="relative w-full h-40 bg-black overflow-hidden flex overflow-x-auto snap-x">
-                          {activePreview.files.map((file, i) => (
-                             <div key={i} className="relative shrink-0 snap-center w-full h-full cursor-pointer group/preview" onClick={() => openReview(a, 'Global', activePreview.version, {url: file.url, type: 'image', fileIndex: i}, 'assets')}>
-                               <img src={getThumbnail(file)} className="w-full h-full object-cover opacity-80 group-hover/preview:opacity-100 transition" />
-                               <div className="absolute inset-0 flex items-center justify-center bg-blue-600/0 group-hover/preview:bg-blue-600/20 transition"><MonitorPlay size={18} className="text-white opacity-0 group-hover/preview:opacity-100 drop-shadow-md transform scale-75 group-hover/preview:scale-100 transition-all" /></div>
-                               {a.annotations?.Global?.[`v${activePreview.version}`]?.[`image_${i}`] && <div className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-black shadow"></div>}
-                             </div>
-                          ))}
-                          <div className="absolute bottom-1 right-1 bg-black/70 text-xs px-1.5 rounded text-white pointer-events-none">{activePreview.files.length} img</div>
-                        </div>
-                      ) : (
-                        <label className={`w-full h-40 flex flex-col items-center justify-center cursor-pointer transition ${theme==='dark'?'bg-slate-950 hover:bg-slate-900 text-slate-600':'bg-slate-100 hover:bg-slate-200 text-slate-400'}`}>
-                          <Upload size={24} className="mb-2"/> <span className="text-xs font-medium">Upload V1 (Multiple)</span><input disabled={!canUpload} type="file" multiple accept="image/*" className="hidden" onChange={(e)=>uploadAssetPreviews(a.id, e.target.files, versions)}/>
-                        </label>
-                      )}
-                      <div className="p-3 space-y-2">
-                        <div className="flex justify-between items-center">
-                          <div className="font-bold text-sm truncate pr-2">{a.name}</div>
-                          {versions.length > 0 && (<div className="flex items-center space-x-1">{canUpload && <label className="cursor-pointer text-blue-500 hover:text-blue-400" title="Nouvelle Version (Multi-images)"><Plus size={14}/><input type="file" multiple accept="image/*" className="hidden" onChange={(e)=>uploadAssetPreviews(a.id, e.target.files, versions)}/></label>}<select value={activeIdx} onChange={(e) => setSelectedVersions({...selectedVersions, [`asset_${a.id}`]: parseInt(e.target.value)})} className="bg-transparent text-xs font-bold text-slate-500 outline-none">{versions.map((v, i) => <option key={i} value={i}>V{v.version}</option>)}</select></div>)}
-                        </div>
-                        {canAssign ? <select className={`${inputClass} !p-1 !text-xs`} value={a.category || ''} onChange={async (e) => await updateDoc(doc(db, 'assets', a.id), { category: e.target.value })}>{ASSET_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}</select> : <div className="text-xs text-slate-500">{a.category}</div>}
-                        <div className="flex flex-wrap gap-1 pt-1">
-                          {assignees.map(uid => (<span key={uid} onClick={() => canAssign && removeAssignee('assets', a.id, 'Global', uid)} className={`text-[10px] px-1.5 py-0.5 rounded flex items-center font-bold ${canAssign ? 'cursor-pointer bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300 hover:bg-red-100 hover:text-red-600' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}`}>{members.find(m => m.userId === uid)?.displayName || uid} {canAssign && <X size={10} className="ml-1"/>}</span>))}
-                        </div>
-                        {canAssign && (<select className={`${inputClass} !p-1 !text-xs`} value="" onChange={(e) => { if(e.target.value) addAssignee('assets', a.id, 'Global', e.target.value) }}><option value="">+ Assigner</option>{members.filter(m => !assignees.includes(m.userId)).map(m => <option key={m.userId} value={m.userId}>{m.displayName}</option>)}</select>)}
-                      </div>
+          {activeTab === 'settings' && isAdmin && (
+            <div className="space-y-6 max-w-3xl mx-auto pb-10">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <button onClick={exportExcel} className="w-full bg-emerald-600 text-white flex items-center justify-center p-3 rounded-lg font-bold hover:bg-emerald-500 transition shadow-sm"><Download size={18} className="mr-2"/> Export Excel</button>
+                <button onClick={exportTimeCSV} className="w-full bg-blue-600 text-white flex items-center justify-center p-3 rounded-lg font-bold hover:bg-blue-500 transition shadow-sm"><Download size={18} className="mr-2"/> Temps CSV</button>
+              </div>
+
+              <div className={`border rounded-xl p-6 shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
+                <h3 className="font-black mb-3">Code d'invitation</h3>
+                <input type="text" readOnly value={workspace?.id || ''} className="w-full p-3 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-lg font-mono text-blue-500 text-center tracking-widest text-lg outline-none cursor-copy" onClick={e=>{e.target.select(); document.execCommand('copy'); openModal("Code Copié", "");}} />
+              </div>
+
+              <div className={`border rounded-xl p-6 shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
+                <h3 className="font-black mb-4 flex items-center"><ImageIcon size={18} className="mr-2 text-blue-500"/> Bannière du projet</h3>
+                {workspace?.bannerUrl ? (
+                  <div className="relative w-full h-32 rounded-lg bg-cover bg-center mb-4 overflow-hidden border border-slate-700" style={{backgroundImage:`url(${workspace.bannerUrl})`}}>
+                    <button onClick={removeBanner} className="absolute top-2 right-2 bg-red-600 hover:bg-red-500 text-white p-2 rounded transition shadow-lg"><Trash2 size={16}/></button>
+                  </div>
+                ) : (
+                  <label className={`w-full h-32 rounded-lg border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition ${theme==='dark'?'border-slate-700 hover:border-blue-500 text-slate-500':'border-slate-300 hover:border-blue-500 text-slate-400'}`}>
+                    <Upload size={24} className="mb-2"/> <span className="text-sm font-medium">Uploader une bannière</span>
+                    <input type="file" className="hidden" accept="image/*" onChange={uploadBanner} disabled={!workspace.cloudinaryCloudName} />
+                    {!workspace.cloudinaryCloudName && <p className="text-xs text-red-500 mt-2">Clés Cloudinary requises</p>}
+                  </label>
+                )}
+              </div>
+
+              <div className={`border rounded-xl p-6 shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
+                <h3 className="font-black mb-4 flex items-center"><FolderKanban size={18} className="mr-2 text-blue-500"/> Pipeline Personnalisable</h3>
+                <div className="space-y-2 mb-4">
+                  {workspace?.pipeline?.map((p, idx) => (
+                    <div key={idx} className={`flex justify-between items-center p-2 border rounded ${theme==='dark'?'bg-slate-950 border-slate-800':'bg-slate-50 border-slate-200'}`}>
+                      <span className="font-medium text-sm">{p}</span>
+                      <button onClick={() => saveCustomPipeline(workspace.pipeline.filter(s => s !== p))} className="text-slate-400 hover:text-red-500"><Trash2 size={16}/></button>
                     </div>
-                  )})}
+                  ))}
+                </div>
+                <div className="flex space-x-2">
+                  <input type="text" id="newStepInput" placeholder="Nouvelle étape (ex: Compositing)" className={inputClass} />
+                  <button onClick={() => { const val = document.getElementById('newStepInput').value.trim(); if(val && !workspace.pipeline.includes(val)) { saveCustomPipeline([...workspace.pipeline, val]); document.getElementById('newStepInput').value=''; } }} className="bg-slate-200 dark:bg-slate-800 px-4 rounded font-bold hover:bg-blue-600 hover:text-white transition"><Plus size={20}/></button>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
 
-        {activeTab === 'review' && (
-          <div className="max-w-7xl mx-auto flex flex-col md:flex-row h-[calc(100vh-8rem)] gap-4">
-            {!reviewItem ? (
-              <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
-                <div className={`w-24 h-24 rounded-full flex items-center justify-center border ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-300 shadow'}`}><MonitorPlay size={40} /></div>
-                <p className="font-medium text-lg mt-4">Sélectionnez une miniature dans Plans ou Assets.</p>
+              <form onSubmit={saveStorageSettings} className={`border rounded-xl p-6 space-y-5 shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
+                <h3 className="font-black flex items-center text-blue-500"><Key className="mr-2" /> Cloudinary Config</h3>
+                <div><label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Cloud Name</label><input type="text" value={cloudNameInput} onChange={(e)=>setCloudNameInput(e.target.value)} className={inputClass} required autoComplete="off" /></div>
+                <div><label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Upload Preset (Unsigned)</label><input type="text" value={uploadPresetInput} onChange={(e)=>setUploadPresetInput(e.target.value)} className={inputClass} required autoComplete="off" /></div>
+                <div className="pt-4 mt-4 border-t border-slate-200 dark:border-slate-800 space-y-4">
+                  <div className="flex items-center space-x-2 text-yellow-600 dark:text-yellow-500"><AlertTriangle size={16}/><span className="text-xs font-bold">API requise pour auto-supprimer les fichiers du cloud.</span></div>
+                  <div><label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">API Key</label><input type="text" value={apiKeyInput} onChange={(e)=>setApiKeyInput(e.target.value)} className={inputClass} autoComplete="new-password" /></div>
+                  <div><label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">API Secret</label><input type="password" value={apiSecretInput} onChange={(e)=>setApiSecretInput(e.target.value)} className={inputClass} autoComplete="new-password" /></div>
+                </div>
+                <button type="submit" className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition">Enregistrer Clés</button>
+              </form>
+
+              <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/50 rounded-xl p-6 shadow-sm">
+                <h3 className="font-black text-red-600 dark:text-red-500 mb-4">Zone de danger</h3>
+                <button onClick={deleteProject} className="flex items-center space-x-2 bg-red-600 hover:bg-red-500 text-white px-5 py-2.5 rounded-lg font-bold text-sm transition"><Trash2 size={18} /> <span>Supprimer le projet entier</span></button>
               </div>
-            ) : (
-              <>
-                <div className="flex-[3] flex flex-col min-w-0">
-                  <div className={`flex flex-wrap justify-between items-center mb-4 p-4 rounded-xl border shadow-sm shrink-0 ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
-                    <div>
-                      <h3 className="font-black text-xl">{reviewItem.name} {reviewStep !== 'Global' && <span className="text-blue-600 bg-blue-100 dark:text-blue-400 dark:bg-blue-900/30 text-sm ml-2 px-2 py-0.5 rounded-full">{reviewStep}</span>}</h3>
-                      <div className="flex items-center space-x-3 mt-1 text-xs text-slate-500 font-bold uppercase tracking-wider">
-                        <span>Version {reviewVersion}</span>
-                        {(reviewItem.previews?.[reviewStep]?.length > 1 || (reviewType==='assets' && reviewItem.previews?.length > 1)) && (
-                          <label className="flex items-center space-x-1 cursor-pointer hover:text-blue-500"><input type="checkbox" checked={compareMode} onChange={e=>setCompareMode(e.target.checked)} className="mr-1"/>Comparer</label>
-                        )}
-                      </div>
-                    </div>
-                    
-                    <div className="flex flex-wrap gap-2 justify-end items-center mt-2 md:mt-0">
-                      {compareMode && (
-                        <select value={compareVersion} onChange={e=>setCompareVersion(e.target.value)} className={`${inputClass} !w-auto !py-1.5 !text-sm`}>
-                          <option value="">-- Comparer avec --</option>
-                          {(reviewType==='shots' ? reviewItem.previews[reviewStep] : reviewItem.previews).map((v, i) => v.version !== reviewVersion && <option key={i} value={i}>Version {v.version}</option>)}
-                        </select>
-                      )}
+            </div>
+          )}
 
-                      {drawMode && (
-                        <div className={`flex border rounded p-1 space-x-1 ${theme==='dark'?'bg-slate-950 border-slate-800':'bg-slate-100 border-slate-300'}`}>
-                          <button onClick={()=>setDrawMode(drawMode==='pen' ? 'text' : 'pen')} className={`p-1.5 rounded transition ${drawMode==='text' ? 'bg-slate-200 text-blue-600 dark:bg-slate-800 dark:text-blue-400' : 'text-slate-400 hover:text-slate-600 dark:hover:text-white'}`}><Type size={16}/></button>
-                          <div className={`px-2 flex items-center border-l border-r space-x-2 ${theme==='dark'?'border-slate-800':'border-slate-300'}`}>
-                            {[2, 4, 8].map(sz => (<button key={sz} onClick={() => setBrushSize(sz)} className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${brushSize === sz ? 'bg-slate-300 dark:bg-slate-700' : 'hover:bg-slate-200 dark:hover:bg-slate-800'}`}><div className="bg-red-500 rounded-full" style={{ width: sz+2, height: sz+2 }}></div></button>))}
-                          </div>
-                          <button onClick={() => setStrokes(strokes.slice(0, -1))} className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded transition"><Undo size={16} /></button>
-                          <button onClick={() => setStrokes([])} className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded transition"><Eraser size={16} /></button>
-                          {strokes.length > 0 && <button onClick={deleteRetakeFromDB} className="p-1.5 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/50 rounded transition border-l border-slate-300 dark:border-slate-800 ml-1 pl-2"><Trash2 size={16} /></button>}
-                        </div>
+          {activeTab === 'help' && (
+            <div className="max-w-3xl space-y-6 mx-auto">
+              <div className={`border rounded-xl p-8 shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
+                <h3 className="font-black text-2xl mb-4 text-blue-500 flex items-center"><HelpCircle className="mr-3"/> Guide d'utilisation</h3>
+                <div className="space-y-6 text-sm leading-relaxed">
+                  <div>
+                    <h4 className="font-bold text-lg mb-2">1. Configuration du stockage (Cloudinary)</h4>
+                    <p className="mb-2">Pour que le projet puisse accepter des images et vidéos, l'Admin doit créer un compte gratuit sur <strong>Cloudinary.com</strong>.</p>
+                    <ul className="list-disc pl-5 space-y-1 text-slate-600 dark:text-slate-400">
+                      <li>Allez dans <em>Settings {'>'} Upload</em> et créez un <strong>Upload preset</strong> réglé sur "Unsigned".</li>
+                      <li>Copiez le <strong>Cloud Name</strong> (sur votre Dashboard) et le nom de l'Upload Preset.</li>
+                      <li>Collez-les dans l'onglet <strong>Paramètres</strong> du Tracker.</li>
+                      <li><em>Optionnel :</em> Pour que la suppression d'un asset l'efface aussi des serveurs Cloudinary, ajoutez l'<strong>API Key</strong> et l'<strong>API Secret</strong>.</li>
+                    </ul>
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-lg mb-2">2. Le système de rôles</h4>
+                    <ul className="list-disc pl-5 space-y-1 text-slate-600 dark:text-slate-400">
+                      <li><strong className="text-blue-500">Admin :</strong> Contrôle tout (Paramètres, Suppression du projet, rôles).</li>
+                      <li><strong className="text-blue-500">Supervisor :</strong> Peut assigner des membres, ajouter des plans, valider.</li>
+                      <li><strong className="text-blue-500">Artist :</strong> Peut changer le statut de ses plans, uploader des versions.</li>
+                      <li><strong className="text-blue-500">Guest :</strong> Mode lecture seule. Peut seulement laisser des commentaires écrits dans l'outil Review.</li>
+                    </ul>
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-lg mb-2">3. Panneau Latéral de Validation (Review & Retake)</h4>
+                    <p className="text-slate-600 dark:text-slate-400">Cliquez sur une miniature dans le tableau pour ouvrir le panneau latéral de validation. Vous pouvez utiliser le pinceau (raccourci texte en cliquant sur le "T") afin de pointer des erreurs sur l'image en haut. En bas, le fil de discussion vous permet d'échanger sur cette étape précise. <br/><strong className="text-blue-500">Astuce :</strong> Vous pouvez glisser la bordure du panneau vers la gauche pour l'agrandir !</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </main>
+        
+        {/* PANNEAU LATERAL DE VALIDATION REDIMENSIONNABLE (REVIEW & CHAT) */}
+        {reviewItem && reviewPreview && (
+          <>
+            {/* Poignée de redimensionnement */}
+            <div 
+              className={`w-1.5 md:w-2 cursor-col-resize shrink-0 transition-colors z-30 ${isResizing ? 'bg-blue-500' : (theme==='dark'?'bg-slate-700 hover:bg-slate-600':'bg-slate-300 hover:bg-slate-400')}`} 
+              onMouseDown={(e) => { e.preventDefault(); setIsResizing(true); }}
+            >
+              <div className="h-full flex items-center justify-center opacity-50"><GripVertical size={16} /></div>
+            </div>
+            
+            {/* Contenu du panneau latéral */}
+            <aside style={{ width: reviewPanelWidth }} className={`flex flex-col border-l shadow-2xl z-20 shrink-0 ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
+              
+              {/* TOP HALF : LECTEUR VIDEO/IMAGE */}
+              <div className={`flex-1 flex flex-col min-h-[40%] border-b ${theme==='dark'?'border-slate-800':'border-slate-200'}`}>
+                <div className={`flex flex-wrap justify-between items-center p-3 shrink-0 ${theme==='dark'?'bg-slate-950/50':'bg-slate-50'}`}>
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <h3 className="font-black text-lg truncate max-w-[200px]">{reviewItem.name}</h3>
+                      {reviewStep !== 'Global' && <span className="text-blue-600 bg-blue-100 dark:text-blue-400 dark:bg-blue-900/30 text-xs px-2 py-0.5 rounded-full whitespace-nowrap">{reviewStep}</span>}
+                    </div>
+                    <div className="flex items-center space-x-3 mt-1 text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                      <span>V{reviewVersion}</span>
+                      {(reviewItem.previews?.[reviewStep]?.length > 1 || (reviewType==='assets' && reviewItem.previews?.length > 1)) && (
+                        <label className="flex items-center space-x-1 cursor-pointer hover:text-blue-500"><input type="checkbox" checked={compareMode} onChange={e=>setCompareMode(e.target.checked)} className="mr-1"/>Comparer</label>
                       )}
-                      <button onClick={saveAnnotations} className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded font-bold text-sm transition shadow"><Save size={16} /> <span className="hidden lg:inline">Enregistrer le rouge</span></button>
                     </div>
                   </div>
+                  
+                  <div className="flex flex-wrap gap-2 justify-end items-center mt-2 2xl:mt-0">
+                    {compareMode && (
+                      <select value={compareVersion} onChange={e=>setCompareVersion(e.target.value)} className={`${inputClass} !w-auto !py-1 !text-xs`}>
+                        <option value="">-- Comparer --</option>
+                        {(reviewType==='shots' ? reviewItem.previews[reviewStep] : reviewItem.previews).map((v, i) => v.version !== reviewVersion && <option key={i} value={i}>V{v.version}</option>)}
+                      </select>
+                    )}
 
-                  <div className={`relative bg-black rounded-xl overflow-hidden flex-1 border flex ${compareMode ? 'flex-row' : 'justify-center items-center'} shadow-inner ${theme==='dark'?'border-slate-800':'border-slate-300'}`}>
-                    <div className="relative flex-1 h-full w-full flex items-center justify-center border-r border-slate-800">
-                      {reviewPreview.type === 'video' ? (<video ref={videoRef} src={reviewPreview.url} className="w-full h-full object-contain" onTimeUpdate={(e) => setVideoProgress(e.target.currentTime)} onLoadedMetadata={(e) => setVideoDuration(e.target.duration)} onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)} />) : (<img src={reviewPreview.url} className="w-full h-full object-contain" />)}
-                      <canvas ref={canvasRef} onMouseDown={startDraw} onMouseMove={onDraw} onMouseUp={endDraw} onMouseLeave={endDraw} onTouchStart={startDraw} onTouchMove={onDraw} onTouchEnd={endDraw} className="absolute top-0 left-0 w-full h-full z-10 cursor-crosshair" width={1920} height={1080} style={{ width: '100%', height: '100%' }} />
-                      {textInputPos && (<input type="text" autoFocus value={textInputValue} onChange={e=>setTextInputValue(e.target.value)} onBlur={commitTextAnnotation} onKeyDown={e=>{if(e.key==='Enter') commitTextAnnotation()}} className="absolute z-20 bg-transparent text-red-500 outline-none border-b-2 border-red-500 font-bold" style={{ left: textInputPos.px, top: textInputPos.py, fontSize: `${brushSize * 4}px` }} placeholder="Taper..." />)}
-                      {reviewPreview.type !== 'video' && reviewItem.annotations?.[reviewStep]?.[`v${reviewVersion}`]?.[getAnnotationKey()] && (<div className="absolute bottom-4 left-4 w-4 h-4 bg-red-600 rounded-full animate-pulse z-20 shadow-lg border-2 border-black"></div>)}
-                    </div>
-                    {compareMode && compareVersion !== '' && (
-                      <div className="relative flex-1 h-full w-full flex items-center justify-center">
-                        <div className="absolute top-2 right-2 z-20 bg-black/70 text-white text-xs px-2 py-1 rounded font-bold">COMPARAISON (V{(reviewType==='shots' ? reviewItem.previews[reviewStep][compareVersion] : reviewItem.previews[compareVersion]).version})</div>
-                        {(reviewType==='shots' ? reviewItem.previews[reviewStep][compareVersion] : reviewItem.previews[compareVersion]).type === 'video' ? (<video ref={compareVideoRef} src={(reviewType==='shots' ? reviewItem.previews[reviewStep][compareVersion] : reviewItem.previews[compareVersion]).url} className="w-full h-full object-contain" muted />) : (<img src={(reviewType==='shots' ? reviewItem.previews[reviewStep][compareVersion].url : reviewItem.previews[compareVersion].files[reviewPreview.fileIndex].url)} className="w-full h-full object-contain" />)}
+                    {drawMode && (
+                      <div className={`flex border rounded p-0.5 space-x-0.5 ${theme==='dark'?'bg-slate-950 border-slate-800':'bg-slate-100 border-slate-300'}`}>
+                        <button onClick={()=>setDrawMode(drawMode==='pen' ? 'text' : 'pen')} className={`p-1.5 rounded transition ${drawMode==='text' ? 'bg-slate-200 text-blue-600 dark:bg-slate-800 dark:text-blue-400' : 'text-slate-400 hover:text-slate-600 dark:hover:text-white'}`}><Type size={14}/></button>
+                        <div className={`px-1 flex items-center border-l border-r space-x-1 ${theme==='dark'?'border-slate-800':'border-slate-300'}`}>
+                          {[2, 4, 8].map(sz => (<button key={sz} onClick={() => setBrushSize(sz)} className={`w-5 h-5 rounded-full flex items-center justify-center transition-colors ${brushSize === sz ? 'bg-slate-300 dark:bg-slate-700' : 'hover:bg-slate-200 dark:hover:bg-slate-800'}`}><div className="bg-red-500 rounded-full" style={{ width: sz+2, height: sz+2 }}></div></button>))}
+                        </div>
+                        <button onClick={() => setStrokes(strokes.slice(0, -1))} className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded transition"><Undo size={14} /></button>
+                        <button onClick={() => setStrokes([])} className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded transition"><Eraser size={14} /></button>
+                        {strokes.length > 0 && <button onClick={deleteRetakeFromDB} className="p-1.5 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/50 rounded transition border-l border-slate-300 dark:border-slate-800 ml-0.5 pl-1.5"><Trash2 size={14} /></button>}
                       </div>
                     )}
+                    <button onClick={saveAnnotations} className="bg-blue-600 hover:bg-blue-500 text-white p-1.5 rounded transition shadow" title="Enregistrer le point rouge"><Save size={16} /></button>
+                    <button onClick={() => setReviewItem(null)} className="ml-2 text-slate-400 hover:text-red-500 transition"><X size={24}/></button>
                   </div>
+                </div>
 
-                  {reviewPreview.type === 'video' && (
-                    <div className={`mt-4 p-4 rounded-xl border shrink-0 ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
-                      <div className={`relative w-full h-4 rounded-full cursor-pointer mb-5 border ${theme==='dark'?'bg-slate-950 border-slate-800':'bg-slate-200 border-slate-300'}`} onClick={(e) => {
-                        if(videoRef.current) { const rect = e.currentTarget.getBoundingClientRect(); const time = ((e.clientX - rect.left) / rect.width) * videoDuration; videoRef.current.currentTime = time; if(compareVideoRef.current) compareVideoRef.current.currentTime = time; }
-                      }}>
-                        <div className="absolute h-full bg-blue-600 rounded-full transition-all duration-75" style={{ width: `${(videoProgress / videoDuration) * 100 || 0}%` }}></div>
-                        {Object.keys(reviewItem.annotations?.[reviewStep]?.[`v${reviewVersion}`] || {}).map(frameTime => (
-                          <div key={frameTime} className="absolute top-1/2 w-3 h-3 bg-red-500 rounded-full transform -translate-x-1.5 -translate-y-1/2 shadow-sm border border-black" style={{ left: `${(parseFloat(frameTime) / (videoDuration*24)) * 100}%` }}></div>
-                        ))}
-                      </div>
-
-                      <div className="flex justify-center items-center space-x-8">
-                        <button onClick={() => { if(videoRef.current) { videoRef.current.pause(); videoRef.current.currentTime -= (1/24); if(compareVideoRef.current){compareVideoRef.current.pause(); compareVideoRef.current.currentTime -= (1/24);} } }} className="p-2 text-slate-400 hover:text-blue-500 rounded-full transition"><SkipBack size={24} /></button>
-                        <button onClick={() => { if(isPlaying){ videoRef.current?.pause(); compareVideoRef.current?.pause(); } else { videoRef.current?.play(); compareVideoRef.current?.play(); } }} className="p-4 bg-blue-600 hover:bg-blue-500 text-white rounded-full transition shadow-lg transform hover:scale-105">{isPlaying ? <Pause size={28} fill="currentColor"/> : <Play size={28} fill="currentColor" className="ml-1" />}</button>
-                        <button onClick={() => { if(videoRef.current) { videoRef.current.pause(); videoRef.current.currentTime += (1/24); if(compareVideoRef.current){compareVideoRef.current.pause(); compareVideoRef.current.currentTime += (1/24);} } }} className="p-2 text-slate-400 hover:text-blue-500 rounded-full transition"><SkipForward size={24} /></button>
-                      </div>
+                <div className="flex-1 relative bg-black flex flex-col md:flex-row shadow-inner overflow-hidden">
+                  <div className="relative flex-1 w-full h-full flex items-center justify-center border-r border-slate-800 min-h-0">
+                    {reviewPreview.type === 'video' ? (<video ref={videoRef} src={reviewPreview.url} className="max-w-full max-h-full object-contain" onTimeUpdate={(e) => setVideoProgress(e.target.currentTime)} onLoadedMetadata={(e) => setVideoDuration(e.target.duration)} onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)} />) : (<img src={reviewPreview.url} className="max-w-full max-h-full object-contain" />)}
+                    <canvas ref={canvasRef} onMouseDown={startDraw} onMouseMove={onDraw} onMouseUp={endDraw} onMouseLeave={endDraw} onTouchStart={startDraw} onTouchMove={onDraw} onTouchEnd={endDraw} className="absolute top-0 left-0 w-full h-full z-10 cursor-crosshair" width={1920} height={1080} style={{ width: '100%', height: '100%' }} />
+                    {textInputPos && (<input type="text" autoFocus value={textInputValue} onChange={e=>setTextInputValue(e.target.value)} onBlur={commitTextAnnotation} onKeyDown={e=>{if(e.key==='Enter') commitTextAnnotation()}} className="absolute z-20 bg-transparent text-red-500 outline-none border-b-2 border-red-500 font-bold" style={{ left: textInputPos.px, top: textInputPos.py, fontSize: `${brushSize * 4}px` }} placeholder="Taper..." />)}
+                    {reviewPreview.type !== 'video' && reviewItem.annotations?.[reviewStep]?.[`v${reviewVersion}`]?.[getAnnotationKey()] && (<div className="absolute bottom-4 left-4 w-4 h-4 bg-red-600 rounded-full animate-pulse z-20 shadow-lg border-2 border-black"></div>)}
+                  </div>
+                  {compareMode && compareVersion !== '' && (
+                    <div className="relative flex-1 w-full h-full flex items-center justify-center bg-slate-950 min-h-0">
+                      <div className="absolute top-2 right-2 z-20 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded font-bold">V{(reviewType==='shots' ? reviewItem.previews[reviewStep][compareVersion] : reviewItem.previews[compareVersion]).version}</div>
+                      {(reviewType==='shots' ? reviewItem.previews[reviewStep][compareVersion] : reviewItem.previews[compareVersion]).type === 'video' ? (<video ref={compareVideoRef} src={(reviewType==='shots' ? reviewItem.previews[reviewStep][compareVersion] : reviewItem.previews[compareVersion]).url} className="max-w-full max-h-full object-contain" muted />) : (<img src={(reviewType==='shots' ? reviewItem.previews[reviewStep][compareVersion].url : reviewItem.previews[compareVersion].files[reviewPreview.fileIndex].url)} className="max-w-full max-h-full object-contain" />)}
                     </div>
                   )}
                 </div>
 
-                <div className={`flex-1 md:max-w-sm flex flex-col border rounded-xl overflow-hidden shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
-                  <div className={`p-4 border-b font-bold flex items-center ${theme==='dark'?'border-slate-800 bg-slate-950/50':'border-slate-200 bg-slate-50'}`}><MessageSquare size={18} className="mr-2 text-blue-500"/> Fil de discussion</div>
-                  <div className="flex-1 p-4 overflow-y-auto space-y-4">
-                    {chatMessages.length === 0 ? <p className="text-xs text-center text-slate-500 italic mt-10">Aucun message pour ce plan.</p> : null}
-                    {chatMessages.map(msg => (
-                      msg.type === 'system' ? (
-                        <div key={msg.id} className={`text-xs text-center p-2 rounded-lg italic font-medium ${theme==='dark'?'bg-slate-950 text-slate-400':'bg-slate-100 text-slate-500'}`}>{msg.text} <br/><span className="opacity-50 text-[10px]">{new Date(msg.date?.toDate()).toLocaleString()}</span></div>
-                      ) : (
-                        <div key={msg.id} className={`p-3 rounded-xl text-sm ${msg.author === userData.displayName ? 'bg-blue-600 text-white ml-6 rounded-tr-none' : (theme==='dark'?'bg-slate-800 text-slate-200 mr-6 rounded-tl-none':'bg-slate-100 text-slate-700 mr-6 rounded-tl-none')}`}>
-                          <div className={`font-bold text-[10px] mb-1 ${msg.author === userData.displayName ? 'text-blue-200' : 'text-slate-400'}`}>{msg.author}</div><p>{msg.text}</p>
-                          <div className={`text-[10px] text-right mt-1 opacity-70`}>{new Date(msg.date?.toDate()).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
-                        </div>
-                      )
-                    ))}
-                  </div>
-                  <form onSubmit={postComment} className={`p-3 border-t flex space-x-2 ${theme==='dark'?'border-slate-800 bg-slate-950/50':'border-slate-200 bg-slate-50'}`}>
-                    <input type="text" value={newChatMsg} onChange={e=>setNewChatMsg(e.target.value)} placeholder="Écrire un message..." className={`flex-1 p-2 rounded outline-none text-sm ${theme==='dark'?'bg-slate-950 border-slate-700 focus:border-blue-500 border':'bg-white border-slate-300 focus:border-blue-500 border'}`} />
-                    <button type="submit" className="bg-blue-600 text-white p-2 rounded hover:bg-blue-500 transition"><Plus size={18}/></button>
-                  </form>
-                </div>
-              </>
-            )}
-          </div>
-        )}
+                {reviewPreview.type === 'video' && (
+                  <div className={`p-3 shrink-0 flex flex-col justify-center ${theme==='dark'?'bg-slate-950/50':'bg-slate-50'}`}>
+                    <div className={`relative w-full h-2 rounded-full cursor-pointer mb-3 border ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-slate-200 border-slate-300'}`} onClick={(e) => {
+                      if(videoRef.current) { const rect = e.currentTarget.getBoundingClientRect(); const time = ((e.clientX - rect.left) / rect.width) * videoDuration; videoRef.current.currentTime = time; if(compareVideoRef.current) compareVideoRef.current.currentTime = time; }
+                    }}>
+                      <div className="absolute h-full bg-blue-600 rounded-full transition-all duration-75" style={{ width: `${(videoProgress / videoDuration) * 100 || 0}%` }}></div>
+                      {Object.keys(reviewItem.annotations?.[reviewStep]?.[`v${reviewVersion}`] || {}).map(frameTime => (
+                        <div key={frameTime} className="absolute top-1/2 w-2 h-2 bg-red-500 rounded-full transform -translate-x-1 -translate-y-1/2 shadow-sm border border-black" style={{ left: `${(parseFloat(frameTime) / (videoDuration*24)) * 100}%` }}></div>
+                      ))}
+                    </div>
 
-        {activeTab === 'time' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto mt-6">
-            <div className={`border p-8 rounded-2xl space-y-8 shadow-xl flex flex-col justify-center ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
-              <h3 className="font-black text-xl text-center">Chronomètre en Direct</h3>
-              <div className="space-y-4">
-                <select value={selectedTask} onChange={(e) => setSelectedTask(e.target.value)} className={inputClass} disabled={isTimerActive}><option value="">Sélectionner Plan/Asset</option>{[...shots, ...assets].map(tk => <option key={tk.id} value={tk.id}>{tk.name}</option>)}</select>
-                <select value={selectedStep} onChange={(e) => setSelectedStep(e.target.value)} className={inputClass} disabled={isTimerActive}><option value="">Étape de production</option>{workspace?.pipeline?.map(step => <option key={step} value={step}>{step}</option>)}</select>
-              </div>
-              <div className="text-center">
-                <div className="text-5xl sm:text-6xl font-black font-mono tracking-widest mb-8 text-blue-500 drop-shadow break-all">{formatTime(timer)}</div>
-                <div className="flex justify-center">
-                  {!isTimerActive ? (<button onClick={() => { if(!selectedTask || !selectedStep) return openModal("Erreur", "Sélectionnez tâche et étape."); setIsTimerActive(true); }} className="flex items-center space-x-2 bg-green-600 hover:bg-green-500 text-white px-8 py-4 rounded-xl font-bold text-lg shadow-lg transition transform hover:scale-105"><Play size={20} fill="currentColor"/> <span>Démarrer</span></button>) : (<button onClick={handleStopTimer} className="flex items-center space-x-2 bg-yellow-500 hover:bg-yellow-400 text-black px-8 py-4 rounded-xl font-bold text-lg shadow-lg transition"><Pause size={20} fill="currentColor"/> <span>Stop & Sauver</span></button>)}
-                </div>
-              </div>
-            </div>
-
-            <div className={`border p-8 rounded-2xl space-y-6 shadow-xl flex flex-col justify-center ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
-              <div>
-                <h3 className="font-black text-xl mb-4">{t('manualTime')}</h3>
-                <form onSubmit={handleAddManualTime} className="space-y-4">
-                  <div className="flex space-x-4"><div className="flex-1"><label className="text-xs text-slate-500">Heures</label><input type="number" min="0" value={manualTime.h} onChange={e=>setManualTime({...manualTime, h: e.target.value})} className={inputClass}/></div><div className="flex-1"><label className="text-xs text-slate-500">Minutes</label><input type="number" min="0" max="59" value={manualTime.m} onChange={e=>setManualTime({...manualTime, m: e.target.value})} className={inputClass}/></div></div>
-                  <button type="submit" className="w-full bg-blue-600 text-white font-bold p-3 rounded-lg hover:bg-blue-500 transition">Ajouter au log</button>
-                </form>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'stats' && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className={`border rounded-xl p-4 text-center ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}><div className="text-3xl font-black text-slate-400">{myStats.todo}</div><div className="text-xs font-bold text-slate-500 uppercase">To Do</div></div>
-              <div className="bg-blue-100 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-xl p-4 text-center"><div className="text-3xl font-black text-blue-500">{myStats.wip}</div><div className="text-xs font-bold text-blue-600 dark:text-blue-500 uppercase">WIP</div></div>
-              <div className="bg-purple-100 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-800 rounded-xl p-4 text-center"><div className="text-3xl font-black text-purple-500">{myStats.review}</div><div className="text-xs font-bold text-purple-600 dark:text-purple-500 uppercase">Review</div></div>
-              <div className="bg-green-100 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-xl p-4 text-center"><div className="text-3xl font-black text-green-500">{myStats.done}</div><div className="text-xs font-bold text-green-600 dark:text-green-500 uppercase">Done</div></div>
-            </div>
-
-            <div className={`border rounded-xl p-6 shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
-              <h3 className="font-black text-xl mb-4 text-blue-500">Progression Globale du Projet</h3>
-              {(() => {
-                let totalTasks = 0; let doneTasks = 0;
-                shots.forEach(s => workspace?.pipeline?.forEach(step => { totalTasks++; if(s.status?.[step]==='done') doneTasks++; }));
-                const pct = totalTasks > 0 ? Math.round((doneTasks/totalTasks)*100) : 0;
-                return (
-                  <div>
-                    <div className="flex justify-between mb-1 text-sm font-bold"><span className="text-slate-500">{doneTasks} Terminées</span> <span className="text-blue-500">{pct}%</span></div>
-                    <div className={`w-full h-4 rounded-full overflow-hidden ${theme==='dark'?'bg-slate-950':'bg-slate-200'}`}>
-                      <div className="h-full bg-blue-600 transition-all duration-1000" style={{ width: `${pct}%` }}></div>
+                    <div className="flex justify-center items-center space-x-6">
+                      <button onClick={() => { if(videoRef.current) { videoRef.current.pause(); videoRef.current.currentTime -= (1/24); if(compareVideoRef.current){compareVideoRef.current.pause(); compareVideoRef.current.currentTime -= (1/24);} } }} className="p-1.5 text-slate-400 hover:text-blue-500 rounded-full transition"><SkipBack size={20} /></button>
+                      <button onClick={() => { if(isPlaying){ videoRef.current?.pause(); compareVideoRef.current?.pause(); } else { videoRef.current?.play(); compareVideoRef.current?.play(); } }} className="p-3 bg-blue-600 hover:bg-blue-500 text-white rounded-full transition shadow transform hover:scale-105">{isPlaying ? <Pause size={20} fill="currentColor"/> : <Play size={20} fill="currentColor" className="ml-0.5" />}</button>
+                      <button onClick={() => { if(videoRef.current) { videoRef.current.pause(); videoRef.current.currentTime += (1/24); if(compareVideoRef.current){compareVideoRef.current.pause(); compareVideoRef.current.currentTime += (1/24);} } }} className="p-1.5 text-slate-400 hover:text-blue-500 rounded-full transition"><SkipForward size={20} /></button>
                     </div>
                   </div>
-                );
-              })()}
-            </div>
-
-            <div className={`border rounded-xl p-6 shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
-              <h3 className="font-black text-xl mb-6 flex items-center text-blue-500"><BarChart className="mr-3"/> Logs Récents</h3>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm whitespace-nowrap">
-                  <thead><tr className={`border-b text-xs uppercase ${theme==='dark'?'border-slate-800 bg-slate-950 text-slate-500':'border-slate-200 bg-slate-50 text-slate-600'}`}>{canAssign && <th className="p-3">Membre</th>}<th className="p-3">Tâche</th><th className="p-3">Étape</th><th className="p-3">Temps</th></tr></thead>
-                  <tbody className={`divide-y ${theme==='dark'?'divide-slate-800/50':'divide-slate-200'}`}>
-                    {timeLogs.filter(log => canAssign || log.userId === user.uid).sort((a,b) => b.date - a.date).slice(0,20).map(log => (
-                      <tr key={log.id} className="hover:bg-slate-100 dark:hover:bg-slate-800/20">{canAssign && <td className="p-3 font-medium">{log.userName}</td>}<td className="p-3">{log.taskName}</td><td className="p-3 text-slate-500">{log.step}</td><td className="p-3 text-blue-500 font-mono font-bold">{formatTime(log.durationSeconds)}</td></tr>
-                    ))}
-                  </tbody>
-                </table>
+                )}
               </div>
-            </div>
-          </div>
+
+              {/* BOTTOM HALF : THREAD DE CHAT */}
+              <div className="flex-1 flex flex-col min-h-0">
+                <div className={`p-3 border-b font-bold flex items-center text-sm ${theme==='dark'?'border-slate-800 bg-slate-950/80':'border-slate-200 bg-slate-100'}`}><MessageSquare size={16} className="mr-2 text-blue-500"/> Discussions</div>
+                <div className="flex-1 p-3 overflow-y-auto space-y-3">
+                  {chatMessages.length === 0 ? <p className="text-xs text-center text-slate-500 italic mt-4">Aucun message pour ce plan.</p> : null}
+                  {chatMessages.map(msg => (
+                    msg.type === 'system' ? (
+                      <div key={msg.id} className={`text-[11px] text-center p-1.5 rounded italic font-medium ${theme==='dark'?'bg-slate-950 text-slate-400':'bg-slate-100 text-slate-500'}`}>{msg.text} <br/><span className="opacity-50 text-[9px]">{new Date(msg.date?.toDate()).toLocaleString()}</span></div>
+                    ) : (
+                      <div key={msg.id} className={`p-2.5 rounded-lg text-xs ${msg.author === userData.displayName ? 'bg-blue-600 text-white ml-6 rounded-tr-none' : (theme==='dark'?'bg-slate-800 text-slate-200 mr-6 rounded-tl-none':'bg-slate-100 border text-slate-700 mr-6 rounded-tl-none')}`}>
+                        <div className={`font-bold text-[10px] mb-0.5 ${msg.author === userData.displayName ? 'text-blue-200' : 'text-slate-500'}`}>{msg.author}</div><p className="whitespace-pre-wrap">{msg.text}</p>
+                        <div className={`text-[9px] text-right mt-1 opacity-70`}>{new Date(msg.date?.toDate()).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                      </div>
+                    )
+                  ))}
+                </div>
+                <form onSubmit={postComment} className={`p-2 border-t flex space-x-2 shrink-0 ${theme==='dark'?'border-slate-800 bg-slate-950/80':'border-slate-200 bg-slate-100'}`}>
+                  <input type="text" value={newChatMsg} onChange={e=>setNewChatMsg(e.target.value)} placeholder="Ajouter un commentaire..." className={`flex-1 p-2 rounded-lg outline-none text-xs ${theme==='dark'?'bg-slate-900 border-slate-700 focus:border-blue-500 border':'bg-white border-slate-300 focus:border-blue-500 border shadow-sm'}`} />
+                  <button type="submit" className="bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-500 transition shadow-sm"><Plus size={16}/></button>
+                </form>
+              </div>
+            </aside>
+          </>
         )}
-
-        {activeTab === 'team' && (
-          <div className={`border rounded-xl p-6 max-w-2xl shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
-            <h3 className="font-black text-xl mb-6 text-blue-500">Membres ({members.length})</h3>
-            <div className="space-y-3">
-              {members.map(m => (
-                <div key={m.id} className={`flex justify-between items-center p-4 rounded-lg border ${theme==='dark'?'bg-slate-950 border-slate-800':'bg-slate-50 border-slate-200'}`}>
-                  <div className="flex items-center space-x-3"><UserCircle size={32} className="text-slate-400"/><div><div className="font-bold text-base">{m.displayName}</div><div className="text-xs text-slate-500 font-mono">{m.email}</div></div></div>
-                  {isAdmin && m.userId !== user.uid ? (<select className={`${inputClass} !p-1.5 !w-auto !text-sm !font-bold !text-blue-500`} value={m.role} onChange={async (e) => await updateDoc(doc(db, 'projectMembers', m.id), { role: e.target.value })}><option value="Guest">Guest (Lecture seule)</option><option value="Artist">Artist</option><option value="Supervisor">Supervisor</option><option value="Admin">Admin</option></select>) : <span className="text-sm text-blue-600 dark:text-blue-400 font-bold px-3 py-1 bg-blue-100 dark:bg-blue-900/20 rounded-full">{m.role}</span>}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'settings' && isAdmin && (
-          <div className="space-y-6 max-w-2xl">
-            
-            <div className="grid grid-cols-2 gap-4">
-              <button onClick={exportExcel} className="w-full bg-emerald-600 text-white flex items-center justify-center p-3 rounded-lg font-bold hover:bg-emerald-500 transition shadow-sm"><Download size={18} className="mr-2"/> Export Excel</button>
-              <button onClick={exportTimeCSV} className="w-full bg-blue-600 text-white flex items-center justify-center p-3 rounded-lg font-bold hover:bg-blue-500 transition shadow-sm"><Download size={18} className="mr-2"/> Temps CSV</button>
-            </div>
-
-            <div className={`border rounded-xl p-6 shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
-              <h3 className="font-black mb-3">Code d'invitation</h3>
-              <input type="text" readOnly value={workspace?.id || ''} className="w-full p-3 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-lg font-mono text-blue-500 text-center tracking-widest text-lg outline-none cursor-copy" onClick={e=>{e.target.select(); document.execCommand('copy'); openModal("Code Copié", "");}} />
-            </div>
-
-            <div className={`border rounded-xl p-6 shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
-              <h3 className="font-black mb-4 flex items-center"><ImageIcon size={18} className="mr-2 text-blue-500"/> Bannière du projet</h3>
-              {workspace?.bannerUrl ? (
-                <div className="relative w-full h-32 rounded-lg bg-cover bg-center mb-4 overflow-hidden border border-slate-700" style={{backgroundImage:`url(${workspace.bannerUrl})`}}>
-                  <button onClick={removeBanner} className="absolute top-2 right-2 bg-red-600 hover:bg-red-500 text-white p-2 rounded transition shadow-lg"><Trash2 size={16}/></button>
-                </div>
-              ) : (
-                <label className={`w-full h-32 rounded-lg border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition ${theme==='dark'?'border-slate-700 hover:border-blue-500 text-slate-500':'border-slate-300 hover:border-blue-500 text-slate-400'}`}>
-                  <Upload size={24} className="mb-2"/> <span className="text-sm font-medium">Uploader une bannière</span>
-                  <input type="file" className="hidden" accept="image/*" onChange={uploadBanner} disabled={!workspace.cloudinaryCloudName} />
-                  {!workspace.cloudinaryCloudName && <p className="text-xs text-red-500 mt-2">Clés Cloudinary requises</p>}
-                </label>
-              )}
-            </div>
-
-            <div className={`border rounded-xl p-6 shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
-              <h3 className="font-black mb-4 flex items-center"><FolderKanban size={18} className="mr-2 text-blue-500"/> Pipeline Personnalisable</h3>
-              <div className="space-y-2 mb-4">
-                {workspace?.pipeline?.map((p, idx) => (
-                  <div key={idx} className={`flex justify-between items-center p-2 border rounded ${theme==='dark'?'bg-slate-950 border-slate-800':'bg-slate-50 border-slate-200'}`}>
-                    <span className="font-medium text-sm">{p}</span>
-                    <button onClick={() => saveCustomPipeline(workspace.pipeline.filter(s => s !== p))} className="text-slate-400 hover:text-red-500"><Trash2 size={16}/></button>
-                  </div>
-                ))}
-              </div>
-              <div className="flex space-x-2">
-                <input type="text" id="newStepInput" placeholder="Nouvelle étape (ex: Compositing)" className={inputClass} />
-                <button onClick={() => { const val = document.getElementById('newStepInput').value.trim(); if(val && !workspace.pipeline.includes(val)) { saveCustomPipeline([...workspace.pipeline, val]); document.getElementById('newStepInput').value=''; } }} className="bg-slate-200 dark:bg-slate-800 px-4 rounded font-bold hover:bg-blue-600 hover:text-white transition"><Plus size={20}/></button>
-              </div>
-            </div>
-
-            <form onSubmit={saveStorageSettings} className={`border rounded-xl p-6 space-y-5 shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
-              <h3 className="font-black flex items-center text-blue-500"><Key className="mr-2" /> Cloudinary Config</h3>
-              <div><label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Cloud Name</label><input type="text" value={cloudNameInput} onChange={(e)=>setCloudNameInput(e.target.value)} className={inputClass} required /></div>
-              <div><label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Upload Preset (Unsigned)</label><input type="text" value={uploadPresetInput} onChange={(e)=>setUploadPresetInput(e.target.value)} className={inputClass} required /></div>
-              <div className="pt-4 mt-4 border-t border-slate-200 dark:border-slate-800 space-y-4">
-                <div className="flex items-center space-x-2 text-yellow-600 dark:text-yellow-500"><AlertTriangle size={16}/><span className="text-xs font-bold">API requise pour auto-supprimer les fichiers du cloud.</span></div>
-                <div><label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">API Key</label><input type="text" value={apiKeyInput} onChange={(e)=>setApiKeyInput(e.target.value)} className={inputClass} /></div>
-                <div><label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">API Secret</label><input type="password" value={apiSecretInput} onChange={(e)=>setApiSecretInput(e.target.value)} className={inputClass} /></div>
-              </div>
-              <button type="submit" className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition">Enregistrer Clés</button>
-            </form>
-
-            <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/50 rounded-xl p-6 shadow-sm">
-              <h3 className="font-black text-red-600 dark:text-red-500 mb-4">Zone de danger</h3>
-              <button onClick={deleteProject} className="flex items-center space-x-2 bg-red-600 hover:bg-red-500 text-white px-5 py-2.5 rounded-lg font-bold text-sm transition"><Trash2 size={18} /> <span>Supprimer le projet entier</span></button>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'help' && (
-          <div className="max-w-3xl space-y-6">
-            <div className={`border rounded-xl p-8 shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
-              <h3 className="font-black text-2xl mb-4 text-blue-500 flex items-center"><HelpCircle className="mr-3"/> Guide d'utilisation</h3>
-              <div className="space-y-6 text-sm leading-relaxed">
-                <div>
-                  <h4 className="font-bold text-lg mb-2">1. Configuration du stockage (Cloudinary)</h4>
-                  <p className="mb-2">Pour que le projet puisse accepter des images et vidéos, l'Admin doit créer un compte gratuit sur <strong>Cloudinary.com</strong>.</p>
-                  <ul className="list-disc pl-5 space-y-1 text-slate-600 dark:text-slate-400">
-                    <li>Allez dans <em>Settings {'>'} Upload</em> et créez un <strong>Upload preset</strong> réglé sur "Unsigned".</li>
-                    <li>Copiez le <strong>Cloud Name</strong> (sur votre Dashboard) et le nom de l'Upload Preset.</li>
-                    <li>Collez-les dans l'onglet <strong>Paramètres</strong> du Tracker.</li>
-                    <li><em>Optionnel :</em> Pour que la suppression d'un asset l'efface aussi des serveurs Cloudinary, ajoutez l'<strong>API Key</strong> et l'<strong>API Secret</strong>.</li>
-                  </ul>
-                </div>
-                <div>
-                  <h4 className="font-bold text-lg mb-2">2. Le système de rôles</h4>
-                  <ul className="list-disc pl-5 space-y-1 text-slate-600 dark:text-slate-400">
-                    <li><strong className="text-blue-500">Admin :</strong> Contrôle tout (Paramètres, Suppression du projet, rôles).</li>
-                    <li><strong className="text-blue-500">Supervisor :</strong> Peut assigner des membres, ajouter des plans, valider.</li>
-                    <li><strong className="text-blue-500">Artist :</strong> Peut changer le statut de ses plans, uploader des versions.</li>
-                    <li><strong className="text-blue-500">Guest :</strong> Mode lecture seule. Peut seulement laisser des commentaires écrits dans l'outil Review.</li>
-                  </ul>
-                </div>
-                <div>
-                  <h4 className="font-bold text-lg mb-2">3. L'outil Review & Retake</h4>
-                  <p className="text-slate-600 dark:text-slate-400">Cliquez sur une image dans le tableau pour ouvrir l'outil de validation. Vous pouvez utiliser le pinceau (raccourci texte en cliquant sur le "T") afin de pointer des erreurs. Le bouton "Comparer" permet d'afficher l'ancienne version côte à côte pour vérifier la correction.</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </main>
+      </div>
     </div>
   );
 }
