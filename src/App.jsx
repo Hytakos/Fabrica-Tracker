@@ -8,7 +8,7 @@ import {
 import { initializeApp } from 'firebase/app';
 import { 
   Film, Box, Settings, Plus, Play, Pause, Trash2, LogOut, 
-  Users, Upload, Clock, SkipForward, SkipBack, MonitorPlay, FolderKanban, BarChart, ChevronLeft, UserCircle, PenTool, Save, Key, Eraser, Undo, X, Bell, Download, Clapperboard, AlertTriangle, MessageSquare, SplitSquareHorizontal, Type, CheckSquare, Search, Filter, HelpCircle, Moon, Sun
+  Users, Upload, Clock, SkipForward, SkipBack, MonitorPlay, FolderKanban, BarChart, ChevronLeft, UserCircle, PenTool, Save, Key, Eraser, Undo, X, Bell, Download, Clapperboard, AlertTriangle, MessageSquare, Type, CheckSquare, Search, HelpCircle, Moon, Sun, Edit3, UserPlus, HeartHandshake
 } from 'lucide-react';
 
 const keyPart1 = "AIzaSyDgTadoI2_";
@@ -38,8 +38,22 @@ const generateCloudinarySignature = async (publicId, timestamp, apiSecret) => {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 };
 
+const dict = {
+  fr: {
+    projects: "Mes Projets", friends: "Mes Amis", assets: "Assets", shots: "Plans (Shots)", review: "Review & Retake", time: "Chronomètre", stats: "Statistiques", team: "Équipe", settings: "Paramètres", help: "Aide & Guide",
+    ok: "Ok", cancel: "Annuler", batchAction: "Action en lot", manualTime: "Saisie manuelle", join: "Rejoindre", addFriend: "Ajouter Ami", friendId: "ID Utilisateur de l'ami", myId: "Mon ID", sharedProj: "projet(s) en commun",
+    createProj: "Créer un projet", joinProj: "Rejoindre un projet", projName: "Nom du projet", joinCode: "Code d'invitation", searchShot: "Chercher un plan...", allStatus: "Tous les statuts", allMembers: "Tous les membres", addShot: "Ajouter Plan"
+  },
+  en: {
+    projects: "My Projects", friends: "My Friends", assets: "Assets", shots: "Shots", review: "Review & Retake", time: "Time Tracker", stats: "Statistics", team: "Team", settings: "Settings", help: "Help & Guide",
+    ok: "Ok", cancel: "Cancel", batchAction: "Batch Action", manualTime: "Manual Entry", join: "Join", addFriend: "Add Friend", friendId: "Friend's User ID", myId: "My ID", sharedProj: "shared project(s)",
+    createProj: "Create Project", joinProj: "Join Project", projName: "Project Name", joinCode: "Invite Code", searchShot: "Search a shot...", allStatus: "All Statuses", allMembers: "All Members", addShot: "Add Shot"
+  }
+};
+
 export default function App() {
   const [lang, setLang] = useState('fr');
+  const t = (key) => dict[lang][key] || key;
   const [theme, setTheme] = useState('dark');
   
   const [user, setUser] = useState(null);
@@ -47,7 +61,8 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   
   const [currentView, setCurrentView] = useState('dashboard');
-  const [activeTab, setActiveTab] = useState('shots');
+  const [dashTab, setDashTab] = useState('projects'); // 'projects' ou 'friends'
+  const [activeTab, setActiveTab] = useState('assets');
   
   const [myProjects, setMyProjects] = useState([]);
   const [newProjectName, setNewProjectName] = useState('');
@@ -102,7 +117,6 @@ export default function App() {
   const [reviewStep, setReviewStep] = useState(null);
   const [reviewVersion, setReviewVersion] = useState(null);
   const [reviewPreview, setReviewPreview] = useState(null);
-  
   const [compareMode, setCompareMode] = useState(false);
   const [compareVersion, setCompareVersion] = useState('');
   
@@ -116,7 +130,7 @@ export default function App() {
   const [videoProgress, setVideoProgress] = useState(0);
   const [videoDuration, setVideoDuration] = useState(0);
   
-  const [drawMode, setDrawMode] = useState('pen'); // 'pen', 'text'
+  const [drawMode, setDrawMode] = useState('pen'); 
   const [textInputPos, setTextInputPos] = useState(null);
   const [textInputValue, setTextInputValue] = useState('');
   
@@ -125,10 +139,20 @@ export default function App() {
   const [currentStroke, setCurrentStroke] = useState(null);
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  
+  // EASTER EGG & FRIENDS
+  const [logoPixelated, setLogoPixelated] = useState(false);
+  const [friendsList, setFriendsList] = useState([]);
+  const [friendInput, setFriendInput] = useState('');
+  const [activeFriend, setActiveFriend] = useState(null);
+  const [sharedProjects, setSharedProjects] = useState([]);
+  const [showSharedProjects, setShowSharedProjects] = useState(false);
+  const [pmMessages, setPmMessages] = useState([]);
+  const [newPmMsg, setNewPmMsg] = useState('');
 
   // MODAL GENERIQUE (Intra-site)
   const [modal, setModal] = useState({ isOpen: false, title: '', msg: '', onConfirm: null });
-  const openModal = (title, msg, onConfirm) => setModal({ isOpen: true, title, msg, onConfirm });
+  const openModal = (title, msg, onConfirm = null) => setModal({ isOpen: true, title, msg, onConfirm });
   const closeModal = () => setModal({ isOpen: false, title: '', msg: '', onConfirm: null });
 
   useEffect(() => {
@@ -150,8 +174,20 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
     const qProjects = query(collection(db, 'projectMembers'), where('userId', '==', user.uid));
-    const unsub = onSnapshot(qProjects, (snap) => setMyProjects(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-    return () => unsub();
+    const unsubP = onSnapshot(qProjects, (snap) => setMyProjects(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    
+    // Écoute des amis
+    const qFriends = query(collection(db, 'friendships'), where('users', 'array-contains', user.uid));
+    const unsubF = onSnapshot(qFriends, (snap) => {
+      const flist = [];
+      snap.docs.forEach(d => {
+        const data = d.data();
+        const otherId = data.users.find(id => id !== user.uid);
+        if (otherId) flist.push({ id: otherId, friendshipId: d.id, displayName: data.names?.[otherId] || "Ami" });
+      });
+      setFriendsList(flist);
+    });
+    return () => { unsubP(); unsubF(); };
   }, [user]);
 
   useEffect(() => {
@@ -181,6 +217,24 @@ export default function App() {
     }
   }, [shots, assets]);
 
+  // Écouteur pour les messages privés
+  useEffect(() => {
+    if (!activeFriend) return;
+    const q = query(collection(db, `friendships/${activeFriend.friendshipId}/messages`), orderBy('date', 'asc'));
+    const unsub = onSnapshot(q, (snap) => setPmMessages(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    
+    // Calcul des projets partagés
+    const fetchShared = async () => {
+      const memSnaps = await getDocs(query(collection(db, 'projectMembers'), where('userId', '==', activeFriend.id)));
+      const fProjects = memSnaps.docs.map(d => d.data());
+      const shared = myProjects.filter(mp => fProjects.some(fp => fp.workspaceId === mp.workspaceId));
+      setSharedProjects(shared);
+    };
+    fetchShared();
+    
+    return () => unsub();
+  }, [activeFriend, myProjects]);
+
   useEffect(() => {
     let interval = null;
     if (isTimerActive) interval = setInterval(() => setTimer(t => t + 1), 1000);
@@ -188,19 +242,20 @@ export default function App() {
     return () => clearInterval(interval);
   }, [isTimerActive]);
 
+  const triggerEasterEgg = () => { setLogoPixelated(true); setTimeout(() => setLogoPixelated(false), 500); };
   const formatTime = (s) => `${Math.floor(s/3600).toString().padStart(2,'0')}:${Math.floor((s%3600)/60).toString().padStart(2,'0')}:${(s%60).toString().padStart(2,'0')}`;
 
   const handleAuth = async (e) => {
     e.preventDefault();
     try {
       if (authMode === 'register') {
-        if(!authName) return alert("Pseudo requis");
+        if(!authName) return openModal("Erreur", "Pseudo requis", null);
         const res = await createUserWithEmailAndPassword(auth, authEmail, authPassword);
         await setDoc(doc(db, 'users', res.user.uid), { email: authEmail, displayName: authName, wantsEmailNotifications: emailNotifs });
         setUserData({ id: res.user.uid, email: authEmail, displayName: authName, wantsEmailNotifications: emailNotifs });
       } else { await signInWithEmailAndPassword(auth, authEmail, authPassword); }
       setCurrentView('dashboard');
-    } catch (err) { alert(err.message); }
+    } catch (err) { openModal("Erreur", err.message, null); }
   };
 
   const handleForgotPassword = async () => {
@@ -242,6 +297,41 @@ export default function App() {
     setJoinCode('');
   };
 
+  const renameProject = (p) => {
+    const newName = window.prompt("Nouveau nom du projet :", p.workspaceName);
+    if(newName && newName !== p.workspaceName) {
+      updateDoc(doc(db, 'workspaces', p.workspaceId), { name: newName });
+      getDocs(query(collection(db, 'projectMembers'), where('workspaceId', '==', p.workspaceId))).then(snap => {
+        snap.forEach(m => updateDoc(m.ref, { workspaceName: newName }));
+      });
+    }
+  };
+
+  const addFriend = async (e) => {
+    e.preventDefault();
+    if(!friendInput || friendInput === user.uid) return openModal("Erreur", "ID Invalide", null);
+    if(friendsList.find(f => f.id === friendInput)) return openModal("Erreur", "Déjà ami", null);
+    
+    try {
+      const friendDoc = await getDoc(doc(db, 'users', friendInput));
+      if(!friendDoc.exists()) return openModal("Erreur", "Utilisateur introuvable", null);
+      
+      const friendData = friendDoc.data();
+      await addDoc(collection(db, 'friendships'), {
+        users: [user.uid, friendInput],
+        names: { [user.uid]: userData.displayName, [friendInput]: friendData.displayName },
+        createdAt: serverTimestamp()
+      });
+      setFriendInput(''); openModal("Succès", "Ami ajouté !", null);
+    } catch(err) { openModal("Erreur", err.message, null); }
+  };
+
+  const postPm = async (e) => {
+    e.preventDefault(); if(!newPmMsg.trim() || !activeFriend) return;
+    await addDoc(collection(db, `friendships/${activeFriend.friendshipId}/messages`), { text: newPmMsg, date: serverTimestamp(), authorId: user.uid });
+    setNewPmMsg('');
+  };
+
   const deleteMediaFromCloudinary = async (url) => {
     if (!workspace?.cloudinaryApiKey || !workspace?.cloudinaryApiSecret || !workspace?.cloudinaryCloudName) return;
     try {
@@ -267,23 +357,15 @@ export default function App() {
     if (conf === workspace?.name) {
       setUploadingMedia(true);
       for (const s of shots) {
-        if(s.previews) {
-          for (const step in s.previews) { for (const v of s.previews[step]) { if(v.url) await deleteMediaFromCloudinary(v.url); } }
-        }
+        if(s.previews) { for (const step in s.previews) { for (const v of s.previews[step]) { if(v.url) await deleteMediaFromCloudinary(v.url); } } }
       }
       for (const a of assets) {
-        if(a.previews) {
-          for (const v of a.previews) { if(v.files) { for (const f of v.files) { if(f.url) await deleteMediaFromCloudinary(f.url); } } }
-        }
+        if(a.previews) { for (const v of a.previews) { if(v.files) { for (const f of v.files) { if(f.url) await deleteMediaFromCloudinary(f.url); } } } }
       }
-      const snapMembers = await getDocs(query(collection(db, 'projectMembers'), where('workspaceId', '==', workspace.id)));
-      snapMembers.forEach(d => deleteDoc(d.ref));
-      const snapShots = await getDocs(query(collection(db, 'shots'), where('workspaceId', '==', workspace.id)));
-      snapShots.forEach(d => deleteDoc(d.ref));
-      const snapAssets = await getDocs(query(collection(db, 'assets'), where('workspaceId', '==', workspace.id)));
-      snapAssets.forEach(d => deleteDoc(d.ref));
-      const snapLogs = await getDocs(query(collection(db, 'timeLogs'), where('workspaceId', '==', workspace.id)));
-      snapLogs.forEach(d => deleteDoc(d.ref));
+      const snapMembers = await getDocs(query(collection(db, 'projectMembers'), where('workspaceId', '==', workspace.id))); snapMembers.forEach(d => deleteDoc(d.ref));
+      const snapShots = await getDocs(query(collection(db, 'shots'), where('workspaceId', '==', workspace.id))); snapShots.forEach(d => deleteDoc(d.ref));
+      const snapAssets = await getDocs(query(collection(db, 'assets'), where('workspaceId', '==', workspace.id))); snapAssets.forEach(d => deleteDoc(d.ref));
+      const snapLogs = await getDocs(query(collection(db, 'timeLogs'), where('workspaceId', '==', workspace.id))); snapLogs.forEach(d => deleteDoc(d.ref));
       
       await deleteDoc(doc(db, 'workspaces', workspace.id));
       setUploadingMedia(false); setCurrentView('dashboard');
@@ -303,9 +385,7 @@ export default function App() {
       const versionToDelete = currentVersions[versionIndex];
       if (versionToDelete) {
         if (collectionType === 'shots' && versionToDelete.url) await deleteMediaFromCloudinary(versionToDelete.url);
-        if (collectionType === 'assets' && versionToDelete.files) {
-          for (const f of versionToDelete.files) { await deleteMediaFromCloudinary(f.url); }
-        }
+        if (collectionType === 'assets' && versionToDelete.files) { for (const f of versionToDelete.files) { await deleteMediaFromCloudinary(f.url); } }
       }
       const newVersions = currentVersions.filter((_, i) => i !== versionIndex);
       const updateObj = collectionType === 'shots' ? { [`previews.${step}`]: newVersions } : { previews: newVersions };
@@ -359,7 +439,6 @@ export default function App() {
     });
   };
 
-  // BATCH EDIT LOGIC
   const applyBatchAction = async () => {
     if(batchSelection.length === 0) return openModal("Erreur", "Sélectionnez des plans.", null);
     if(!batchActionStep) return openModal("Erreur", "Sélectionnez une étape.", null);
@@ -368,7 +447,7 @@ export default function App() {
       const shot = shots.find(s => s.id === id);
       if (shot && batchActionStatus) await changeStatus(shot, batchActionStep, batchActionStatus, 'shots');
     }
-    setBatchSelection([]); openModal("Succès", "Action en lot appliquée.", null);
+    setBatchSelection([]); openModal(t('batchAction'), "Action en lot appliquée.", null);
   };
 
   const uploadMediaToCloud = async (file) => {
@@ -422,9 +501,7 @@ export default function App() {
 
   useEffect(() => {
     const key = getAnnotationKey();
-    if(key && reviewItem?.annotations?.[reviewStep]?.[`v${reviewVersion}`]?.[key]) {
-      setStrokes(JSON.parse(reviewItem.annotations[reviewStep][`v${reviewVersion}`][key]));
-    } else setStrokes([]);
+    if(key && reviewItem?.annotations?.[reviewStep]?.[`v${reviewVersion}`]?.[key]) { setStrokes(JSON.parse(reviewItem.annotations[reviewStep][`v${reviewVersion}`][key])); } else setStrokes([]);
   }, [videoProgress, reviewItem, reviewStep, reviewVersion]);
 
   const drawOnCanvas = () => {
@@ -471,9 +548,7 @@ export default function App() {
   };
   
   const commitTextAnnotation = () => {
-    if(textInputValue.trim() && textInputPos) {
-      setStrokes([...strokes, { type: 'text', content: textInputValue, x: textInputPos.x, y: textInputPos.y, size: brushSize }]);
-    }
+    if(textInputValue.trim() && textInputPos) { setStrokes([...strokes, { type: 'text', content: textInputValue, x: textInputPos.x, y: textInputPos.y, size: brushSize }]); }
     setTextInputPos(null); setTextInputValue('');
   };
 
@@ -502,9 +577,7 @@ export default function App() {
   };
 
   const getXMLStyleID = (st) => {
-    switch(st) {
-      case 'wip': return 'sWip'; case 'review': return 'sReview'; case 'reuse': return 'sReuse'; case 'done': return 'sDone'; default: return 'sTodo';
-    }
+    switch(st) { case 'wip': return 'sWip'; case 'review': return 'sReview'; case 'reuse': return 'sReuse'; case 'done': return 'sDone'; default: return 'sTodo'; }
   };
 
   const exportExcel = () => {
@@ -533,29 +606,29 @@ export default function App() {
     });
     xml += `</Table></Worksheet></Workbook>`;
 
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(new Blob([xml], { type: 'application/xml;charset=utf-8;' })); 
+    const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([xml], { type: 'application/xml;charset=utf-8;' })); 
     link.download = `${workspace.name.replace(/\s+/g, '_')}_Tracker.xml`; link.click();
   };
 
   const exportTimeCSV = () => {
-    let csv = "User,Task,Step,Duration (s),Date\n";
-    timeLogs.forEach(l => { csv += `"${l.userName}","${l.taskName}","${l.step}",${l.durationSeconds},"${new Date(l.date?.toDate()).toLocaleString()}"\n`; });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' })); 
+    let csv = "User,Task,Step,Duration (Hours),Date\n";
+    timeLogs.forEach(l => { 
+      const dateStr = l.date?.toDate() ? 
+          `${l.date.toDate().toLocaleDateString('fr-FR')} ${l.date.toDate().toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'})}` 
+          : '';
+      const hours = (l.durationSeconds / 3600).toFixed(2);
+      csv += `"${l.userName}","${l.taskName}","${l.step}",${hours},"${dateStr}"\n`; 
+    });
+    const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' })); 
     link.download = `Times_${workspace.name}.csv`; link.click();
   };
 
-  const saveCustomPipeline = async (newPipeline) => {
-    await updateDoc(doc(db, 'workspaces', workspace.id), { pipeline: newPipeline });
-    setWorkspace({...workspace, pipeline: newPipeline});
-  };
+  const saveCustomPipeline = async (newPipeline) => { await updateDoc(doc(db, 'workspaces', workspace.id), { pipeline: newPipeline }); setWorkspace({...workspace, pipeline: newPipeline}); };
 
   const canEdit = ['Admin', 'Supervisor', 'Artist'].includes(userRole);
   const canAssign = ['Admin', 'Supervisor'].includes(userRole);
   const isAdmin = userRole === 'Admin';
   
-  // OPTIMISATION DES MINIATURES CLOUDINARY
   const getThumbnail = (obj) => {
     if (!obj) return "";
     const cropParams = "w_400,h_225,c_fill,q_auto";
@@ -576,6 +649,16 @@ export default function App() {
   const pendingReviews = shots.filter(s => workspace?.pipeline?.some(step => s.status?.[step] === 'review' && getAssignees(s, step).includes(user?.uid)));
   const myAssignedTasks = shots.filter(s => workspace?.pipeline?.some(step => getAssignees(s, step).includes(user?.uid)));
   
+  const myStats = { todo: 0, wip: 0, review: 0, done: 0 };
+  myAssignedTasks.forEach(s => {
+    workspace?.pipeline?.forEach(step => {
+      if(getAssignees(s, step).includes(user?.uid)) {
+        const st = s.status?.[step] || 'todo';
+        if(myStats[st] !== undefined) myStats[st]++;
+      }
+    });
+  });
+
   let filteredShots = shots.filter(s => {
     const matchSearch = s.name.toLowerCase().includes(searchQuery.toLowerCase()) || s.scene.toLowerCase().includes(searchQuery.toLowerCase());
     const matchStatus = filterStatus ? workspace?.pipeline?.some(step => s.status?.[step] === filterStatus) : true;
@@ -588,25 +671,33 @@ export default function App() {
   const groupedAssets = assets.reduce((acc, a) => { (acc[a.category] = acc[a.category] || []).push(a); return acc; }, {});
   const sortedCats = Object.keys(groupedAssets).sort();
 
-  // STYLES
   const bgMain = "bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 transition-colors duration-300";
   const bgPanel = "bg-white border-slate-200 shadow-lg dark:bg-slate-900 dark:border-slate-800 dark:shadow-none transition-colors duration-300";
   const inputClass = "w-full p-2 bg-slate-100 border border-slate-300 rounded outline-none focus:border-blue-500 dark:bg-slate-950 dark:border-slate-800";
+  
+  // ANIMATION STYLES INJECTION
+  const pixelateStyle = `
+    @keyframes pixelateAnim {
+      0% { filter: blur(0px) contrast(1); transform: scale(1); }
+      50% { filter: blur(3px) contrast(5); transform: scale(1.05); }
+      100% { filter: blur(0px) contrast(1); transform: scale(1); }
+    }
+  `;
 
   if (loading) return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white">...</div>;
 
   if (!user) {
     return (
       <div className={`min-h-screen flex flex-col items-center justify-center p-4 relative ${theme === 'dark' ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-900'}`}>
+        <style>{pixelateStyle}</style>
         <div className="absolute top-4 right-4 flex space-x-2">
+          <button onClick={()=>setLang(lang==='fr'?'en':'fr')} className="px-3 py-1 rounded font-bold text-sm bg-slate-200 dark:bg-slate-800 uppercase">{lang}</button>
           <button onClick={()=>setTheme(theme==='dark'?'light':'dark')} className="p-2 rounded-full bg-slate-200 dark:bg-slate-800">{theme==='dark' ? <Sun size={20}/> : <Moon size={20}/>}</button>
         </div>
         <form onSubmit={handleAuth} className={`border p-8 rounded-xl w-full max-w-md space-y-5 shadow-2xl ${theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
           <div className="flex flex-col items-center justify-center space-y-2 mb-2">
-            <div className="w-12 h-12 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20">
-              <Clapperboard size={26} className="text-white" />
-            </div>
-            <h1 className="text-2xl font-black tracking-tight">Fabrica Tracker</h1>
+            <div className="w-12 h-12 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20"><Clapperboard size={26} className="text-white" /></div>
+            <h1 onClick={triggerEasterEgg} className="text-2xl font-black tracking-tight cursor-pointer select-none" style={{ animation: logoPixelated ? 'pixelateAnim 0.5s ease-in-out' : 'none' }}>Fabrica Tracker</h1>
           </div>
           <div className="flex space-x-2 border-b border-slate-200 dark:border-slate-800 pb-2">
             <button type="button" onClick={() => setAuthMode('login')} className={`flex-1 pb-2 ${authMode === 'login' ? 'text-blue-500 font-bold border-b-2 border-blue-500' : 'text-slate-400'}`}>Connexion</button>
@@ -615,7 +706,7 @@ export default function App() {
           {authMode === 'register' && (
             <>
               <input type="text" placeholder="Pseudo" value={authName} onChange={(e) => setAuthName(e.target.value)} className={inputClass} />
-              <label className="flex items-center space-x-2 text-sm text-slate-500"><input type="checkbox" checked={emailNotifs} onChange={(e)=>setEmailNotifs(e.target.checked)}/> <span>Recevoir des emails (Nécessite Firebase Ext)</span></label>
+              <label className="flex items-center space-x-2 text-sm text-slate-500"><input type="checkbox" checked={emailNotifs} onChange={(e)=>setEmailNotifs(e.target.checked)}/> <span>Recevoir alertes Email</span></label>
             </>
           )}
           <input type="email" placeholder="Email" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} className={inputClass} required />
@@ -623,6 +714,19 @@ export default function App() {
           {authMode === 'login' && <div className="text-right"><button type="button" onClick={handleForgotPassword} className="text-xs text-blue-500 hover:underline">Mot de passe oublié ?</button></div>}
           <button type="submit" className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded transition">{authMode === 'login' ? 'Se connecter' : 'Créer un compte'}</button>
         </form>
+        
+        {/* MODAL INTRA-SITE DE SECOURS (ERREURS AUTH) */}
+        {modal.isOpen && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4 backdrop-blur-sm">
+            <div className={`p-6 rounded-xl border w-full max-w-sm space-y-4 shadow-2xl ${theme==='dark'?'bg-slate-900 border-slate-800 text-white':'bg-white border-slate-200 text-slate-900'}`}>
+              <h3 className="font-bold text-lg">{modal.title}</h3><p className="text-sm opacity-80">{modal.msg}</p>
+              <div className="flex space-x-3 pt-4">
+                {modal.onConfirm && <button onClick={closeModal} className="flex-1 py-2 bg-slate-200 dark:bg-slate-800 rounded font-bold transition hover:bg-slate-300 dark:hover:bg-slate-700">{t('cancel')}</button>}
+                <button onClick={modal.onConfirm || closeModal} className="flex-1 py-2 bg-blue-600 text-white rounded font-bold transition hover:bg-blue-500">{t('ok')}</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -630,13 +734,15 @@ export default function App() {
   if (currentView === 'dashboard') {
     return (
       <div className={`min-h-screen p-6 relative ${theme === 'dark' ? 'dark bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'}`}>
+        <style>{pixelateStyle}</style>
         <div className="absolute top-4 right-4 flex space-x-2">
-          <button onClick={()=>setTheme(theme==='dark'?'light':'dark')} className="p-2 rounded-full bg-slate-200 dark:bg-slate-800">{theme==='dark' ? <Sun size={20}/> : <Moon size={20}/>}</button>
+          <button onClick={()=>setLang(lang==='fr'?'en':'fr')} className="px-3 py-1 rounded font-bold text-sm bg-slate-200 dark:bg-slate-800 uppercase text-slate-500">{lang}</button>
+          <button onClick={()=>setTheme(theme==='dark'?'light':'dark')} className="p-2 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-500">{theme==='dark' ? <Sun size={20}/> : <Moon size={20}/>}</button>
         </div>
         <header className="flex justify-between items-center mb-10 max-w-5xl mx-auto">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-lg flex items-center justify-center shadow-md"><Clapperboard size={22} className="text-white" /></div>
-            <h1 className="text-2xl font-black">Fabrica Tracker</h1>
+            <h1 onClick={triggerEasterEgg} className="text-2xl font-black cursor-pointer select-none" style={{ animation: logoPixelated ? 'pixelateAnim 0.5s ease-in-out' : 'none' }}>Fabrica Tracker</h1>
           </div>
           <div className="flex items-center space-x-4">
             <button onClick={() => setCurrentView('profile')} className={`flex items-center space-x-2 px-3 py-1.5 rounded-full border ${theme==='dark'?'bg-slate-900 border-slate-800 hover:text-white':'bg-white border-slate-300'} transition`}><UserCircle size={20} /> <span className="text-sm font-medium">{userData?.displayName}</span></button>
@@ -644,35 +750,139 @@ export default function App() {
           </div>
         </header>
 
+        <div className="max-w-5xl mx-auto mb-6 flex space-x-4 border-b dark:border-slate-800 pb-2">
+          <button onClick={()=>setDashTab('projects')} className={`font-bold text-lg ${dashTab === 'projects' ? 'text-blue-500 border-b-2 border-blue-500' : 'text-slate-400'}`}>{t('projects')}</button>
+          <button onClick={()=>setDashTab('friends')} className={`font-bold text-lg ${dashTab === 'friends' ? 'text-blue-500 border-b-2 border-blue-500' : 'text-slate-400'}`}>{t('friends')}</button>
+        </div>
+
         <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className={`md:col-span-2 border p-6 rounded-xl ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200 shadow'}`}>
-            <h2 className="text-xl font-bold mb-4 flex items-center"><FolderKanban className="mr-2 text-blue-500" /> Mes Projets</h2>
-            <div className="space-y-3">
-              {myProjects.length === 0 ? <p className="text-slate-500 italic">Aucun projet.</p> : null}
-              {myProjects.map(p => (
-                <div key={p.id} onClick={async () => {
-                  const wsDoc = await getDoc(doc(db, 'workspaces', p.workspaceId));
-                  if(wsDoc.exists()) { setWorkspace({ id: wsDoc.id, ...wsDoc.data() }); setUserRole(p.role); setCurrentView('workspace'); setActiveTab('shots'); }
-                }} className={`border p-4 rounded-lg cursor-pointer flex justify-between items-center transition ${theme==='dark'?'bg-slate-950 border-slate-800 hover:border-blue-500':'bg-slate-50 border-slate-200 hover:border-blue-500'}`}>
-                  <div><h3 className="font-bold text-lg">{p.workspaceName}</h3><p className="text-xs text-slate-500 uppercase tracking-wider mt-1">Rôle : <span className="text-blue-500 font-bold">{p.role}</span></p></div>
-                  <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-500"><Play size={18} className="ml-1" /></div>
+          {dashTab === 'projects' && (
+            <>
+              <div className={`md:col-span-2 border p-6 rounded-xl ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200 shadow'}`}>
+                <h2 className="text-xl font-bold mb-4 flex items-center"><FolderKanban className="mr-2 text-blue-500" /> {t('projects')}</h2>
+                <div className="space-y-3">
+                  {myProjects.length === 0 ? <p className="text-slate-500 italic">Aucun projet.</p> : null}
+                  {myProjects.map(p => (
+                    <div key={p.id} className={`border p-4 rounded-lg flex justify-between items-center transition ${theme==='dark'?'bg-slate-950 border-slate-800 hover:border-blue-500':'bg-slate-50 border-slate-200 hover:border-blue-500'}`}>
+                      <div className="flex-1 cursor-pointer flex items-center" onClick={async () => {
+                        const wsDoc = await getDoc(doc(db, 'workspaces', p.workspaceId));
+                        if(wsDoc.exists()) { setWorkspace({ id: wsDoc.id, ...wsDoc.data() }); setUserRole(p.role); setCurrentView('workspace'); setActiveTab('assets'); }
+                      }}>
+                        <div><h3 className="font-bold text-lg">{p.workspaceName}</h3><p className="text-xs text-slate-500 uppercase tracking-wider mt-1">Rôle : <span className="text-blue-500 font-bold">{p.role}</span></p></div>
+                      </div>
+                      <div className="flex items-center space-x-3">
+                        {p.role === 'Admin' && <button onClick={() => renameProject(p)} className="p-2 text-slate-400 hover:text-blue-500 transition"><Edit3 size={18}/></button>}
+                        <div onClick={async () => {
+                          const wsDoc = await getDoc(doc(db, 'workspaces', p.workspaceId));
+                          if(wsDoc.exists()) { setWorkspace({ id: wsDoc.id, ...wsDoc.data() }); setUserRole(p.role); setCurrentView('workspace'); setActiveTab('assets'); }
+                        }} className="cursor-pointer w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-500"><Play size={18} className="ml-1" /></div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              </div>
+              <div className="space-y-6">
+                <form onSubmit={createProject} className={`border p-6 rounded-xl space-y-4 ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200 shadow'}`}>
+                  <h2 className="text-lg font-bold">{t('createProj')}</h2>
+                  <input type="text" placeholder={t('projName')} value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} className={inputClass} required />
+                  <button type="submit" className="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded transition">Créer</button>
+                </form>
+                <form onSubmit={joinProject} className={`border p-6 rounded-xl space-y-4 ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200 shadow'}`}>
+                  <h2 className="text-lg font-bold">{t('joinProj')}</h2>
+                  <input type="text" placeholder={t('joinCode')} value={joinCode} onChange={(e) => setJoinCode(e.target.value)} className={`font-mono text-center tracking-widest ${inputClass}`} required />
+                  <button type="submit" className="w-full py-2 bg-slate-200 dark:bg-slate-800 font-bold rounded transition">{t('join')}</button>
+                </form>
+              </div>
+            </>
+          )}
+
+          {dashTab === 'friends' && (
+            <>
+              <div className={`md:col-span-2 border p-6 rounded-xl ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200 shadow'}`}>
+                <h2 className="text-xl font-bold mb-4 flex items-center"><Users className="mr-2 text-blue-500" /> {t('friends')}</h2>
+                <div className="space-y-3">
+                  {friendsList.length === 0 ? <p className="text-slate-500 italic">Aucun ami ajouté.</p> : null}
+                  {friendsList.map(f => (
+                    <div key={f.id} onClick={() => { setActiveFriend(f); setShowSharedProjects(false); }} className={`border p-4 rounded-lg cursor-pointer flex justify-between items-center transition ${theme==='dark'?'bg-slate-950 border-slate-800 hover:border-blue-500':'bg-slate-50 border-slate-200 hover:border-blue-500'} ${activeFriend?.id === f.id ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/10' : ''}`}>
+                      <div className="flex items-center space-x-3"><UserCircle size={32} className="text-slate-400"/> <div><h3 className="font-bold text-lg">{f.displayName}</h3></div></div>
+                      <MessageSquare size={18} className="text-blue-500"/>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-6">
+                <form onSubmit={addFriend} className={`border p-6 rounded-xl space-y-4 ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200 shadow'}`}>
+                  <h2 className="text-lg font-bold flex items-center"><UserPlus className="mr-2"/> {t('addFriend')}</h2>
+                  <input type="text" placeholder={t('friendId')} value={friendInput} onChange={(e) => setFriendInput(e.target.value)} className={`font-mono text-center tracking-widest ${inputClass}`} required />
+                  <button type="submit" className="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded transition">Ajouter</button>
+                </form>
+                <div className={`border p-6 rounded-xl text-center space-y-2 ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200 shadow'}`}>
+                  <h3 className="font-bold text-sm text-slate-500">{t('myId')}</h3>
+                  <div className="font-mono bg-slate-200 dark:bg-slate-950 p-2 rounded text-blue-500 font-bold select-all cursor-pointer">{user.uid}</div>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* MODAL INTRA-SITE DE SECOURS (DASHBOARD) */}
+        {modal.isOpen && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4 backdrop-blur-sm">
+            <div className={`p-6 rounded-xl border w-full max-w-sm space-y-4 shadow-2xl ${theme==='dark'?'bg-slate-900 border-slate-800 text-white':'bg-white border-slate-200 text-slate-900'}`}>
+              <h3 className="font-bold text-lg">{modal.title}</h3><p className="text-sm opacity-80">{modal.msg}</p>
+              <div className="flex space-x-3 pt-4">
+                {modal.onConfirm && <button onClick={closeModal} className="flex-1 py-2 bg-slate-200 dark:bg-slate-800 rounded font-bold transition hover:bg-slate-300 dark:hover:bg-slate-700">{t('cancel')}</button>}
+                <button onClick={modal.onConfirm || closeModal} className="flex-1 py-2 bg-blue-600 text-white rounded font-bold transition hover:bg-blue-500">{t('ok')}</button>
+              </div>
             </div>
           </div>
-          <div className="space-y-6">
-            <form onSubmit={createProject} className={`border p-6 rounded-xl space-y-4 ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200 shadow'}`}>
-              <h2 className="text-lg font-bold">Créer un projet</h2>
-              <input type="text" placeholder="Nom du projet" value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} className={inputClass} required />
-              <button type="submit" className="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded transition">Créer</button>
-            </form>
-            <form onSubmit={joinProject} className={`border p-6 rounded-xl space-y-4 ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200 shadow'}`}>
-              <h2 className="text-lg font-bold">Rejoindre un projet</h2>
-              <input type="text" placeholder="Code d'invitation" value={joinCode} onChange={(e) => setJoinCode(e.target.value)} className={`font-mono text-center tracking-widest ${inputClass}`} required />
-              <button type="submit" className="w-full py-2 bg-slate-200 dark:bg-slate-800 font-bold rounded transition">Rejoindre (Guest par défaut)</button>
-            </form>
+        )}
+
+        {/* FRIEND PROFILE MODAL */}
+        {activeFriend && (
+          <div className="fixed inset-0 bg-black/60 flex justify-end z-[90] backdrop-blur-sm">
+             <div className={`w-full max-w-md h-full shadow-2xl flex flex-col ${theme==='dark'?'bg-slate-950 border-l border-slate-800':'bg-slate-50 border-l border-slate-200'}`}>
+                <div className={`p-6 border-b flex justify-between items-center ${theme==='dark'?'border-slate-800 bg-slate-900':'border-slate-200 bg-white'}`}>
+                  <div className="flex items-center space-x-3"><UserCircle size={32} className="text-slate-400"/> <h2 className="text-xl font-bold">{activeFriend.displayName}</h2></div>
+                  <button onClick={() => setActiveFriend(null)} className="p-2 text-slate-400 hover:text-red-500"><X size={20}/></button>
+                </div>
+                
+                <div className="p-4">
+                  <button onClick={()=>setShowSharedProjects(!showSharedProjects)} className={`w-full p-4 rounded-xl flex justify-between items-center border font-bold transition ${theme==='dark'?'bg-slate-900 border-slate-800 hover:bg-slate-800':'bg-white border-slate-200 hover:bg-slate-100'}`}>
+                    <span className="flex items-center"><HeartHandshake className="mr-2 text-purple-500"/> {sharedProjects.length} {t('sharedProj')}</span>
+                    <ChevronLeft className={`transform transition ${showSharedProjects ? '-rotate-90' : 'rotate-180'}`} size={18}/>
+                  </button>
+                  {showSharedProjects && (
+                    <div className="mt-2 space-y-2 p-2 max-h-40 overflow-y-auto">
+                      {sharedProjects.length === 0 ? <p className="text-xs text-center text-slate-500">Aucun projet en commun.</p> : sharedProjects.map(p => (
+                        <div key={p.id} className={`p-2 rounded text-sm font-bold border cursor-pointer hover:border-blue-500 ${theme==='dark'?'bg-slate-950 border-slate-800':'bg-slate-100 border-slate-200'}`} onClick={async () => {
+                          const wsDoc = await getDoc(doc(db, 'workspaces', p.workspaceId));
+                          if(wsDoc.exists()) { setWorkspace({ id: wsDoc.id, ...wsDoc.data() }); setUserRole(p.role); setCurrentView('workspace'); setActiveTab('assets'); setActiveFriend(null); }
+                        }}>{p.workspaceName}</div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className={`flex-1 flex flex-col mt-2 border-t overflow-hidden ${theme==='dark'?'border-slate-800':'border-slate-200'}`}>
+                  <div className={`p-3 text-center text-xs font-bold uppercase tracking-wider ${theme==='dark'?'bg-slate-900 text-slate-500':'bg-white text-slate-400'}`}>Message Privé</div>
+                  <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                    {pmMessages.length === 0 ? <p className="text-xs text-center text-slate-500 italic mt-10">Dites bonjour !</p> : null}
+                    {pmMessages.map(msg => (
+                        <div key={msg.id} className={`p-3 rounded-xl text-sm max-w-[80%] ${msg.authorId === user.uid ? 'bg-blue-600 text-white ml-auto rounded-tr-none' : (theme==='dark'?'bg-slate-800 text-slate-200 mr-auto rounded-tl-none':'bg-white border text-slate-700 mr-auto rounded-tl-none')}`}>
+                          <p>{msg.text}</p>
+                          <div className={`text-[10px] text-right mt-1 opacity-70`}>{new Date(msg.date?.toDate()).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                        </div>
+                    ))}
+                  </div>
+                  <form onSubmit={postPm} className={`p-3 border-t flex space-x-2 ${theme==='dark'?'border-slate-800 bg-slate-900':'border-slate-200 bg-white'}`}>
+                    <input type="text" value={newPmMsg} onChange={e=>setNewPmMsg(e.target.value)} placeholder="Message..." className={`flex-1 p-2 rounded outline-none text-sm ${theme==='dark'?'bg-slate-950 border-slate-700 border':'bg-slate-100 border-slate-300 border focus:border-blue-500'}`} />
+                    <button type="submit" className="bg-blue-600 text-white p-2 rounded hover:bg-blue-500 transition"><Plus size={18}/></button>
+                  </form>
+                </div>
+             </div>
           </div>
-        </div>
+        )}
       </div>
     );
   }
@@ -686,10 +896,10 @@ export default function App() {
           <form onSubmit={updateProfile} className="space-y-6">
             <div className="space-y-2"><label className="text-sm text-slate-500">Email</label><input type="email" value={userData?.email} disabled className={`${inputClass} opacity-50 cursor-not-allowed`} /></div>
             <div className="space-y-2"><label className="text-sm text-slate-500">Pseudo</label><input type="text" value={profileName} onChange={(e)=>setProfileName(e.target.value)} className={inputClass} required /></div>
+            <div className="space-y-2"><label className="text-sm text-slate-500">ID Utilisateur (Pour ajouts amis)</label><div className="font-mono bg-slate-200 dark:bg-slate-950 p-2 rounded text-blue-500 font-bold select-all text-center">{user.uid}</div></div>
             <label className="flex items-center space-x-2 text-sm font-medium"><input type="checkbox" checked={emailNotifs} onChange={(e)=>setEmailNotifs(e.target.checked)}/> <span>M'alerter par E-mail des retakes</span></label>
             <button type="submit" className="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded transition">Sauvegarder</button>
           </form>
-
           <div className="pt-6 mt-6 border-t border-slate-200 dark:border-slate-800">
             {!showDeleteConfirm ? (
               <button type="button" onClick={() => setShowDeleteConfirm(true)} className="w-full py-2 bg-red-100 dark:bg-red-950/50 text-red-600 font-bold rounded transition">Supprimer mon compte</button>
@@ -706,15 +916,13 @@ export default function App() {
           </div>
         </div>
         
-        {/* MODAL SYSTEM */}
         {modal.isOpen && (
           <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4">
             <div className={`p-6 rounded-xl border w-full max-w-sm space-y-4 shadow-2xl ${theme==='dark'?'bg-slate-900 border-slate-800 text-white':'bg-white border-slate-200 text-slate-900'}`}>
-              <h3 className="font-bold text-lg">{modal.title}</h3>
-              <p className="text-sm opacity-80">{modal.msg}</p>
-              <div className="flex space-x-3 pt-2">
-                <button onClick={closeModal} className="flex-1 py-2 bg-slate-200 dark:bg-slate-800 rounded font-bold">Fermer</button>
-                {modal.onConfirm && <button onClick={modal.onConfirm} className="flex-1 py-2 bg-blue-600 text-white rounded font-bold">Confirmer</button>}
+              <h3 className="font-bold text-lg">{modal.title}</h3><p className="text-sm opacity-80">{modal.msg}</p>
+              <div className="flex space-x-3 pt-4">
+                {modal.onConfirm && <button onClick={closeModal} className="flex-1 py-2 bg-slate-200 dark:bg-slate-800 rounded font-bold">{t('cancel')}</button>}
+                <button onClick={modal.onConfirm || closeModal} className="flex-1 py-2 bg-blue-600 text-white rounded font-bold">{t('ok')}</button>
               </div>
             </div>
           </div>
@@ -725,16 +933,15 @@ export default function App() {
 
   return (
     <div className={`min-h-screen flex ${theme === 'dark' ? 'dark bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'}`}>
+      <style>{pixelateStyle}</style>
       
-      {/* MODAL INTRA-SITE GLOBALE */}
       {modal.isOpen && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4 backdrop-blur-sm">
           <div className={`p-6 rounded-xl border w-full max-w-sm space-y-4 shadow-2xl ${theme==='dark'?'bg-slate-900 border-slate-800 text-white':'bg-white border-slate-200 text-slate-900'}`}>
-            <h3 className="font-bold text-lg">{modal.title}</h3>
-            <p className="text-sm opacity-80">{modal.msg}</p>
+            <h3 className="font-bold text-lg">{modal.title}</h3><p className="text-sm opacity-80">{modal.msg}</p>
             <div className="flex space-x-3 pt-4">
-              <button onClick={closeModal} className="flex-1 py-2 bg-slate-200 dark:bg-slate-800 rounded font-bold transition hover:bg-slate-300 dark:hover:bg-slate-700">Annuler</button>
-              {modal.onConfirm && <button onClick={modal.onConfirm} className="flex-1 py-2 bg-blue-600 text-white rounded font-bold transition hover:bg-blue-500">Confirmer</button>}
+              {modal.onConfirm && <button onClick={closeModal} className="flex-1 py-2 bg-slate-200 dark:bg-slate-800 rounded font-bold transition hover:bg-slate-300 dark:hover:bg-slate-700">{t('cancel')}</button>}
+              <button onClick={modal.onConfirm || closeModal} className="flex-1 py-2 bg-blue-600 text-white rounded font-bold transition hover:bg-blue-500">{t('ok')}</button>
             </div>
           </div>
         </div>
@@ -743,12 +950,12 @@ export default function App() {
       {showAddShot && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
           <form onSubmit={handleAddShot} className={`p-6 rounded-xl border w-full max-w-sm space-y-4 shadow-2xl ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
-            <h3 className="font-bold text-lg mb-2">Ajouter un plan</h3>
+            <h3 className="font-bold text-lg mb-2">{t('addShot')}</h3>
             <div><label className="text-xs text-slate-500">Séquence (SQ01)</label><input type="text" value={addSeq} onChange={(e)=>setAddSeq(e.target.value.toUpperCase())} className={inputClass} required/></div>
             <div><label className="text-xs text-slate-500">Scène (SC001)</label><input type="text" value={addScene} onChange={(e)=>setAddScene(e.target.value.toUpperCase())} className={inputClass} required/></div>
             <div><label className="text-xs text-slate-500">Nom</label><input type="text" value={addName} onChange={(e)=>setAddName(e.target.value.toUpperCase())} className={inputClass} required/></div>
             <div className="flex space-x-3 pt-2">
-              <button type="button" onClick={() => setShowAddShot(false)} className="flex-1 py-2 bg-slate-200 dark:bg-slate-800 rounded font-bold">Annuler</button>
+              <button type="button" onClick={() => setShowAddShot(false)} className="flex-1 py-2 bg-slate-200 dark:bg-slate-800 rounded font-bold">{t('cancel')}</button>
               <button type="submit" className="flex-1 py-2 bg-blue-600 text-white rounded font-bold">Créer</button>
             </div>
           </form>
@@ -763,18 +970,18 @@ export default function App() {
             <div className="text-sm font-black hidden md:block leading-tight truncate">{workspace?.name}</div>
           </div>
           <nav className="space-y-1.5">
-            <button onClick={() => setActiveTab('shots')} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'shots' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Film size={18} /> <span className="hidden md:inline font-medium">Plans (Shots)</span></button>
-            <button onClick={() => setActiveTab('assets')} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'assets' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Box size={18} /> <span className="hidden md:inline font-medium">Assets</span></button>
-            <button onClick={() => setActiveTab('review')} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'review' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><MonitorPlay size={18} /> <span className="hidden md:inline font-medium">Review & Retake</span></button>
-            <button onClick={() => setActiveTab('time')} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'time' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Clock size={18} /> <span className="hidden md:inline font-medium">Chronomètre</span></button>
-            <button onClick={() => setActiveTab('stats')} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'stats' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><BarChart size={18} /> <span className="hidden md:inline font-medium">Statistiques</span></button>
-            <button onClick={() => setActiveTab('team')} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'team' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Users size={18} /> <span className="hidden md:inline font-medium">Équipe</span></button>
-            {isAdmin && <button onClick={() => setActiveTab('settings')} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'settings' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Settings size={18} /> <span className="hidden md:inline font-medium">Paramètres</span></button>}
-            <button onClick={() => setActiveTab('help')} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'help' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><HelpCircle size={18} /> <span className="hidden md:inline font-medium">Aide & Guide</span></button>
+            <button onClick={() => setActiveTab('assets')} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'assets' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Box size={18} /> <span className="hidden md:inline font-medium">{t('assets')}</span></button>
+            <button onClick={() => setActiveTab('shots')} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'shots' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Film size={18} /> <span className="hidden md:inline font-medium">{t('shots')}</span></button>
+            <button onClick={() => setActiveTab('review')} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'review' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><MonitorPlay size={18} /> <span className="hidden md:inline font-medium">{t('review')}</span></button>
+            <button onClick={() => setActiveTab('time')} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'time' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Clock size={18} /> <span className="hidden md:inline font-medium">{t('time')}</span></button>
+            <button onClick={() => setActiveTab('stats')} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'stats' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><BarChart size={18} /> <span className="hidden md:inline font-medium">{t('stats')}</span></button>
+            <button onClick={() => setActiveTab('team')} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'team' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Users size={18} /> <span className="hidden md:inline font-medium">{t('team')}</span></button>
+            {isAdmin && <button onClick={() => setActiveTab('settings')} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'settings' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Settings size={18} /> <span className="hidden md:inline font-medium">{t('settings')}</span></button>}
+            <button onClick={() => setActiveTab('help')} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'help' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><HelpCircle size={18} /> <span className="hidden md:inline font-medium">{t('help')}</span></button>
           </nav>
         </div>
         <div className="flex flex-col space-y-4">
-          <button onClick={()=>setTheme(theme==='dark'?'light':'dark')} className="flex items-center justify-center p-2 rounded border dark:border-slate-800 border-slate-200 transition text-sm text-slate-500">{theme==='dark' ? <Sun size={18}/> : <Moon size={18}/>}</button>
+          <button onClick={()=>setLang(lang==='fr'?'en':'fr')} className="flex items-center justify-center p-2 rounded border dark:border-slate-800 border-slate-200 transition text-sm text-slate-500 font-bold uppercase">{lang}</button>
         </div>
       </aside>
 
@@ -782,7 +989,7 @@ export default function App() {
         {uploadingMedia && <div className="fixed top-4 right-4 bg-blue-600 text-white px-4 py-2 rounded text-sm animate-pulse shadow-lg z-50">Transfert...</div>}
         
         <header className="mb-6 flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-4">
-          <h2 className="text-2xl font-bold tracking-tight uppercase">{activeTab}</h2>
+          <h2 className="text-2xl font-bold tracking-tight uppercase">{t(activeTab)}</h2>
           <div className="flex items-center space-x-6">
             {canAssign && (
               <div className="relative">
@@ -810,18 +1017,11 @@ export default function App() {
           <div className="space-y-6">
             <div className={`p-4 rounded-xl border flex flex-col md:flex-row gap-4 items-center justify-between ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200 shadow-sm'}`}>
               <div className="flex flex-1 gap-2 w-full">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-2.5 text-slate-400" size={16}/>
-                  <input type="text" placeholder="Chercher un plan..." value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} className={`${inputClass} pl-10`} />
-                </div>
-                <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)} className={inputClass + " flex-1"}>
-                  <option value="">Tous les statuts</option><option value="todo">To Do</option><option value="wip">WIP</option><option value="review">Review</option><option value="reuse">Reuse</option><option value="done">Done</option>
-                </select>
-                <select value={filterAssignee} onChange={e=>setFilterAssignee(e.target.value)} className={inputClass + " flex-1"}>
-                  <option value="">Tous les membres</option>{members.map(m=><option key={m.userId} value={m.userId}>{m.displayName}</option>)}
-                </select>
+                <div className="relative flex-1"><Search className="absolute left-3 top-2.5 text-slate-400" size={16}/><input type="text" placeholder={t('searchShot')} value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} className={`${inputClass} pl-10`} /></div>
+                <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)} className={inputClass + " flex-1"}><option value="">{t('allStatus')}</option><option value="todo">To Do</option><option value="wip">WIP</option><option value="review">Review</option><option value="reuse">Reuse</option><option value="done">Done</option></select>
+                <select value={filterAssignee} onChange={e=>setFilterAssignee(e.target.value)} className={inputClass + " flex-1"}><option value="">{t('allMembers')}</option>{members.map(m=><option key={m.userId} value={m.userId}>{m.displayName}</option>)}</select>
               </div>
-              {canAssign && <button onClick={() => setShowAddShot(true)} className="flex items-center space-x-2 bg-blue-600 text-white hover:bg-blue-500 px-4 py-2 rounded font-bold text-sm shrink-0"><Plus size={16} /> <span>Ajouter Plan</span></button>}
+              {canAssign && <button onClick={() => setShowAddShot(true)} className="flex items-center space-x-2 bg-blue-600 text-white hover:bg-blue-500 px-4 py-2 rounded font-bold text-sm shrink-0"><Plus size={16} /> <span>{t('addShot')}</span></button>}
             </div>
 
             {canEdit && batchSelection.length > 0 && (
@@ -843,8 +1043,7 @@ export default function App() {
                     <thead>
                       <tr className={`border-b text-xs uppercase ${theme==='dark'?'border-slate-800 text-slate-500 bg-slate-900':'border-slate-200 text-slate-600 bg-white'}`}>
                         <th className="p-3 sticky left-0 z-10 w-48 font-semibold bg-inherit">
-                          {canEdit && <input type="checkbox" onChange={(e) => setBatchSelection(e.target.checked ? groupedShots[seq].map(s=>s.id) : batchSelection.filter(id => !groupedShots[seq].map(s=>s.id).includes(id))) } className="mr-2 cursor-pointer"/>}
-                          Scène / Nom
+                          {canEdit && <input type="checkbox" onChange={(e) => setBatchSelection(e.target.checked ? groupedShots[seq].map(s=>s.id) : batchSelection.filter(id => !groupedShots[seq].map(s=>s.id).includes(id))) } className="mr-2 cursor-pointer"/>} Scène / Nom
                         </th>
                         {workspace?.pipeline?.map(step => <th key={step} className={`p-3 min-w-[240px] border-l font-semibold ${theme==='dark'?'border-slate-800':'border-slate-200'}`}>{step}</th>)}
                       </tr>
@@ -854,10 +1053,7 @@ export default function App() {
                         <tr key={s.id} className="hover:bg-slate-100 dark:hover:bg-slate-800/20 transition-colors group">
                           <td className={`p-3 font-medium sticky left-0 z-10 align-top ${theme==='dark'?'bg-slate-900':'bg-white'}`}>
                             <div className="flex justify-between items-start">
-                              <div className="flex items-start">
-                                {canEdit && <input type="checkbox" checked={batchSelection.includes(s.id)} onChange={(e) => setBatchSelection(e.target.checked ? [...batchSelection, s.id] : batchSelection.filter(id=>id!==s.id))} className="mr-3 mt-1 cursor-pointer"/>}
-                                <div><div className="text-slate-400 font-mono text-xs mb-0.5">{s.scene}</div><div className="font-bold text-base">{s.name}</div></div>
-                              </div>
+                              <div className="flex items-start">{canEdit && <input type="checkbox" checked={batchSelection.includes(s.id)} onChange={(e) => setBatchSelection(e.target.checked ? [...batchSelection, s.id] : batchSelection.filter(id=>id!==s.id))} className="mr-3 mt-1 cursor-pointer"/>}<div><div className="text-slate-400 font-mono text-xs mb-0.5">{s.scene}</div><div className="font-bold text-base">{s.name}</div></div></div>
                               {canAssign && <button onClick={() => openModal("Supprimer Plan", `Détruire définitivement le plan ${s.name} ?`, async () => { await deleteDoc(doc(db, 'shots', s.id)); closeModal(); })} className="text-slate-400 hover:text-red-500 transition opacity-0 group-hover:opacity-100"><Trash2 size={16}/></button>}
                             </div>
                           </td>
@@ -879,51 +1075,23 @@ export default function App() {
                                       </span>
                                     ))}
                                   </div>
-                                  
-                                  {canAssign && (
-                                    <select className={`${inputClass} !p-1 !text-xs !py-1`} value="" onChange={(e) => { if(e.target.value) addAssignee('shots', s.id, step, e.target.value) }}>
-                                      <option value="">+ Assigner</option>{members.filter(m => !assignees.includes(m.userId)).map(m => <option key={m.userId} value={m.userId}>{m.displayName}</option>)}
-                                    </select>
-                                  )}
-
-                                  <select disabled={userRole==='Guest'} className={`rounded p-1 text-xs font-semibold outline-none transition-colors border ${getStatusColor(s.status?.[step])}`} value={s.status?.[step] || 'todo'} onChange={(e) => changeStatus(s, step, e.target.value, 'shots')}>
-                                    <option value="todo">To Do</option><option value="wip">WIP</option><option value="review">Review</option><option value="reuse">Reuse</option><option value="done">Done</option>
-                                  </select>
+                                  {canAssign && (<select className={`${inputClass} !p-1 !text-xs !py-1`} value="" onChange={(e) => { if(e.target.value) addAssignee('shots', s.id, step, e.target.value) }}><option value="">+ Assigner</option>{members.filter(m => !assignees.includes(m.userId)).map(m => <option key={m.userId} value={m.userId}>{m.displayName}</option>)}</select>)}
+                                  <select disabled={userRole==='Guest'} className={`rounded p-1 text-xs font-semibold outline-none transition-colors border ${getStatusColor(s.status?.[step])}`} value={s.status?.[step] || 'todo'} onChange={(e) => changeStatus(s, step, e.target.value, 'shots')}><option value="todo">To Do</option><option value="wip">WIP</option><option value="review">Review</option><option value="reuse">Reuse</option><option value="done">Done</option></select>
                                 </div>
-                                
                                 <div className={`pt-2 border-t h-[4.5rem] ${theme==='dark'?'border-slate-800/50':'border-slate-200'}`}>
                                   {activePreview ? (
                                     <div className="flex flex-col w-full space-y-1">
                                       <div className="flex justify-between items-center px-0.5">
-                                        {versions.length > 1 ? (
-                                          <select value={activeIdx} onChange={(e) => setSelectedVersions({...selectedVersions, [`${s.id}_${step}`]: parseInt(e.target.value)})} className="bg-transparent text-xs text-slate-500 font-bold outline-none">
-                                            {versions.map((v, i) => <option key={i} value={i} className="dark:bg-slate-900">V{v.version}</option>)}
-                                          </select>
-                                        ) : <span className="text-xs font-bold text-slate-400">V1</span>}
-                                        <div className="flex space-x-2 text-slate-400">
-                                          {canUpload && <label className="cursor-pointer hover:text-blue-500 transition" title="Upload"><Upload size={14}/><input type="file" accept="image/*,video/mp4,video/quicktime" className="hidden" onChange={(e)=>uploadShotPreview(s.id, step, e.target.files[0], versions)} /></label>}
-                                          {canUpload && <button onClick={() => confirmDeletePreview(s.id, step, activeIdx, versions, 'shots')} className="hover:text-red-500 transition"><Trash2 size={14}/></button>}
-                                        </div>
+                                        {versions.length > 1 ? (<select value={activeIdx} onChange={(e) => setSelectedVersions({...selectedVersions, [`${s.id}_${step}`]: parseInt(e.target.value)})} className="bg-transparent text-xs text-slate-500 font-bold outline-none">{versions.map((v, i) => <option key={i} value={i} className="dark:bg-slate-900">V{v.version}</option>)}</select>) : <span className="text-xs font-bold text-slate-400">V1</span>}
+                                        <div className="flex space-x-2 text-slate-400">{canUpload && <label className="cursor-pointer hover:text-blue-500 transition" title="Upload"><Upload size={14}/><input type="file" accept="image/*,video/mp4,video/quicktime" className="hidden" onChange={(e)=>uploadShotPreview(s.id, step, e.target.files[0], versions)} /></label>}{canUpload && <button onClick={() => confirmDeletePreview(s.id, step, activeIdx, versions, 'shots')} className="hover:text-red-500 transition"><Trash2 size={14}/></button>}</div>
                                       </div>
-                                      
                                       <div className="relative w-full h-12 bg-black rounded border border-slate-800 group/preview cursor-pointer overflow-hidden shadow-sm" onClick={() => openReview(s, step, activePreview.version, activePreview, 'shots')}>
                                         <img src={getThumbnail(activePreview)} className="w-full h-full object-cover opacity-60 group-hover/preview:opacity-100 transition duration-300" />
                                         <div className="absolute inset-0 flex items-center justify-center bg-blue-600/0 group-hover/preview:bg-blue-600/20 transition duration-300"><MonitorPlay size={18} className="text-white opacity-0 group-hover/preview:opacity-100 drop-shadow-md transform scale-75 group-hover/preview:scale-100 transition-all" /></div>
-                                        {s.annotations?.[step]?.[`v${activePreview.version}`] && Object.keys(s.annotations[step][`v${activePreview.version}`]).length > 0 && (
-                                          <div className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-black shadow"></div>
-                                        )}
+                                        {s.annotations?.[step]?.[`v${activePreview.version}`] && Object.keys(s.annotations[step][`v${activePreview.version}`]).length > 0 && (<div className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-black shadow"></div>)}
                                       </div>
                                     </div>
-                                  ) : (
-                                    canUpload ? (
-                                      <label className={`text-xs flex flex-col items-center justify-center border border-dashed text-slate-400 w-full rounded cursor-pointer h-full transition group/up ${theme==='dark'?'bg-slate-950 border-slate-700 hover:border-blue-500':'bg-slate-50 border-slate-300 hover:border-blue-500 hover:text-blue-600'}`}>
-                                        <Upload size={16} className="mb-1 group-hover/up:-translate-y-0.5 transition-transform"/> <span>Upload</span>
-                                        <input type="file" accept="image/*,video/mp4,video/quicktime" className="hidden" onChange={(e)=>uploadShotPreview(s.id, step, e.target.files[0], versions)} />
-                                      </label>
-                                    ) : (
-                                      <div className={`text-xs w-full h-full flex items-center justify-center italic rounded ${theme==='dark'?'text-slate-600 bg-slate-950/50':'text-slate-400 bg-slate-100'}`}>En attente</div>
-                                    )
-                                  )}
+                                  ) : (canUpload ? (<label className={`text-xs flex flex-col items-center justify-center border border-dashed text-slate-400 w-full rounded cursor-pointer h-full transition group/up ${theme==='dark'?'bg-slate-950 border-slate-700 hover:border-blue-500':'bg-slate-50 border-slate-300 hover:border-blue-500 hover:text-blue-600'}`}><Upload size={16} className="mb-1 group-hover/up:-translate-y-0.5 transition-transform"/> <span>Upload</span><input type="file" accept="image/*,video/mp4,video/quicktime" className="hidden" onChange={(e)=>uploadShotPreview(s.id, step, e.target.files[0], versions)} /></label>) : (<div className={`text-xs w-full h-full flex items-center justify-center italic rounded ${theme==='dark'?'text-slate-600 bg-slate-950/50':'text-slate-400 bg-slate-100'}`}>En attente</div>))}
                                 </div>
                               </td>
                             );
@@ -956,7 +1124,6 @@ export default function App() {
                     return (
                     <div key={a.id} className={`border rounded-xl overflow-hidden flex flex-col relative shadow-sm hover:border-slate-400 transition group/asset ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
                       {canAssign && <button onClick={() => openModal("Supprimer", "Détruire cet asset ?", async()=>{await deleteDoc(doc(db, 'assets', a.id)); closeModal()})} className="absolute top-2 right-2 bg-black/60 p-1.5 rounded text-white hover:text-red-500 z-10 opacity-0 group-hover/asset:opacity-100 transition"><Trash2 size={14}/></button>}
-                      
                       {activePreview && activePreview.files?.length > 0 ? (
                         <div className="relative w-full h-40 bg-black overflow-hidden flex overflow-x-auto snap-x">
                           {activePreview.files.map((file, i) => (
@@ -970,36 +1137,19 @@ export default function App() {
                         </div>
                       ) : (
                         <label className={`w-full h-40 flex flex-col items-center justify-center cursor-pointer transition ${theme==='dark'?'bg-slate-950 hover:bg-slate-900 text-slate-600':'bg-slate-100 hover:bg-slate-200 text-slate-400'}`}>
-                          <Upload size={24} className="mb-2"/> <span className="text-xs font-medium">Upload V1 (Multiple)</span>
-                          <input disabled={!canUpload} type="file" multiple accept="image/*" className="hidden" onChange={(e)=>uploadAssetPreviews(a.id, e.target.files, versions)}/>
+                          <Upload size={24} className="mb-2"/> <span className="text-xs font-medium">Upload V1 (Multiple)</span><input disabled={!canUpload} type="file" multiple accept="image/*" className="hidden" onChange={(e)=>uploadAssetPreviews(a.id, e.target.files, versions)}/>
                         </label>
                       )}
-
                       <div className="p-3 space-y-2">
                         <div className="flex justify-between items-center">
                           <div className="font-bold text-sm truncate pr-2">{a.name}</div>
-                          {versions.length > 0 && (
-                            <div className="flex items-center space-x-1">
-                              {canUpload && <label className="cursor-pointer text-blue-500 hover:text-blue-400" title="Nouvelle Version (Multi-images)"><Plus size={14}/><input type="file" multiple accept="image/*" className="hidden" onChange={(e)=>uploadAssetPreviews(a.id, e.target.files, versions)}/></label>}
-                              <select value={activeIdx} onChange={(e) => setSelectedVersions({...selectedVersions, [`asset_${a.id}`]: parseInt(e.target.value)})} className="bg-transparent text-xs font-bold text-slate-500 outline-none">{versions.map((v, i) => <option key={i} value={i}>V{v.version}</option>)}</select>
-                            </div>
-                          )}
+                          {versions.length > 0 && (<div className="flex items-center space-x-1">{canUpload && <label className="cursor-pointer text-blue-500 hover:text-blue-400" title="Nouvelle Version (Multi-images)"><Plus size={14}/><input type="file" multiple accept="image/*" className="hidden" onChange={(e)=>uploadAssetPreviews(a.id, e.target.files, versions)}/></label>}<select value={activeIdx} onChange={(e) => setSelectedVersions({...selectedVersions, [`asset_${a.id}`]: parseInt(e.target.value)})} className="bg-transparent text-xs font-bold text-slate-500 outline-none">{versions.map((v, i) => <option key={i} value={i}>V{v.version}</option>)}</select></div>)}
                         </div>
                         {canAssign ? <select className={`${inputClass} !p-1 !text-xs`} value={a.category || ''} onChange={async (e) => await updateDoc(doc(db, 'assets', a.id), { category: e.target.value })}>{ASSET_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}</select> : <div className="text-xs text-slate-500">{a.category}</div>}
-                        
                         <div className="flex flex-wrap gap-1 pt-1">
-                          {assignees.map(uid => (
-                            <span key={uid} onClick={() => canAssign && removeAssignee('assets', a.id, 'Global', uid)} className={`text-[10px] px-1.5 py-0.5 rounded flex items-center font-bold ${canAssign ? 'cursor-pointer bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300 hover:bg-red-100 hover:text-red-600' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}`}>
-                              {members.find(m => m.userId === uid)?.displayName || uid} {canAssign && <X size={10} className="ml-1"/>}
-                            </span>
-                          ))}
+                          {assignees.map(uid => (<span key={uid} onClick={() => canAssign && removeAssignee('assets', a.id, 'Global', uid)} className={`text-[10px] px-1.5 py-0.5 rounded flex items-center font-bold ${canAssign ? 'cursor-pointer bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300 hover:bg-red-100 hover:text-red-600' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}`}>{members.find(m => m.userId === uid)?.displayName || uid} {canAssign && <X size={10} className="ml-1"/>}</span>))}
                         </div>
-                        {canAssign && (
-                          <select className={`${inputClass} !p-1 !text-xs`} value="" onChange={(e) => { if(e.target.value) addAssignee('assets', a.id, 'Global', e.target.value) }}>
-                            <option value="">+ Assigner</option>
-                            {members.filter(m => !assignees.includes(m.userId)).map(m => <option key={m.userId} value={m.userId}>{m.displayName}</option>)}
-                          </select>
-                        )}
+                        {canAssign && (<select className={`${inputClass} !p-1 !text-xs`} value="" onChange={(e) => { if(e.target.value) addAssignee('assets', a.id, 'Global', e.target.value) }}><option value="">+ Assigner</option>{members.filter(m => !assignees.includes(m.userId)).map(m => <option key={m.userId} value={m.userId}>{m.displayName}</option>)}</select>)}
                       </div>
                     </div>
                   )})}
@@ -1009,7 +1159,6 @@ export default function App() {
           </div>
         )}
 
-        {/* REVIEW AVANCÉE avec Chat, Draw et Comparaison */}
         {activeTab === 'review' && (
           <div className="max-w-7xl mx-auto flex flex-col md:flex-row h-[calc(100vh-8rem)] gap-4">
             {!reviewItem ? (
@@ -1025,7 +1174,6 @@ export default function App() {
                       <h3 className="font-black text-xl">{reviewItem.name} {reviewStep !== 'Global' && <span className="text-blue-600 bg-blue-100 dark:text-blue-400 dark:bg-blue-900/30 text-sm ml-2 px-2 py-0.5 rounded-full">{reviewStep}</span>}</h3>
                       <div className="flex items-center space-x-3 mt-1 text-xs text-slate-500 font-bold uppercase tracking-wider">
                         <span>Version {reviewVersion}</span>
-                        {/* Option de comparaison */}
                         {(reviewItem.previews?.[reviewStep]?.length > 1 || (reviewType==='assets' && reviewItem.previews?.length > 1)) && (
                           <label className="flex items-center space-x-1 cursor-pointer hover:text-blue-500"><input type="checkbox" checked={compareMode} onChange={e=>setCompareMode(e.target.checked)} className="mr-1"/>Comparer</label>
                         )}
@@ -1042,51 +1190,30 @@ export default function App() {
 
                       {drawMode && (
                         <div className={`flex border rounded p-1 space-x-1 ${theme==='dark'?'bg-slate-950 border-slate-800':'bg-slate-100 border-slate-300'}`}>
-                          <button onClick={()=>setDrawMode(drawMode==='pen' ? 'text' : 'pen')} className={`p-1.5 rounded transition ${drawMode==='text' ? 'bg-slate-200 text-blue-600 dark:bg-slate-800 dark:text-blue-400' : 'text-slate-400 hover:text-slate-600 dark:hover:text-white'}`} title="Outil Texte (T)">
-                            {drawMode === 'pen' ? <PenTool size={16}/> : <Type size={16}/>}
-                          </button>
-                          
+                          <button onClick={()=>setDrawMode(drawMode==='pen' ? 'text' : 'pen')} className={`p-1.5 rounded transition ${drawMode==='text' ? 'bg-slate-200 text-blue-600 dark:bg-slate-800 dark:text-blue-400' : 'text-slate-400 hover:text-slate-600 dark:hover:text-white'}`}><Type size={16}/></button>
                           <div className={`px-2 flex items-center border-l border-r space-x-2 ${theme==='dark'?'border-slate-800':'border-slate-300'}`}>
-                            {[2, 4, 8].map(sz => (
-                              <button key={sz} onClick={() => setBrushSize(sz)} className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${brushSize === sz ? 'bg-slate-300 dark:bg-slate-700' : 'hover:bg-slate-200 dark:hover:bg-slate-800'}`}><div className="bg-red-500 rounded-full" style={{ width: sz+2, height: sz+2 }}></div></button>
-                            ))}
+                            {[2, 4, 8].map(sz => (<button key={sz} onClick={() => setBrushSize(sz)} className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${brushSize === sz ? 'bg-slate-300 dark:bg-slate-700' : 'hover:bg-slate-200 dark:hover:bg-slate-800'}`}><div className="bg-red-500 rounded-full" style={{ width: sz+2, height: sz+2 }}></div></button>))}
                           </div>
-                          
-                          <button onClick={() => setStrokes(strokes.slice(0, -1))} className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded transition" title="Annuler (Undo)"><Undo size={16} /></button>
-                          <button onClick={() => setStrokes([])} className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded transition" title="Effacer l'écran"><Eraser size={16} /></button>
-                          {strokes.length > 0 && <button onClick={deleteRetakeFromDB} className="p-1.5 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/50 rounded transition border-l border-slate-300 dark:border-slate-800 ml-1 pl-2" title="Détruire la retake"><Trash2 size={16} /></button>}
+                          <button onClick={() => setStrokes(strokes.slice(0, -1))} className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded transition"><Undo size={16} /></button>
+                          <button onClick={() => setStrokes([])} className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded transition"><Eraser size={16} /></button>
+                          {strokes.length > 0 && <button onClick={deleteRetakeFromDB} className="p-1.5 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/50 rounded transition border-l border-slate-300 dark:border-slate-800 ml-1 pl-2"><Trash2 size={16} /></button>}
                         </div>
                       )}
-                      
                       <button onClick={saveAnnotations} className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded font-bold text-sm transition shadow"><Save size={16} /> <span className="hidden lg:inline">Enregistrer le rouge</span></button>
                     </div>
                   </div>
 
                   <div className={`relative bg-black rounded-xl overflow-hidden flex-1 border flex ${compareMode ? 'flex-row' : 'justify-center items-center'} shadow-inner ${theme==='dark'?'border-slate-800':'border-slate-300'}`}>
-                    {/* ZONES DE RENDU */}
                     <div className="relative flex-1 h-full w-full flex items-center justify-center border-r border-slate-800">
-                      {reviewPreview.type === 'video' ? (
-                        <video ref={videoRef} src={reviewPreview.url} className="w-full h-full object-contain" onTimeUpdate={(e) => setVideoProgress(e.target.currentTime)} onLoadedMetadata={(e) => setVideoDuration(e.target.duration)} onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)} />
-                      ) : (<img src={reviewPreview.url} className="w-full h-full object-contain" />)}
-                      
+                      {reviewPreview.type === 'video' ? (<video ref={videoRef} src={reviewPreview.url} className="w-full h-full object-contain" onTimeUpdate={(e) => setVideoProgress(e.target.currentTime)} onLoadedMetadata={(e) => setVideoDuration(e.target.duration)} onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)} />) : (<img src={reviewPreview.url} className="w-full h-full object-contain" />)}
                       <canvas ref={canvasRef} onMouseDown={startDraw} onMouseMove={onDraw} onMouseUp={endDraw} onMouseLeave={endDraw} onTouchStart={startDraw} onTouchMove={onDraw} onTouchEnd={endDraw} className="absolute top-0 left-0 w-full h-full z-10 cursor-crosshair" width={1920} height={1080} style={{ width: '100%', height: '100%' }} />
-
-                      {/* TEXT TOOL INPUT OVERLAY */}
-                      {textInputPos && (
-                        <input type="text" autoFocus value={textInputValue} onChange={e=>setTextInputValue(e.target.value)} onBlur={commitTextAnnotation} onKeyDown={e=>{if(e.key==='Enter') commitTextAnnotation()}} className="absolute z-20 bg-transparent text-red-500 outline-none border-b-2 border-red-500 font-bold" style={{ left: textInputPos.px, top: textInputPos.py, fontSize: `${brushSize * 4}px` }} placeholder="Taper..." />
-                      )}
-
-                      {reviewPreview.type !== 'video' && reviewItem.annotations?.[reviewStep]?.[`v${reviewVersion}`]?.[getAnnotationKey()] && (
-                        <div className="absolute bottom-4 left-4 w-4 h-4 bg-red-600 rounded-full animate-pulse z-20 shadow-lg border-2 border-black"></div>
-                      )}
+                      {textInputPos && (<input type="text" autoFocus value={textInputValue} onChange={e=>setTextInputValue(e.target.value)} onBlur={commitTextAnnotation} onKeyDown={e=>{if(e.key==='Enter') commitTextAnnotation()}} className="absolute z-20 bg-transparent text-red-500 outline-none border-b-2 border-red-500 font-bold" style={{ left: textInputPos.px, top: textInputPos.py, fontSize: `${brushSize * 4}px` }} placeholder="Taper..." />)}
+                      {reviewPreview.type !== 'video' && reviewItem.annotations?.[reviewStep]?.[`v${reviewVersion}`]?.[getAnnotationKey()] && (<div className="absolute bottom-4 left-4 w-4 h-4 bg-red-600 rounded-full animate-pulse z-20 shadow-lg border-2 border-black"></div>)}
                     </div>
-
                     {compareMode && compareVersion !== '' && (
                       <div className="relative flex-1 h-full w-full flex items-center justify-center">
                         <div className="absolute top-2 right-2 z-20 bg-black/70 text-white text-xs px-2 py-1 rounded font-bold">COMPARAISON (V{(reviewType==='shots' ? reviewItem.previews[reviewStep][compareVersion] : reviewItem.previews[compareVersion]).version})</div>
-                        {(reviewType==='shots' ? reviewItem.previews[reviewStep][compareVersion] : reviewItem.previews[compareVersion]).type === 'video' ? (
-                          <video ref={compareVideoRef} src={(reviewType==='shots' ? reviewItem.previews[reviewStep][compareVersion] : reviewItem.previews[compareVersion]).url} className="w-full h-full object-contain" muted />
-                        ) : (<img src={(reviewType==='shots' ? reviewItem.previews[reviewStep][compareVersion].url : reviewItem.previews[compareVersion].files[reviewPreview.fileIndex].url)} className="w-full h-full object-contain" />)}
+                        {(reviewType==='shots' ? reviewItem.previews[reviewStep][compareVersion] : reviewItem.previews[compareVersion]).type === 'video' ? (<video ref={compareVideoRef} src={(reviewType==='shots' ? reviewItem.previews[reviewStep][compareVersion] : reviewItem.previews[compareVersion]).url} className="w-full h-full object-contain" muted />) : (<img src={(reviewType==='shots' ? reviewItem.previews[reviewStep][compareVersion].url : reviewItem.previews[compareVersion].files[reviewPreview.fileIndex].url)} className="w-full h-full object-contain" />)}
                       </div>
                     )}
                   </div>
@@ -1111,7 +1238,6 @@ export default function App() {
                   )}
                 </div>
 
-                {/* FIL DE DISCUSSION & HISTORIQUE */}
                 <div className={`flex-1 md:max-w-sm flex flex-col border rounded-xl overflow-hidden shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
                   <div className={`p-4 border-b font-bold flex items-center ${theme==='dark'?'border-slate-800 bg-slate-950/50':'border-slate-200 bg-slate-50'}`}><MessageSquare size={18} className="mr-2 text-blue-500"/> Fil de discussion</div>
                   <div className="flex-1 p-4 overflow-y-auto space-y-4">
@@ -1121,8 +1247,7 @@ export default function App() {
                         <div key={msg.id} className={`text-xs text-center p-2 rounded-lg italic font-medium ${theme==='dark'?'bg-slate-950 text-slate-400':'bg-slate-100 text-slate-500'}`}>{msg.text} <br/><span className="opacity-50 text-[10px]">{new Date(msg.date?.toDate()).toLocaleString()}</span></div>
                       ) : (
                         <div key={msg.id} className={`p-3 rounded-xl text-sm ${msg.author === userData.displayName ? 'bg-blue-600 text-white ml-6 rounded-tr-none' : (theme==='dark'?'bg-slate-800 text-slate-200 mr-6 rounded-tl-none':'bg-slate-100 text-slate-700 mr-6 rounded-tl-none')}`}>
-                          <div className={`font-bold text-[10px] mb-1 ${msg.author === userData.displayName ? 'text-blue-200' : 'text-slate-400'}`}>{msg.author}</div>
-                          <p>{msg.text}</p>
+                          <div className={`font-bold text-[10px] mb-1 ${msg.author === userData.displayName ? 'text-blue-200' : 'text-slate-400'}`}>{msg.author}</div><p>{msg.text}</p>
                           <div className={`text-[10px] text-right mt-1 opacity-70`}>{new Date(msg.date?.toDate()).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
                         </div>
                       )
@@ -1138,43 +1263,30 @@ export default function App() {
           </div>
         )}
 
-        {/* TIME TRACKER */}
         {activeTab === 'time' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto mt-6">
             <div className={`border p-8 rounded-2xl space-y-8 shadow-xl ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
               <h3 className="font-black text-xl text-center">Chronomètre en Direct</h3>
               <div className="space-y-4">
-                <select value={selectedTask} onChange={(e) => setSelectedTask(e.target.value)} className={inputClass} disabled={isTimerActive}>
-                  <option value="">Sélectionner Plan/Asset</option>{[...shots, ...assets].map(tk => <option key={tk.id} value={tk.id}>{tk.name}</option>)}
-                </select>
-                <select value={selectedStep} onChange={(e) => setSelectedStep(e.target.value)} className={inputClass} disabled={isTimerActive}>
-                  <option value="">Étape de production</option>{workspace?.pipeline?.map(step => <option key={step} value={step}>{step}</option>)}
-                </select>
+                <select value={selectedTask} onChange={(e) => setSelectedTask(e.target.value)} className={inputClass} disabled={isTimerActive}><option value="">Sélectionner Plan/Asset</option>{[...shots, ...assets].map(tk => <option key={tk.id} value={tk.id}>{tk.name}</option>)}</select>
+                <select value={selectedStep} onChange={(e) => setSelectedStep(e.target.value)} className={inputClass} disabled={isTimerActive}><option value="">Étape de production</option>{workspace?.pipeline?.map(step => <option key={step} value={step}>{step}</option>)}</select>
               </div>
               <div className="text-center">
                 <div className="text-6xl font-black font-mono tracking-widest mb-8 text-blue-500 drop-shadow">{formatTime(timer)}</div>
                 <div className="flex justify-center">
-                  {!isTimerActive ? (
-                    <button onClick={() => { if(!selectedTask || !selectedStep) return openModal("Erreur", "Sélectionnez tâche et étape.", null); setIsTimerActive(true); }} className="flex items-center space-x-2 bg-green-600 hover:bg-green-500 text-white px-8 py-4 rounded-xl font-bold text-lg shadow-lg transition transform hover:scale-105"><Play size={20} fill="currentColor"/> <span>Démarrer</span></button>
-                  ) : (
-                    <button onClick={handleStopTimer} className="flex items-center space-x-2 bg-yellow-500 hover:bg-yellow-400 text-black px-8 py-4 rounded-xl font-bold text-lg shadow-lg transition"><Pause size={20} fill="currentColor"/> <span>Stop & Sauver</span></button>
-                  )}
+                  {!isTimerActive ? (<button onClick={() => { if(!selectedTask || !selectedStep) return openModal("Erreur", "Sélectionnez tâche et étape.", null); setIsTimerActive(true); }} className="flex items-center space-x-2 bg-green-600 hover:bg-green-500 text-white px-8 py-4 rounded-xl font-bold text-lg shadow-lg transition transform hover:scale-105"><Play size={20} fill="currentColor"/> <span>Démarrer</span></button>) : (<button onClick={handleStopTimer} className="flex items-center space-x-2 bg-yellow-500 hover:bg-yellow-400 text-black px-8 py-4 rounded-xl font-bold text-lg shadow-lg transition"><Pause size={20} fill="currentColor"/> <span>Stop & Sauver</span></button>)}
                 </div>
               </div>
             </div>
 
             <div className={`border p-8 rounded-2xl space-y-6 shadow-xl flex flex-col justify-between ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
               <div>
-                <h3 className="font-black text-xl mb-4">Saisie Manuelle (Oubli)</h3>
+                <h3 className="font-black text-xl mb-4">{t('manualTime')}</h3>
                 <form onSubmit={handleAddManualTime} className="space-y-4">
-                  <div className="flex space-x-4">
-                    <div className="flex-1"><label className="text-xs text-slate-500">Heures</label><input type="number" min="0" value={manualTime.h} onChange={e=>setManualTime({...manualTime, h: e.target.value})} className={inputClass}/></div>
-                    <div className="flex-1"><label className="text-xs text-slate-500">Minutes</label><input type="number" min="0" max="59" value={manualTime.m} onChange={e=>setManualTime({...manualTime, m: e.target.value})} className={inputClass}/></div>
-                  </div>
+                  <div className="flex space-x-4"><div className="flex-1"><label className="text-xs text-slate-500">Heures</label><input type="number" min="0" value={manualTime.h} onChange={e=>setManualTime({...manualTime, h: e.target.value})} className={inputClass}/></div><div className="flex-1"><label className="text-xs text-slate-500">Minutes</label><input type="number" min="0" max="59" value={manualTime.m} onChange={e=>setManualTime({...manualTime, m: e.target.value})} className={inputClass}/></div></div>
                   <button type="submit" className="w-full bg-blue-600 text-white font-bold p-3 rounded-lg hover:bg-blue-500 transition">Ajouter au log</button>
                 </form>
               </div>
-
               {isAdmin && (
                 <div className="pt-6 border-t border-slate-200 dark:border-slate-800">
                   <h3 className="font-bold text-sm mb-3">Administration</h3>
@@ -1185,7 +1297,6 @@ export default function App() {
           </div>
         )}
 
-        {/* STATS */}
         {activeTab === 'stats' && (
           <div className="space-y-6">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -1195,7 +1306,6 @@ export default function App() {
               <div className="bg-green-100 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-xl p-4 text-center"><div className="text-3xl font-black text-green-500">{myStats.done}</div><div className="text-xs font-bold text-green-600 dark:text-green-500 uppercase">Done</div></div>
             </div>
 
-            {/* BARRE DE PROGRESSION DU PROJET */}
             <div className={`border rounded-xl p-6 shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
               <h3 className="font-black text-xl mb-4 text-blue-500">Progression Globale du Projet</h3>
               {(() => {
@@ -1229,7 +1339,6 @@ export default function App() {
           </div>
         )}
 
-        {/* EQUIPE */}
         {activeTab === 'team' && (
           <div className={`border rounded-xl p-6 max-w-2xl shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
             <h3 className="font-black text-xl mb-6 text-blue-500">Membres ({members.length})</h3>
@@ -1237,18 +1346,13 @@ export default function App() {
               {members.map(m => (
                 <div key={m.id} className={`flex justify-between items-center p-4 rounded-lg border ${theme==='dark'?'bg-slate-950 border-slate-800':'bg-slate-50 border-slate-200'}`}>
                   <div className="flex items-center space-x-3"><UserCircle size={32} className="text-slate-400"/><div><div className="font-bold text-base">{m.displayName}</div><div className="text-xs text-slate-500 font-mono">{m.email}</div></div></div>
-                  {isAdmin && m.userId !== user.uid ? (
-                    <select className={`${inputClass} !p-1.5 !w-auto !text-sm !font-bold !text-blue-500`} value={m.role} onChange={async (e) => await updateDoc(doc(db, 'projectMembers', m.id), { role: e.target.value })}>
-                      <option value="Guest">Guest (L. Seule)</option><option value="Artist">Artist</option><option value="Supervisor">Supervisor</option><option value="Admin">Admin</option>
-                    </select>
-                  ) : <span className="text-sm text-blue-600 dark:text-blue-400 font-bold px-3 py-1 bg-blue-100 dark:bg-blue-900/20 rounded-full">{m.role}</span>}
+                  {isAdmin && m.userId !== user.uid ? (<select className={`${inputClass} !p-1.5 !w-auto !text-sm !font-bold !text-blue-500`} value={m.role} onChange={async (e) => await updateDoc(doc(db, 'projectMembers', m.id), { role: e.target.value })}><option value="Guest">Guest (L. Seule)</option><option value="Artist">Artist</option><option value="Supervisor">Supervisor</option><option value="Admin">Admin</option></select>) : <span className="text-sm text-blue-600 dark:text-blue-400 font-bold px-3 py-1 bg-blue-100 dark:bg-blue-900/20 rounded-full">{m.role}</span>}
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* PARAMETRES (ADMIN SEULEMENT) */}
         {activeTab === 'settings' && isAdmin && (
           <div className="space-y-6 max-w-2xl">
             <div className={`border rounded-xl p-6 shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
@@ -1291,7 +1395,6 @@ export default function App() {
           </div>
         )}
 
-        {/* ONGLET AIDE (DOCUMENTATION) */}
         {activeTab === 'help' && (
           <div className="max-w-3xl space-y-6">
             <div className={`border rounded-xl p-8 shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
@@ -1304,7 +1407,7 @@ export default function App() {
                     <li>Allez dans <em>Settings {'>'} Upload</em> et créez un <strong>Upload preset</strong> réglé sur "Unsigned".</li>
                     <li>Copiez le <strong>Cloud Name</strong> (sur votre Dashboard) et le nom de l'Upload Preset.</li>
                     <li>Collez-les dans l'onglet <strong>Paramètres</strong> du Tracker.</li>
-                    <li><em>Optionnel :</em> Pour que la suppression d'un asset l'efface aussi des serveurs Cloudinary, ajoutez l'<strong>API Key</strong> et l'<strong>API Secret</strong> dans les paramètres du Tracker.</li>
+                    <li><em>Optionnel :</em> Pour que la suppression d'un asset l'efface aussi des serveurs Cloudinary, ajoutez l'<strong>API Key</strong> et l'<strong>API Secret</strong>.</li>
                   </ul>
                 </div>
                 <div>
@@ -1313,7 +1416,7 @@ export default function App() {
                     <li><strong className="text-blue-500">Admin :</strong> Contrôle tout (Paramètres, Suppression du projet, rôles).</li>
                     <li><strong className="text-blue-500">Supervisor :</strong> Peut assigner des membres, ajouter des plans, valider.</li>
                     <li><strong className="text-blue-500">Artist :</strong> Peut changer le statut de ses plans, uploader des versions.</li>
-                    <li><strong className="text-blue-500">Guest :</strong> Mode lecture seule. Peut seulement laisser des commentaires écrits dans l'outil Review. Idéal pour les clients.</li>
+                    <li><strong className="text-blue-500">Guest :</strong> Mode lecture seule. Peut seulement laisser des commentaires écrits dans l'outil Review.</li>
                   </ul>
                 </div>
                 <div>
@@ -1324,7 +1427,6 @@ export default function App() {
             </div>
           </div>
         )}
-
       </main>
     </div>
   );
