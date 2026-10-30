@@ -25,7 +25,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const auth = initializeAuth(app);
-// MODE HORS LIGNE ACTIVÉ
+// Mode hors-ligne persistant multi-onglets activé
 const db = initializeFirestore(app, {
   localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
 });
@@ -36,7 +36,7 @@ const TEMPLATES = {
   'Game': ['Concept Art', 'Modeling Low Poly', 'UV Mapping', 'Texturing', 'Rigging', 'Animation', 'VFX', 'Integration Engine']
 };
 const ASSET_CATEGORIES = ['Model Design', 'Props Design', 'Storyboard', 'Background Concept'];
-const FRAMERATE = 25; // Standard 25 fps
+const FRAMERATE = 24;
 
 const generateCloudinarySignature = async (publicId, timestamp, apiSecret) => {
   const msg = `public_id=${publicId}&timestamp=${timestamp}${apiSecret}`;
@@ -70,7 +70,8 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   
   const [currentView, setCurrentView] = useState('dashboard');
-  const [activeTab, setActiveTab] = useState('shots');
+  const [dashTab, setDashTab] = useState('projects'); 
+  const [activeTab, setActiveTab] = useState('assets');
   
   const [myProjects, setMyProjects] = useState([]);
   const [newProjectName, setNewProjectName] = useState('');
@@ -80,7 +81,9 @@ export default function App() {
   const [profileName, setProfileName] = useState('');
   const [emailNotifs, setEmailNotifs] = useState(false);
   const [browserNotifs, setBrowserNotifs] = useState(false);
-  
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
   const [workspace, setWorkspace] = useState(null);
   const [userPermissions, setUserPermissions] = useState({ canEdit: false, canAssign: false, role: 'Guest' });
   const [shots, setShots] = useState([]);
@@ -124,7 +127,7 @@ export default function App() {
   const [reviewPreview, setReviewPreview] = useState(null);
   const [compareMode, setCompareMode] = useState(false);
   const [compareVersion, setCompareVersion] = useState('');
-  const [reviewPanelWidth, setReviewPanelWidth] = useState(550);
+  const [reviewPanelWidth, setReviewPanelWidth] = useState(500);
   const [isResizing, setIsResizing] = useState(false);
   
   const [chatMessages, setChatMessages] = useState([]);
@@ -250,13 +253,13 @@ export default function App() {
     return () => { window.removeEventListener('mousemove', handleMouseMove); window.removeEventListener('mouseup', handleMouseUp); };
   }, [isResizing]);
 
-  // NOTIFICATIONS PUSH
+  // NOTIFICATIONS PUSH NAVIGATEUR
   const getAssignees = (item, step) => Array.isArray(item.assignedTo?.[step]) ? item.assignedTo[step] : (item.assignedTo?.[step] ? [item.assignedTo[step]] : []);
   const pendingReviews = shots.filter(s => workspace?.pipeline?.some(step => s.status?.[step] === 'review' && getAssignees(s, step).includes(user?.uid)));
   
   useEffect(() => {
     if (browserNotifs && pendingReviews.length > prevPendingReviews.current) {
-      if (Notification.permission === 'granted') new Notification('Fabrica Tracker', { body: 'Vous avez de nouvelles validations en attente !', icon: '/favicon.ico' });
+      if (Notification.permission === 'granted') new Notification('Fabrica Tracker', { body: 'Vous avez de nouvelles validations en attente !' });
     }
     prevPendingReviews.current = pendingReviews.length;
   }, [pendingReviews.length, browserNotifs]);
@@ -266,12 +269,12 @@ export default function App() {
       const perm = await Notification.requestPermission();
       if (perm === 'granted') {
         setBrowserNotifs(true); await updateDoc(doc(db, 'users', user.uid), { browserNotifs: true });
-        new Notification('Fabrica Tracker', { body: 'Notifications activées avec succès !' });
+        new Notification('Fabrica Tracker', { body: 'Notifications push activées avec succès !' });
       } else { openModal("Refusé", "Vous devez autoriser les notifications dans les paramètres de votre navigateur."); }
     } else { setBrowserNotifs(false); await updateDoc(doc(db, 'users', user.uid), { browserNotifs: false }); }
   };
 
-  // RACCOURCIS CLAVIER REVIEW (Fixé à 25 FPS)
+  // RACCOURCIS CLAVIER REVIEW
   useEffect(() => {
     if (!reviewItem) return;
     const handleKeyDown = (e) => {
@@ -330,6 +333,12 @@ export default function App() {
     openModal("Profil à jour", "Modifications enregistrées.");
   };
 
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText !== user.email) return;
+    try { await deleteDoc(doc(db, 'users', user.uid)); await user.delete(); } 
+    catch (err) { openModal("Erreur de sécurité", "Veuillez vous déconnecter/reconnecter avant de supprimer."); }
+  };
+
   const createProject = async (e) => {
     e.preventDefault();
     if (!newProjectName) return;
@@ -347,30 +356,19 @@ export default function App() {
     setJoinCode('');
   };
 
-  // EXPORT CSV / EXCEL DES PLANS
-  const exportToCSV = () => {
-    if (!workspace || !shots.length) return openModal("Erreur", "Aucune donnée à exporter.");
-    const headers = ['Séquence', 'Scène', 'Nom', ...workspace.pipeline];
-    let csvContent = '\uFEFF' + headers.join(',') + '\n';
-    
-    const sortedShots = [...shots].sort((a,b) => a.sequence.localeCompare(b.sequence) || a.scene.localeCompare(b.scene));
-    
-    sortedShots.forEach(s => {
-      const row = [s.sequence, s.scene, s.name];
-      workspace.pipeline.forEach(step => {
-         row.push(s.status?.[step] || 'todo');
+  const addFriend = async (e) => {
+    e.preventDefault();
+    if(!friendInput || friendInput === user.uid) return openModal("Erreur", "ID Invalide");
+    if(friendsList.find(f => f.id === friendInput)) return openModal("Erreur", "Déjà ami");
+    try {
+      const friendDoc = await getDoc(doc(db, 'users', friendInput));
+      if(!friendDoc.exists()) return openModal("Erreur", "Utilisateur introuvable");
+      const friendData = friendDoc.data();
+      await addDoc(collection(db, 'friendships'), {
+        users: [user.uid, friendInput], names: { [user.uid]: userData.displayName, [friendInput]: friendData.displayName }, createdAt: serverTimestamp()
       });
-      csvContent += row.join(',') + '\n';
-    });
-    
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `${workspace.name}_Export_Plans.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      setFriendInput(''); openModal("Succès", "Ami ajouté !");
+    } catch(err) { openModal("Erreur", err.message); }
   };
 
   const postPm = async (e) => {
@@ -379,6 +377,7 @@ export default function App() {
     setNewPmMsg('');
   };
 
+  // COMPRESSION & OPTIMISATION DES MEDIAS (Optimisation Cloudinary q_auto, f_auto)
   const uploadMediaToCloud = async (file, cropOptions = null) => {
     const cloudName = workspace?.cloudinaryCloudName || cloudNameInput; 
     const uploadPreset = workspace?.cloudinaryUploadPreset || uploadPresetInput;
@@ -397,6 +396,29 @@ export default function App() {
     return { url: finalUrl, type: resourceType };
   };
 
+  const uploadBanner = async (e) => {
+    const file = e.target.files[0]; if(!file || !workspace) return;
+    setUploadingMedia(true);
+    try {
+      const uploaded = await uploadMediaToCloud(file, "c_fill,w_1200,h_300");
+      if(uploaded?.url) {
+        await updateDoc(doc(db, 'workspaces', workspace.id), { bannerUrl: uploaded.url });
+        setWorkspace({...workspace, bannerUrl: uploaded.url});
+        const snap = await getDocs(query(collection(db, 'projectMembers'), where('workspaceId', '==', workspace.id)));
+        snap.forEach(d => updateDoc(d.ref, { bannerUrl: uploaded.url }));
+      }
+    } catch(err) { openModal("Erreur", err.message); }
+    setUploadingMedia(false);
+  };
+
+  const removeBanner = async () => {
+    if(!workspace) return;
+    await updateDoc(doc(db, 'workspaces', workspace.id), { bannerUrl: deleteField() });
+    const newWs = {...workspace}; delete newWs.bannerUrl; setWorkspace(newWs);
+    const snap = await getDocs(query(collection(db, 'projectMembers'), where('workspaceId', '==', workspace.id)));
+    snap.forEach(d => updateDoc(d.ref, { bannerUrl: deleteField() }));
+  };
+
   const deleteMediaFromCloudinary = async (url) => {
     if (!workspace?.cloudinaryApiKey || !workspace?.cloudinaryApiSecret || !workspace?.cloudinaryCloudName) return;
     try {
@@ -412,6 +434,22 @@ export default function App() {
       const resourceType = url.includes('/video/') ? 'video' : 'image';
       await fetch(`https://api.cloudinary.com/v1_1/${workspace.cloudinaryCloudName}/${resourceType}/destroy`, { method: 'POST', body: formData });
     } catch(err) { console.error("Cloudinary Delete Error:", err); }
+  };
+
+  const deleteProject = async () => {
+    const conf = window.prompt(`Tapez "${workspace?.name}" pour confirmer la suppression (IRREVERSIBLE) :`);
+    if (conf === workspace?.name) {
+      setUploadingMedia(true);
+      for (const s of shots) { if(s.previews) { for (const step in s.previews) { for (const v of s.previews[step]) { if(v.url) await deleteMediaFromCloudinary(v.url); } } } }
+      for (const a of assets) { if(a.previews) { for (const v of a.previews) { if(v.files) { for (const f of v.files) { if(f.url) await deleteMediaFromCloudinary(f.url); } } } } }
+      const snapMembers = await getDocs(query(collection(db, 'projectMembers'), where('workspaceId', '==', workspace.id))); snapMembers.forEach(d => deleteDoc(d.ref));
+      const snapShots = await getDocs(query(collection(db, 'shots'), where('workspaceId', '==', workspace.id))); snapShots.forEach(d => deleteDoc(d.ref));
+      const snapAssets = await getDocs(query(collection(db, 'assets'), where('workspaceId', '==', workspace.id))); snapAssets.forEach(d => deleteDoc(d.ref));
+      const snapLogs = await getDocs(query(collection(db, 'timeLogs'), where('workspaceId', '==', workspace.id))); snapLogs.forEach(d => deleteDoc(d.ref));
+      
+      await deleteDoc(doc(db, 'workspaces', workspace.id));
+      setUploadingMedia(false); setCurrentView('dashboard');
+    }
   };
 
   const handleAddShot = async (e) => {
@@ -440,10 +478,14 @@ export default function App() {
     if (durationSeconds > 0 && selectedTask && selectedStep && workspace) {
       try {
         const taskName = [...shots, ...assets].find(t => t.id === selectedTask)?.name || 'Inconnu';
-        await addDoc(collection(db, 'timeLogs'), { workspaceId: workspace.id, userId: user.uid, userName: userData.displayName, taskId: selectedTask, taskName: taskName, step: selectedStep, durationSeconds, date: serverTimestamp() });
+        await addDoc(collection(db, 'timeLogs'), {
+          workspaceId: workspace.id, userId: user.uid, userName: userData.displayName, taskId: selectedTask, taskName: taskName, step: selectedStep, durationSeconds, date: serverTimestamp()
+        });
         openModal("Temps enregistré", `Durée sauvegardée avec succès.`);
       } catch (err) { openModal("Erreur", err.message); }
-    } else { openModal("Erreur", "Sélectionnez une tâche et une étape."); }
+    } else {
+      openModal("Erreur", "Sélectionnez une tâche et une étape.");
+    }
   };
 
   const handleStopTimer = () => { setIsTimerActive(false); saveTimeLog(timer); setTimer(0); };
@@ -453,7 +495,7 @@ export default function App() {
     const secs = (parseInt(manualTime.h || 0) * 3600) + (parseInt(manualTime.m || 0) * 60);
     if(secs > 0) { saveTimeLog(secs); setManualTime({h:0, m:0}); }
   };
-  
+
   const addAssignee = async (collectionName, id, step, userId) => {
     const item = collectionName === 'shots' ? shots.find(s=>s.id===id) : assets.find(a=>a.id===id);
     const current = getAssignees(item, step);
@@ -470,12 +512,15 @@ export default function App() {
     const oldStatus = item.status?.[step] || 'todo';
     if (oldStatus === newStatus) return;
     await updateDoc(doc(db, collectionName, item.id), { [`status.${step}`]: newStatus });
-    await addDoc(collection(db, `${collectionName}/${item.id}/comments`), { type: 'system', text: `Statut "${step}" : ${oldStatus.toUpperCase()} ➔ ${newStatus.toUpperCase()}`, date: serverTimestamp(), author: userData.displayName });
+    await addDoc(collection(db, `${collectionName}/${item.id}/comments`), {
+      type: 'system', text: `Statut "${step}" : ${oldStatus.toUpperCase()} ➔ ${newStatus.toUpperCase()}`, date: serverTimestamp(), author: userData.displayName
+    });
   };
 
   const applyBatchAction = async () => {
     if(batchSelection.length === 0) return openModal("Erreur", "Sélectionnez des plans.");
     if(!batchActionStep) return openModal("Erreur", "Sélectionnez une étape.");
+    
     for (const id of batchSelection) {
       const shot = shots.find(s => s.id === id);
       if (shot && batchActionStatus) await changeStatus(shot, batchActionStep, batchActionStatus, 'shots');
@@ -513,7 +558,6 @@ export default function App() {
     setCompareMode(false); setCompareVersion(''); setStrokes([]); setCurrentStroke(null); setDrawMode('pen');
   };
 
-  // FPS mis à 25 pour les annotations vidéo
   const getAnnotationKey = () => {
     if(!reviewItem || !reviewStep || !reviewPreview) return null;
     if(reviewPreview.type === 'video') return Math.floor(videoProgress * FRAMERATE);
@@ -529,6 +573,7 @@ export default function App() {
   const drawOnCanvas = () => {
     const canvas = canvasRef.current; if(!canvas) return;
     const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, canvas.width, canvas.height); 
+    
     const allStrokes = currentStroke ? [...strokes, currentStroke] : strokes;
     allStrokes.forEach(stroke => {
       if(!stroke) return;
@@ -550,8 +595,12 @@ export default function App() {
     if(!drawMode) return;
     const rect = canvasRef.current.getBoundingClientRect();
     const x = (e.clientX || e.touches?.[0].clientX) - rect.left; const y = (e.clientY || e.touches?.[0].clientY) - rect.top;
-    if (drawMode === 'text') { setTextInputPos({ x: x/rect.width, y: y/rect.height, px: x, py: y }); setTextInputValue(''); } 
-    else { setCurrentStroke({ type: 'pen', size: brushSize, points: [{ x: x/rect.width, y: y/rect.height }] }); }
+    
+    if (drawMode === 'text') {
+      setTextInputPos({ x: x/rect.width, y: y/rect.height, px: x, py: y }); setTextInputValue('');
+    } else {
+      setCurrentStroke({ type: 'pen', size: brushSize, points: [{ x: x/rect.width, y: y/rect.height }] });
+    }
   };
   const onDraw = (e) => {
     if(drawMode !== 'pen' || !currentStroke) return;
@@ -559,8 +608,15 @@ export default function App() {
     const x = (e.clientX || e.touches?.[0].clientX) - rect.left; const y = (e.clientY || e.touches?.[0].clientY) - rect.top;
     setCurrentStroke(prev => ({ ...prev, points: [...prev.points, { x: x/rect.width, y: y/rect.height }] }));
   };
-  const endDraw = () => { if(drawMode !== 'pen' || !currentStroke) return; setStrokes([...strokes, currentStroke]); setCurrentStroke(null); };
-  const commitTextAnnotation = () => { if(textInputValue.trim() && textInputPos) { setStrokes([...strokes, { type: 'text', content: textInputValue, x: textInputPos.x, y: textInputPos.y, size: brushSize }]); } setTextInputPos(null); setTextInputValue(''); };
+  const endDraw = () => {
+    if(drawMode !== 'pen' || !currentStroke) return;
+    setStrokes([...strokes, currentStroke]); setCurrentStroke(null);
+  };
+  
+  const commitTextAnnotation = () => {
+    if(textInputValue.trim() && textInputPos) { setStrokes([...strokes, { type: 'text', content: textInputValue, x: textInputPos.x, y: textInputPos.y, size: brushSize }]); }
+    setTextInputPos(null); setTextInputValue('');
+  };
 
   const saveAnnotations = async () => {
     const key = getAnnotationKey(); if(!key || !reviewItem) return;
@@ -586,35 +642,91 @@ export default function App() {
     setNewChatMsg('');
   };
 
+  const getXMLStyleID = (st) => {
+    switch(st) { case 'wip': return 'sWip'; case 'review': return 'sReview'; case 'reuse': return 'sReuse'; case 'done': return 'sDone'; default: return 'sTodo'; }
+  };
+
+  const exportExcel = () => {
+    if(!workspace) return;
+    let xml = `<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?>
+      <Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+        <Styles>
+          <Style ss:ID="sHeader"><Font ss:Color="#FFFFFF" ss:Bold="1"/><Interior ss:Color="#1e293b" ss:Pattern="Solid"/></Style>
+          <Style ss:ID="sTodo"><Interior ss:Color="#f1f5f9" ss:Pattern="Solid"/><Font ss:Color="#475569" ss:Bold="1"/></Style>
+          <Style ss:ID="sWip"><Interior ss:Color="#bfdbfe" ss:Pattern="Solid"/><Font ss:Color="#1e40af" ss:Bold="1"/></Style>
+          <Style ss:ID="sReview"><Interior ss:Color="#e9d5ff" ss:Pattern="Solid"/><Font ss:Color="#6b21a8" ss:Bold="1"/></Style>
+          <Style ss:ID="sReuse"><Interior ss:Color="#fed7aa" ss:Pattern="Solid"/><Font ss:Color="#c2410c" ss:Bold="1"/></Style>
+          <Style ss:ID="sDone"><Interior ss:Color="#bbf7d0" ss:Pattern="Solid"/><Font ss:Color="#166534" ss:Bold="1"/></Style>
+        </Styles><Worksheet ss:Name="Tracker"><Table><Row>
+          <Cell ss:StyleID="sHeader"><Data ss:Type="String">Seq</Data></Cell><Cell ss:StyleID="sHeader"><Data ss:Type="String">Scene</Data></Cell><Cell ss:StyleID="sHeader"><Data ss:Type="String">Shot</Data></Cell>
+          ${workspace.pipeline.map(step => `<Cell ss:StyleID="sHeader"><Data ss:Type="String">${step}</Data></Cell>`).join('')}
+        </Row>`;
+    
+    shots.forEach(s => {
+       xml += `<Row><Cell><Data ss:Type="String">${s.sequence}</Data></Cell><Cell><Data ss:Type="String">${s.scene}</Data></Cell><Cell><Data ss:Type="String">${s.name}</Data></Cell>`;
+       workspace.pipeline.forEach(step => {
+          const st = s.status?.[step] || 'todo';
+          xml += `<Cell ss:StyleID="${getXMLStyleID(st)}"><Data ss:Type="String">${st}</Data></Cell>`;
+       });
+       xml += `</Row>`;
+    });
+    xml += `</Table></Worksheet></Workbook>`;
+
+    const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([xml], { type: 'application/xml;charset=utf-8;' })); 
+    link.download = `${workspace.name.replace(/\s+/g, '_')}_Tracker.xml`; link.click();
+  };
+
+  const exportTimeCSV = () => {
+    let csv = "User,Task,Step,Duration (Hours),Date\n";
+    timeLogs.forEach(l => { 
+      const dateStr = l.date?.toDate() ? 
+          `${l.date.toDate().toLocaleDateString('fr-FR')} ${l.date.toDate().toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'})}` 
+          : '';
+      const hours = (l.durationSeconds / 3600).toFixed(2);
+      csv += `"${l.userName}","${l.taskName}","${l.step}",${hours},"${dateStr}"\n`; 
+    });
+    const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' })); 
+    link.download = `Times_${workspace.name}.csv`; link.click();
+  };
+
   const movePipelineStep = async (idx, direction) => {
     if (!workspace) return;
     const newPipe = [...workspace.pipeline];
     if (direction === 'up' && idx > 0) { const temp = newPipe[idx-1]; newPipe[idx-1] = newPipe[idx]; newPipe[idx] = temp; }
     else if (direction === 'down' && idx < newPipe.length - 1) { const temp = newPipe[idx+1]; newPipe[idx+1] = newPipe[idx]; newPipe[idx] = temp; }
     await updateDoc(doc(db, 'workspaces', workspace.id), { pipeline: newPipe });
+    setWorkspace({...workspace, pipeline: newPipe});
   };
-  const saveCustomPipeline = async (newPipeline) => { await updateDoc(doc(db, 'workspaces', workspace.id), { pipeline: newPipeline }); };
-  
+
+  const saveCustomPipeline = async (newPipeline) => { 
+    await updateDoc(doc(db, 'workspaces', workspace.id), { pipeline: newPipeline }); 
+    setWorkspace({...workspace, pipeline: newPipeline}); 
+  };
+
   const saveSequenceDates = async (seq, start, end) => {
     if (!workspace) return;
     const dates = workspace.sequenceDates || {};
     dates[seq] = { start, end };
     await updateDoc(doc(db, 'workspaces', workspace.id), { sequenceDates: dates });
+    setWorkspace({...workspace, sequenceDates: dates});
   };
 
   const saveStorageSettings = async (e) => {
     e.preventDefault(); if (!workspace) return;
     await updateDoc(doc(db, 'workspaces', workspace.id), { cloudinaryCloudName: cloudNameInput, cloudinaryUploadPreset: uploadPresetInput, cloudinaryApiKey: apiKeyInput, cloudinaryApiSecret: apiSecretInput });
+    setWorkspace({ ...workspace, cloudinaryCloudName: cloudNameInput, cloudinaryUploadPreset: uploadPresetInput, cloudinaryApiKey: apiKeyInput, cloudinaryApiSecret: apiSecretInput });
     openModal("Succès", "Clés de stockage sauvegardées !");
   };
 
+  const canEdit = userPermissions.canEdit;
+  const canAssign = userPermissions.canAssign;
   const isAdmin = userPermissions.role === 'Admin';
   
   const getThumbnail = (obj) => {
     if (!obj) return "";
-    const cropParams = "w_400,h_225,c_fill,q_auto,f_auto"; 
+    const cropParams = "w_400,h_225,c_fill,q_auto,f_auto";
     const url = obj.type === 'video' ? obj.url.replace(/\.[^/.]+$/, ".jpg") : obj.url;
-    return url.replace(/\/upload\/(?:v\d+\/)?/, `/upload/${cropParams}/`); 
+    return url.replace('/upload/', `/upload/${cropParams}/`);
   };
   
   const getStatusColor = (st) => {
@@ -627,20 +739,23 @@ export default function App() {
     }
   };
 
+  const myAssignedTasks = shots.filter(s => workspace?.pipeline?.some(step => getAssignees(s, step).includes(user?.uid)));
+  
+  const myStats = { todo: 0, wip: 0, review: 0, done: 0 };
+  myAssignedTasks.forEach(s => {
+    workspace?.pipeline?.forEach(step => {
+      if(getAssignees(s, step).includes(user?.uid)) {
+        const st = s.status?.[step] || 'todo';
+        if(myStats[st] !== undefined) myStats[st]++;
+      }
+    });
+  });
+
   let filteredShots = shots.filter(s => {
     const matchSearch = s.name.toLowerCase().includes(searchQuery.toLowerCase()) || s.scene.toLowerCase().includes(searchQuery.toLowerCase());
     const matchStatus = filterStatus ? workspace?.pipeline?.some(step => s.status?.[step] === filterStatus) : true;
     const matchAssignee = filterAssignee ? workspace?.pipeline?.some(step => getAssignees(s, step).includes(filterAssignee)) : true;
     return matchSearch && matchStatus && matchAssignee;
-  });
-
-  // STATISTIQUES CALCULEES POUR L'ONGLET STATS
-  const myStats = { todo: 0, wip: 0, review: 0, done: 0 };
-  shots.forEach(s => {
-    workspace?.pipeline?.forEach(step => {
-      const st = s.status?.[step] || 'todo';
-      if (myStats[st] !== undefined) myStats[st]++;
-    });
   });
 
   const groupedShots = filteredShots.reduce((acc, s) => { (acc[s.sequence] = acc[s.sequence] || []).push(s); return acc; }, {});
@@ -651,7 +766,11 @@ export default function App() {
   const inputClass = "w-full p-2 bg-slate-100 border border-slate-300 rounded outline-none focus:border-blue-500 dark:bg-slate-950 dark:border-slate-800";
   
   const pixelateStyle = `
-    @keyframes pixelateAnim { 0% { filter: blur(0px) contrast(1); transform: scale(1); } 50% { filter: blur(3px) contrast(5); transform: scale(1.05); } 100% { filter: blur(0px) contrast(1); transform: scale(1); } }
+    @keyframes pixelateAnim {
+      0% { filter: blur(0px) contrast(1); transform: scale(1); }
+      50% { filter: blur(3px) contrast(5); transform: scale(1.05); }
+      100% { filter: blur(0px) contrast(1); transform: scale(1); }
+    }
   `;
 
   if (loading) return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white">...</div>;
@@ -684,6 +803,18 @@ export default function App() {
           {authMode === 'login' && <div className="text-right"><button type="button" onClick={handleForgotPassword} className="text-xs text-blue-500 hover:underline">Mot de passe oublié ?</button></div>}
           <button type="submit" className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded transition">{authMode === 'login' ? 'Se connecter' : 'Créer un compte'}</button>
         </form>
+        
+        {modal.isOpen && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4 backdrop-blur-sm">
+            <div className={`p-6 rounded-xl border w-full max-w-sm space-y-4 shadow-2xl ${theme==='dark'?'bg-slate-900 border-slate-800 text-white':'bg-white border-slate-200 text-slate-900'}`}>
+              <h3 className="font-bold text-lg">{modal.title}</h3><p className="text-sm opacity-80">{modal.msg}</p>
+              <div className="flex space-x-3 pt-4">
+                {modal.onConfirm && <button onClick={closeModal} className="flex-1 py-2 bg-slate-200 dark:bg-slate-800 rounded font-bold transition hover:bg-slate-300 dark:hover:bg-slate-700">{t('cancel')}</button>}
+                <button onClick={modal.onConfirm || closeModal} className="flex-1 py-2 bg-blue-600 text-white rounded font-bold transition hover:bg-blue-500">{t('ok')}</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -758,36 +889,106 @@ export default function App() {
           </div>
         </header>
 
+        <div className="max-w-5xl mx-auto w-full mb-6 flex space-x-4 border-b dark:border-slate-800 pb-2">
+          <button onClick={()=>setDashTab('projects')} className={`font-bold text-lg ${dashTab === 'projects' ? 'text-blue-500 border-b-2 border-blue-500' : 'text-slate-400'}`}>{t('projects')}</button>
+          <button onClick={()=>setDashTab('friends')} className={`font-bold text-lg ${dashTab === 'friends' ? 'text-blue-500 border-b-2 border-blue-500' : 'text-slate-400'}`}>{t('friends')}</button>
+        </div>
+
         <div className="max-w-5xl mx-auto w-full grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className={`md:col-span-2 border p-6 rounded-xl flex-1 ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200 shadow'}`}>
-            <h2 className="text-xl font-bold mb-4 flex items-center"><FolderKanban className="mr-2 text-blue-500" /> {t('projects')}</h2>
-            <div className="space-y-3">
-              {myProjects.length === 0 ? <p className="text-slate-500 italic">Aucun projet.</p> : null}
-              {myProjects.map(p => (
-                <div key={p.id} className={`relative rounded-lg overflow-hidden border transition group ${theme==='dark'?'bg-slate-950 border-slate-800 hover:border-blue-500':'bg-slate-50 border-slate-200 hover:border-blue-500'}`}>
-                  {p.bannerUrl && <div className="absolute inset-0 bg-cover bg-center opacity-30 group-hover:opacity-40 transition" style={{backgroundImage: `url(${p.bannerUrl})`}}></div>}
-                  <div className="relative z-10 p-4 flex justify-between items-center backdrop-blur-[2px]">
-                    <div className="flex-1 cursor-pointer flex items-center" onClick={() => { setWorkspace({id: p.workspaceId}); setCurrentView('workspace'); setActiveTab('shots'); }}>
-                      <div><h3 className="font-bold text-lg drop-shadow-md">{p.workspaceName}</h3><p className="text-xs text-slate-800 font-bold dark:text-slate-300 uppercase tracking-wider mt-1 drop-shadow-md">Rôle : <span className="text-blue-600 dark:text-blue-400 font-black">{p.role}</span></p></div>
+          {dashTab === 'projects' && (
+            <>
+              <div className={`md:col-span-2 border p-6 rounded-xl flex-1 ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200 shadow'}`}>
+                <h2 className="text-xl font-bold mb-4 flex items-center"><FolderKanban className="mr-2 text-blue-500" /> {t('projects')}</h2>
+                <div className="space-y-3">
+                  {myProjects.length === 0 ? <p className="text-slate-500 italic">Aucun projet.</p> : null}
+                  {myProjects.map(p => (
+                    <div key={p.id} className={`relative rounded-lg overflow-hidden border transition group ${theme==='dark'?'bg-slate-950 border-slate-800 hover:border-blue-500':'bg-slate-50 border-slate-200 hover:border-blue-500'}`}>
+                      {p.bannerUrl && <div className="absolute inset-0 bg-cover bg-center opacity-30 group-hover:opacity-40 transition" style={{backgroundImage: `url(${p.bannerUrl})`}}></div>}
+                      <div className="relative z-10 p-4 flex justify-between items-center backdrop-blur-[2px]">
+                        <div className="flex-1 cursor-pointer flex items-center" onClick={async () => {
+                          const wsDoc = await getDoc(doc(db, 'workspaces', p.workspaceId));
+                          if(wsDoc.exists()) { setWorkspace({ id: wsDoc.id, ...wsDoc.data() }); setCurrentView('workspace'); setActiveTab('assets'); }
+                        }}>
+                          <div><h3 className="font-bold text-lg drop-shadow-md">{p.workspaceName}</h3><p className="text-xs text-slate-800 font-bold dark:text-slate-300 uppercase tracking-wider mt-1 drop-shadow-md">Rôle : <span className="text-blue-600 dark:text-blue-400 font-black">{p.role}</span></p></div>
+                        </div>
+                        <div className="flex items-center space-x-3 bg-white/50 dark:bg-slate-950/50 p-1.5 rounded-full backdrop-blur-md">
+                          {p.role === 'Admin' && <button onClick={() => {
+                            const newName = window.prompt("Nouveau nom :", p.workspaceName);
+                            if(newName) {
+                              updateDoc(doc(db, 'workspaces', p.workspaceId), { name: newName });
+                              getDocs(query(collection(db, 'projectMembers'), where('workspaceId', '==', p.workspaceId))).then(snap => snap.forEach(m => updateDoc(m.ref, { workspaceName: newName })));
+                            }
+                          }} className="p-2 text-slate-800 dark:text-slate-300 hover:text-blue-600 transition"><Edit3 size={18}/></button>}
+                          <div onClick={async () => {
+                            const wsDoc = await getDoc(doc(db, 'workspaces', p.workspaceId));
+                            if(wsDoc.exists()) { setWorkspace({ id: wsDoc.id, ...wsDoc.data() }); setCurrentView('workspace'); setActiveTab('assets'); }
+                          }} className="cursor-pointer w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white shadow-lg transform hover:scale-105 transition"><Play size={18} className="ml-1" /></div>
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  ))}
                 </div>
-              ))}
+              </div>
+              <div className="space-y-6">
+                <form onSubmit={createProject} className={`border p-6 rounded-xl space-y-4 ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200 shadow'}`}>
+                  <h2 className="text-lg font-bold">{t('createProj')}</h2>
+                  <input type="text" placeholder={t('projName')} value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} className={inputClass} required />
+                  <div className="flex space-x-2">
+                    {['2D', '3D', 'Game'].map(tp => (
+                      <button key={tp} type="button" onClick={() => setNewProjectType(tp)} className={`flex-1 py-1.5 text-xs font-bold rounded border ${newProjectType === tp ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-700'}`}>{tp}</button>
+                    ))}
+                  </div>
+                  <button type="submit" className="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded transition">Créer</button>
+                </form>
+                <form onSubmit={joinProject} className={`border p-6 rounded-xl space-y-4 ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200 shadow'}`}>
+                  <h2 className="text-lg font-bold">{t('joinProj')}</h2>
+                  <input type="text" placeholder={t('joinCode')} value={joinCode} onChange={(e) => setJoinCode(e.target.value)} className={`font-mono text-center tracking-widest ${inputClass}`} required />
+                  <button type="submit" className="w-full py-2 bg-slate-200 dark:bg-slate-800 font-bold rounded transition">{t('join')}</button>
+                </form>
+              </div>
+            </>
+          )}
+
+          {dashTab === 'friends' && (
+            <>
+              <div className={`md:col-span-2 border p-6 rounded-xl ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200 shadow'}`}>
+                <h2 className="text-xl font-bold mb-4 flex items-center"><Users className="mr-2 text-blue-500" /> {t('friends')}</h2>
+                <div className="space-y-3">
+                  {friendsList.length === 0 ? <p className="text-slate-500 italic">Aucun ami ajouté.</p> : null}
+                  {friendsList.map(f => (
+                    <div key={f.id} onClick={() => { setActiveFriend(f); setIsChatWidgetOpen(true); }} className={`border p-4 rounded-lg cursor-pointer flex justify-between items-center transition ${theme==='dark'?'bg-slate-950 border-slate-800 hover:border-blue-500':'bg-slate-50 border-slate-200 hover:border-blue-500'}`}>
+                      <div className="flex items-center space-x-3"><UserCircle size={32} className="text-slate-400"/> <div><h3 className="font-bold text-lg">{f.displayName}</h3></div></div>
+                      <MessageSquare size={18} className="text-blue-500"/>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-6">
+                <form onSubmit={addFriend} className={`border p-6 rounded-xl space-y-4 ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200 shadow'}`}>
+                  <h2 className="text-lg font-bold flex items-center"><UserPlus className="mr-2"/> {t('addFriend')}</h2>
+                  <input type="text" placeholder={t('friendId')} value={friendInput} onChange={(e) => setFriendInput(e.target.value)} className={`font-mono text-center tracking-widest ${inputClass}`} required />
+                  <button type="submit" className="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded transition">Ajouter</button>
+                </form>
+                <div className={`border p-6 rounded-xl text-center space-y-2 ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200 shadow'}`}>
+                  <h3 className="font-bold text-sm text-slate-500">{t('myId')}</h3>
+                  <div className="font-mono bg-slate-200 dark:bg-slate-950 p-2 rounded text-blue-500 font-bold select-all cursor-pointer">{user.uid}</div>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        {modal.isOpen && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[200] p-4 backdrop-blur-sm">
+            <div className={`p-6 rounded-xl border w-full max-w-sm space-y-4 shadow-2xl ${theme==='dark'?'bg-slate-900 border-slate-800 text-white':'bg-white border-slate-200 text-slate-900'}`}>
+              <h3 className="font-bold text-lg">{modal.title}</h3><p className="text-sm opacity-80">{modal.msg}</p>
+              <div className="flex space-x-3 pt-4">
+                {modal.onConfirm && <button onClick={closeModal} className="flex-1 py-2 bg-slate-200 dark:bg-slate-800 rounded font-bold transition hover:bg-slate-300 dark:hover:bg-slate-700">{t('cancel')}</button>}
+                <button onClick={modal.onConfirm || closeModal} className="flex-1 py-2 bg-blue-600 text-white rounded font-bold transition hover:bg-blue-500">{t('ok')}</button>
+              </div>
             </div>
           </div>
-          <div className="space-y-6">
-            <form onSubmit={createProject} className={`border p-6 rounded-xl space-y-4 ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200 shadow'}`}>
-              <h2 className="text-lg font-bold">{t('createProj')}</h2>
-              <input type="text" placeholder={t('projName')} value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} className={inputClass} required />
-              <button type="submit" className="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded transition">Créer</button>
-            </form>
-            <form onSubmit={joinProject} className={`border p-6 rounded-xl space-y-4 ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200 shadow'}`}>
-              <h2 className="text-lg font-bold">{t('joinProj')}</h2>
-              <input type="text" placeholder={t('joinCode')} value={joinCode} onChange={(e) => setJoinCode(e.target.value)} className={`font-mono text-center tracking-widest ${inputClass}`} required />
-              <button type="submit" className="w-full py-2 bg-slate-200 dark:bg-slate-800 font-bold rounded transition">{t('join')}</button>
-            </form>
-          </div>
-        </div>
+        )}
       </div>
     );
   }
@@ -802,11 +1003,37 @@ export default function App() {
             <div className="space-y-2"><label className="text-sm text-slate-500">Email</label><input type="email" value={userData?.email} disabled className={`${inputClass} opacity-50 cursor-not-allowed`} /></div>
             <div className="space-y-2"><label className="text-sm text-slate-500">Pseudo</label><input type="text" value={profileName} onChange={(e)=>setProfileName(e.target.value)} className={inputClass} required /></div>
             <div className="space-y-2"><label className="text-sm text-slate-500">ID Utilisateur</label><div className="font-mono bg-slate-200 dark:bg-slate-950 p-2 rounded text-blue-500 font-bold select-all text-center">{user.uid}</div></div>
-            <label className="flex items-center space-x-2 text-sm font-medium"><input type="checkbox" checked={emailNotifs} onChange={(e)=>setEmailNotifs(e.target.checked)}/> <span>Alertes E-mail des retakes</span></label>
+            <label className="flex items-center space-x-2 text-sm font-medium"><input type="checkbox" checked={emailNotifs} onChange={(e)=>setEmailNotifs(e.target.checked)}/> <span>M'alerter par E-mail des retakes</span></label>
             <label className="flex items-center space-x-2 text-sm font-medium"><input type="checkbox" checked={browserNotifs} onChange={(e)=>requestBrowserNotifs(e.target.checked)}/> <span>Notifications Push Navigateur</span></label>
             <button type="submit" className="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded transition">Sauvegarder</button>
           </form>
+          <div className="pt-6 mt-6 border-t border-slate-200 dark:border-slate-800">
+            {!showDeleteConfirm ? (
+              <button type="button" onClick={() => setShowDeleteConfirm(true)} className="w-full py-2 bg-red-100 dark:bg-red-950/50 text-red-600 font-bold rounded transition">Supprimer mon compte</button>
+            ) : (
+              <div className="space-y-3 bg-red-50 dark:bg-red-950/30 p-4 border border-red-200 dark:border-red-900 rounded-lg">
+                <p className="text-xs text-red-500 text-center font-bold uppercase">Confirmer l'email</p>
+                <input type="text" placeholder={user.email} value={deleteConfirmText} onChange={(e)=>setDeleteConfirmText(e.target.value)} className="w-full p-2 bg-white dark:bg-slate-950 border border-red-300 dark:border-red-900 rounded outline-none text-sm text-center" />
+                <div className="flex space-x-2">
+                  <button onClick={() => {setShowDeleteConfirm(false); setDeleteConfirmText('');}} className="flex-1 py-2 bg-slate-200 dark:bg-slate-800 rounded text-sm font-bold">Annuler</button>
+                  <button onClick={handleDeleteAccount} className={`flex-1 py-2 rounded text-sm text-white font-bold transition ${deleteConfirmText === user.email ? 'bg-red-600 hover:bg-red-500' : 'bg-red-300 dark:bg-red-950 cursor-not-allowed'}`}>Supprimer</button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
+        
+        {modal.isOpen && (
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4">
+            <div className={`p-6 rounded-xl border w-full max-w-sm space-y-4 shadow-2xl ${theme==='dark'?'bg-slate-900 border-slate-800 text-white':'bg-white border-slate-200 text-slate-900'}`}>
+              <h3 className="font-bold text-lg">{modal.title}</h3><p className="text-sm opacity-80">{modal.msg}</p>
+              <div className="flex space-x-3 pt-4">
+                {modal.onConfirm && <button onClick={closeModal} className="flex-1 py-2 bg-slate-200 dark:bg-slate-800 rounded font-bold">{t('cancel')}</button>}
+                <button onClick={modal.onConfirm || closeModal} className="flex-1 py-2 bg-blue-600 text-white rounded font-bold">{t('ok')}</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -857,8 +1084,8 @@ export default function App() {
           </div>
           
           <nav className="space-y-1.5 px-4 overflow-y-auto">
-            <button onClick={() => {setActiveTab('shots'); setReviewItem(null);}} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'shots' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Film size={18} /> <span className="hidden md:inline font-medium">{t('shots')}</span></button>
             <button onClick={() => {setActiveTab('assets'); setReviewItem(null);}} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'assets' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Box size={18} /> <span className="hidden md:inline font-medium">{t('assets')}</span></button>
+            <button onClick={() => {setActiveTab('shots'); setReviewItem(null);}} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'shots' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Film size={18} /> <span className="hidden md:inline font-medium">{t('shots')}</span></button>
             <button onClick={() => {setActiveTab('planning'); setReviewItem(null);}} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'planning' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Calendar size={18} /> <span className="hidden md:inline font-medium">{t('planning')}</span></button>
             <button onClick={() => {setActiveTab('time'); setReviewItem(null);}} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'time' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Clock size={18} /> <span className="hidden md:inline font-medium">{t('time')}</span></button>
             <button onClick={() => {setActiveTab('stats'); setReviewItem(null);}} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'stats' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><BarChart size={18} /> <span className="hidden md:inline font-medium">{t('stats')}</span></button>
@@ -866,6 +1093,10 @@ export default function App() {
             {isAdmin && <button onClick={() => {setActiveTab('settings'); setReviewItem(null);}} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'settings' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Settings size={18} /> <span className="hidden md:inline font-medium">{t('settings')}</span></button>}
             <button onClick={() => {setActiveTab('help'); setReviewItem(null);}} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'help' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><HelpCircle size={18} /> <span className="hidden md:inline font-medium">{t('help')}</span></button>
           </nav>
+        </div>
+        <div className="p-4 flex items-center space-x-2">
+          <button onClick={()=>setLang(lang==='fr'?'en':'fr')} className="flex-1 p-2 rounded border dark:border-slate-800 border-slate-200 transition text-xs text-slate-500 font-bold uppercase">{lang}</button>
+          <button onClick={()=>setTheme(theme==='dark'?'light':'dark')} className="p-2 rounded border dark:border-slate-800 border-slate-200 text-slate-500">{theme==='dark' ? <Sun size={16}/> : <Moon size={16}/>}</button>
         </div>
       </aside>
 
@@ -876,7 +1107,7 @@ export default function App() {
           <header className="mb-6 flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-4">
             <h2 className="text-2xl font-bold tracking-tight uppercase">{t(activeTab)}</h2>
             <div className="flex items-center space-x-6">
-              {userPermissions.canAssign && (
+              {canAssign && (
                 <div className="relative">
                   <button onClick={() => setShowNotifications(!showNotifications)} className="relative p-2 text-slate-400 hover:text-blue-500 transition">
                     <Bell size={20} />
@@ -906,13 +1137,10 @@ export default function App() {
                   <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)} className={inputClass + " flex-1"}><option value="">{t('allStatus')}</option><option value="todo">{t('todo')}</option><option value="wip">{t('wip')}</option><option value="review">{t('reviewStatus')}</option><option value="reuse">{t('reuse')}</option><option value="done">{t('done')}</option></select>
                   <select value={filterAssignee} onChange={e=>setFilterAssignee(e.target.value)} className={inputClass + " flex-1"}><option value="">{t('allMembers')}</option>{members.map(m=><option key={m.userId} value={m.userId}>{m.displayName}</option>)}</select>
                 </div>
-                <div className="flex items-center gap-2 w-full xl:w-auto">
-                  <button onClick={exportToCSV} className="w-full xl:w-auto flex items-center justify-center space-x-2 bg-green-600 text-white hover:bg-green-500 px-4 py-2 rounded font-bold text-sm shrink-0"><Download size={16} /> <span>Export CSV</span></button>
-                  {userPermissions.canAssign && <button onClick={() => setShowAddShot(true)} className="w-full xl:w-auto flex items-center justify-center space-x-2 bg-blue-600 text-white hover:bg-blue-500 px-4 py-2 rounded font-bold text-sm shrink-0"><Plus size={16} /> <span>{t('addShot')}</span></button>}
-                </div>
+                {canAssign && <button onClick={() => setShowAddShot(true)} className="w-full xl:w-auto flex items-center justify-center space-x-2 bg-blue-600 text-white hover:bg-blue-500 px-4 py-2 rounded font-bold text-sm shrink-0"><Plus size={16} /> <span>{t('addShot')}</span></button>}
               </div>
 
-              {userPermissions.canEdit && batchSelection.length > 0 && (
+              {canEdit && batchSelection.length > 0 && (
                 <div className="bg-blue-600 text-white p-3 rounded-xl flex items-center justify-between shadow-lg sticky top-0 z-40">
                   <div className="font-bold flex items-center"><CheckSquare className="mr-2"/> {batchSelection.length} sélectionnés</div>
                   <div className="flex space-x-2 items-center">
@@ -931,7 +1159,7 @@ export default function App() {
                       <thead>
                         <tr className={`border-b text-xs uppercase ${theme==='dark'?'border-slate-800 text-slate-500 bg-slate-900':'border-slate-200 text-slate-600 bg-white'}`}>
                           <th className="p-3 sticky left-0 z-10 w-48 font-semibold bg-inherit">
-                            {userPermissions.canEdit && <input type="checkbox" onChange={(e) => setBatchSelection(e.target.checked ? groupedShots[seq].map(s=>s.id) : batchSelection.filter(id => !groupedShots[seq].map(s=>s.id).includes(id))) } className="mr-2 cursor-pointer"/>} Scène / Nom
+                            {canEdit && <input type="checkbox" onChange={(e) => setBatchSelection(e.target.checked ? groupedShots[seq].map(s=>s.id) : batchSelection.filter(id => !groupedShots[seq].map(s=>s.id).includes(id))) } className="mr-2 cursor-pointer"/>} Scène / Nom
                           </th>
                           {workspace?.pipeline?.map(step => <th key={step} className={`p-3 min-w-[240px] border-l font-semibold ${theme==='dark'?'border-slate-800':'border-slate-200'}`}>{step}</th>)}
                         </tr>
@@ -941,14 +1169,14 @@ export default function App() {
                           <tr key={s.id} className="hover:bg-slate-100 dark:hover:bg-slate-800/20 transition-colors group">
                             <td className={`p-3 font-medium sticky left-0 z-10 align-top ${theme==='dark'?'bg-slate-900':'bg-white'}`}>
                               <div className="flex justify-between items-start">
-                                <div className="flex items-start">{userPermissions.canEdit && <input type="checkbox" checked={batchSelection.includes(s.id)} onChange={(e) => setBatchSelection(e.target.checked ? [...batchSelection, s.id] : batchSelection.filter(id=>id!==s.id))} className="mr-3 mt-1 cursor-pointer"/>}<div><div className="text-slate-400 font-mono text-xs mb-0.5">{s.scene}</div><div className="font-bold text-base">{s.name}</div></div></div>
-                                {userPermissions.canAssign && <button onClick={() => openModal("Supprimer Plan", `Détruire définitivement le plan ${s.name} ?`, async () => { await deleteDoc(doc(db, 'shots', s.id)); closeModal(); })} className="text-slate-400 hover:text-red-500 transition opacity-0 group-hover:opacity-100"><Trash2 size={16}/></button>}
+                                <div className="flex items-start">{canEdit && <input type="checkbox" checked={batchSelection.includes(s.id)} onChange={(e) => setBatchSelection(e.target.checked ? [...batchSelection, s.id] : batchSelection.filter(id=>id!==s.id))} className="mr-3 mt-1 cursor-pointer"/>}<div><div className="text-slate-400 font-mono text-xs mb-0.5">{s.scene}</div><div className="font-bold text-base">{s.name}</div></div></div>
+                                {canAssign && <button onClick={() => openModal("Supprimer Plan", `Détruire définitivement le plan ${s.name} ?`, async () => { await deleteDoc(doc(db, 'shots', s.id)); closeModal(); })} className="text-slate-400 hover:text-red-500 transition opacity-0 group-hover:opacity-100"><Trash2 size={16}/></button>}
                               </div>
                             </td>
                             {workspace?.pipeline?.map(step => {
                               const assignees = getAssignees(s, step);
                               const isMyTask = assignees.includes(user.uid);
-                              const canUpload = userPermissions.canEdit && (isMyTask || userPermissions.canAssign);
+                              const canUpload = canEdit && (isMyTask || canAssign);
                               const versions = Array.isArray(s.previews?.[step]) ? s.previews[step] : [];
                               const activeIdx = selectedVersions[`${s.id}_${step}`] ?? (versions.length > 0 ? versions.length - 1 : -1);
                               const activePreview = activeIdx >= 0 ? versions[activeIdx] : null;
@@ -958,13 +1186,13 @@ export default function App() {
                                   <div className="flex flex-col space-y-1.5">
                                     <div className="flex flex-wrap gap-1">
                                       {assignees.map(uid => (
-                                        <span key={uid} onClick={() => userPermissions.canAssign && removeAssignee('shots', s.id, step, uid)} className={`text-[10px] px-1.5 py-0.5 rounded flex items-center font-bold ${userPermissions.canAssign ? 'cursor-pointer bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 hover:bg-red-100 dark:hover:bg-red-900/50 hover:text-red-600 dark:hover:text-red-300' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}`}>
-                                          {members.find(m => m.userId === uid)?.displayName || 'Inconnu'} {userPermissions.canAssign && <X size={10} className="ml-1"/>}
+                                        <span key={uid} onClick={() => canAssign && removeAssignee('shots', s.id, step, uid)} className={`text-[10px] px-1.5 py-0.5 rounded flex items-center font-bold ${canAssign ? 'cursor-pointer bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 hover:bg-red-100 dark:hover:bg-red-900/50 hover:text-red-600 dark:hover:text-red-300' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}`}>
+                                          {members.find(m => m.userId === uid)?.displayName || 'Inconnu'} {canAssign && <X size={10} className="ml-1"/>}
                                         </span>
                                       ))}
                                     </div>
-                                    {userPermissions.canAssign && (<select className={`${inputClass} !p-1 !text-xs !py-1`} value="" onChange={(e) => { if(e.target.value) addAssignee('shots', s.id, step, e.target.value) }}><option value="">+ Assigner</option>{members.filter(m => !assignees.includes(m.userId)).map(m => <option key={m.userId} value={m.userId}>{m.displayName}</option>)}</select>)}
-                                    <select disabled={!userPermissions.canEdit} className={`rounded p-1 text-xs font-semibold outline-none transition-colors border ${getStatusColor(s.status?.[step])}`} value={s.status?.[step] || 'todo'} onChange={(e) => changeStatus(s, step, e.target.value, 'shots')}><option value="todo">{t('todo')}</option><option value="wip">{t('wip')}</option><option value="review">{t('reviewStatus')}</option><option value="reuse">{t('reuse')}</option><option value="done">{t('done')}</option></select>
+                                    {canAssign && (<select className={`${inputClass} !p-1 !text-xs !py-1`} value="" onChange={(e) => { if(e.target.value) addAssignee('shots', s.id, step, e.target.value) }}><option value="">+ Assigner</option>{members.filter(m => !assignees.includes(m.userId)).map(m => <option key={m.userId} value={m.userId}>{m.displayName}</option>)}</select>)}
+                                    <select disabled={!canEdit} className={`rounded p-1 text-xs font-semibold outline-none transition-colors border ${getStatusColor(s.status?.[step])}`} value={s.status?.[step] || 'todo'} onChange={(e) => changeStatus(s, step, e.target.value, 'shots')}><option value="todo">{t('todo')}</option><option value="wip">{t('wip')}</option><option value="review">{t('reviewStatus')}</option><option value="reuse">{t('reuse')}</option><option value="done">{t('done')}</option></select>
                                   </div>
                                   <div className={`pt-2 border-t h-[4.5rem] ${theme==='dark'?'border-slate-800/50':'border-slate-200'}`}>
                                     {activePreview ? (
@@ -996,7 +1224,7 @@ export default function App() {
 
           {activeTab === 'assets' && (
             <div className="space-y-8">
-              {userPermissions.canAssign && <button onClick={() => { const n = prompt("Nom de l'asset"); if (n) addDoc(collection(db, 'assets'), { name: n, category: 'Model Design', workspaceId: workspace.id, assignedTo: {} }); }} className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded font-bold text-sm shadow-lg"><Plus size={16} /> <span>Ajouter Asset</span></button>}
+              {canAssign && <button onClick={() => { const n = prompt("Nom de l'asset"); if (n) addDoc(collection(db, 'assets'), { name: n, category: 'Model Design', workspaceId: workspace.id, assignedTo: {} }); }} className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded font-bold text-sm shadow-lg"><Plus size={16} /> <span>Ajouter Asset</span></button>}
               
               {sortedCats.map(cat => (
                 <div key={cat} className="space-y-4">
@@ -1004,14 +1232,14 @@ export default function App() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                     {groupedAssets[cat].map(a => {
                       const assignees = getAssignees(a, 'Global');
-                      const canUpload = userPermissions.canEdit && (assignees.includes(user.uid) || userPermissions.canAssign);
+                      const canUpload = canEdit && (assignees.includes(user.uid) || canAssign);
                       const versions = Array.isArray(a.previews) ? a.previews : [];
                       const activeIdx = selectedVersions[`asset_${a.id}`] ?? (versions.length > 0 ? versions.length - 1 : -1);
                       const activePreview = activeIdx >= 0 ? versions[activeIdx] : null;
 
                       return (
                       <div key={a.id} className={`border rounded-xl overflow-hidden flex flex-col relative shadow-sm hover:border-slate-400 transition group/asset ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
-                        {userPermissions.canAssign && <button onClick={() => openModal("Supprimer", "Détruire cet asset ?", async()=>{await deleteDoc(doc(db, 'assets', a.id)); closeModal()})} className="absolute top-2 right-2 bg-black/60 p-1.5 rounded text-white hover:text-red-500 z-10 opacity-0 group-hover/asset:opacity-100 transition"><Trash2 size={14}/></button>}
+                        {canAssign && <button onClick={() => openModal("Supprimer", "Détruire cet asset ?", async()=>{await deleteDoc(doc(db, 'assets', a.id)); closeModal()})} className="absolute top-2 right-2 bg-black/60 p-1.5 rounded text-white hover:text-red-500 z-10 opacity-0 group-hover/asset:opacity-100 transition"><Trash2 size={14}/></button>}
                         {activePreview && activePreview.files?.length > 0 ? (
                           <div className="relative w-full h-40 bg-black overflow-hidden flex overflow-x-auto snap-x">
                             {activePreview.files.map((file, i) => (
@@ -1033,11 +1261,11 @@ export default function App() {
                             <div className="font-bold text-sm truncate pr-2">{a.name}</div>
                             {versions.length > 0 && (<div className="flex items-center space-x-1">{canUpload && <label className="cursor-pointer text-blue-500 hover:text-blue-400" title="Nouvelle Version (Multi-images)"><Plus size={14}/><input type="file" multiple accept="image/*" className="hidden" onChange={(e)=>uploadAssetPreviews(a.id, e.target.files, versions)}/></label>}<select value={activeIdx} onChange={(e) => setSelectedVersions({...selectedVersions, [`asset_${a.id}`]: parseInt(e.target.value)})} className="bg-transparent text-xs font-bold text-slate-500 outline-none">{versions.map((v, i) => <option key={i} value={i}>V{v.version}</option>)}</select></div>)}
                           </div>
-                          {userPermissions.canAssign ? <select className={`${inputClass} !p-1 !text-xs`} value={a.category || ''} onChange={async (e) => await updateDoc(doc(db, 'assets', a.id), { category: e.target.value })}>{ASSET_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}</select> : <div className="text-xs text-slate-500">{a.category}</div>}
+                          {canAssign ? <select className={`${inputClass} !p-1 !text-xs`} value={a.category || ''} onChange={async (e) => await updateDoc(doc(db, 'assets', a.id), { category: e.target.value })}>{ASSET_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}</select> : <div className="text-xs text-slate-500">{a.category}</div>}
                           <div className="flex flex-wrap gap-1 pt-1">
-                            {assignees.map(uid => (<span key={uid} onClick={() => userPermissions.canAssign && removeAssignee('assets', a.id, 'Global', uid)} className={`text-[10px] px-1.5 py-0.5 rounded flex items-center font-bold ${userPermissions.canAssign ? 'cursor-pointer bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300 hover:bg-red-100 hover:text-red-600' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}`}>{members.find(m => m.userId === uid)?.displayName || uid} {userPermissions.canAssign && <X size={10} className="ml-1"/>}</span>))}
+                            {assignees.map(uid => (<span key={uid} onClick={() => canAssign && removeAssignee('assets', a.id, 'Global', uid)} className={`text-[10px] px-1.5 py-0.5 rounded flex items-center font-bold ${canAssign ? 'cursor-pointer bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300 hover:bg-red-100 hover:text-red-600' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}`}>{members.find(m => m.userId === uid)?.displayName || uid} {canAssign && <X size={10} className="ml-1"/>}</span>))}
                           </div>
-                          {userPermissions.canAssign && (<select className={`${inputClass} !p-1 !text-xs`} value="" onChange={(e) => { if(e.target.value) addAssignee('assets', a.id, 'Global', e.target.value) }}><option value="">+ Assigner</option>{members.filter(m => !assignees.includes(m.userId)).map(m => <option key={m.userId} value={m.userId}>{m.displayName}</option>)}</select>)}
+                          {canAssign && (<select className={`${inputClass} !p-1 !text-xs`} value="" onChange={(e) => { if(e.target.value) addAssignee('assets', a.id, 'Global', e.target.value) }}><option value="">+ Assigner</option>{members.filter(m => !assignees.includes(m.userId)).map(m => <option key={m.userId} value={m.userId}>{m.displayName}</option>)}</select>)}
                         </div>
                       </div>
                     )})}
@@ -1058,8 +1286,8 @@ export default function App() {
                        <thead>
                          <tr className={`uppercase text-xs font-bold ${theme==='dark'?'text-slate-500':'text-slate-500'}`}>
                            <th className="p-3 w-32">Séquence</th>
-                           {userPermissions.canAssign && <th className="p-3 w-40">Début</th>}
-                           {userPermissions.canAssign && <th className="p-3 w-40">Fin</th>}
+                           {canAssign && <th className="p-3 w-40">Début</th>}
+                           {canAssign && <th className="p-3 w-40">Fin</th>}
                            <th className="p-3">Timeline 2026</th>
                          </tr>
                        </thead>
@@ -1081,8 +1309,8 @@ export default function App() {
                            return (
                              <tr key={seq} className={`border-b ${theme==='dark'?'border-slate-800/50':'border-slate-100'}`}>
                                <td className="p-3 font-black text-blue-500">{seq}</td>
-                               {userPermissions.canAssign && <td className="p-3"><input type="date" value={start} onChange={(e) => saveSequenceDates(seq, e.target.value, end)} className={`${inputClass} !p-1.5 !text-xs`}/></td>}
-                               {userPermissions.canAssign && <td className="p-3"><input type="date" value={end} onChange={(e) => saveSequenceDates(seq, start, e.target.value)} className={`${inputClass} !p-1.5 !text-xs`}/></td>}
+                               {canAssign && <td className="p-3"><input type="date" value={start} onChange={(e) => saveSequenceDates(seq, e.target.value, end)} className={`${inputClass} !p-1.5 !text-xs`}/></td>}
+                               {canAssign && <td className="p-3"><input type="date" value={end} onChange={(e) => saveSequenceDates(seq, start, e.target.value)} className={`${inputClass} !p-1.5 !text-xs`}/></td>}
                                <td className="p-3 relative min-w-[400px]">
                                  <div className={`w-full h-6 rounded-full relative overflow-hidden flex items-center ${theme==='dark'?'bg-slate-950':'bg-slate-200'}`}>
                                     {style.opacity === 1 ? (
@@ -1132,15 +1360,42 @@ export default function App() {
 
           {activeTab === 'stats' && (
             <div className="space-y-6 max-w-6xl mx-auto">
-              <div className="flex justify-between items-center">
-                 <h3 className="text-xl font-bold">Vue d'ensemble</h3>
-                 <button onClick={exportToCSV} className="flex items-center space-x-2 bg-green-600 text-white hover:bg-green-500 px-4 py-2 rounded font-bold text-sm"><Download size={16} /> <span>Exporter Tableau</span></button>
-              </div>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className={`border rounded-xl p-4 text-center ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}><div className="text-3xl font-black text-slate-400">{myStats.todo}</div><div className="text-xs font-bold text-slate-500 uppercase">To Do</div></div>
                 <div className="bg-blue-100 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-xl p-4 text-center"><div className="text-3xl font-black text-blue-500">{myStats.wip}</div><div className="text-xs font-bold text-blue-600 dark:text-blue-500 uppercase">WIP</div></div>
                 <div className="bg-purple-100 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-800 rounded-xl p-4 text-center"><div className="text-3xl font-black text-purple-500">{myStats.review}</div><div className="text-xs font-bold text-purple-600 dark:text-purple-500 uppercase">Review</div></div>
                 <div className="bg-green-100 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-xl p-4 text-center"><div className="text-3xl font-black text-green-500">{myStats.done}</div><div className="text-xs font-bold text-green-600 dark:text-green-500 uppercase">Done</div></div>
+              </div>
+
+              <div className={`border rounded-xl p-6 shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
+                <h3 className="font-black text-xl mb-4 text-blue-500">Progression Globale du Projet</h3>
+                {(() => {
+                  let totalTasks = 0; let doneTasks = 0;
+                  shots.forEach(s => workspace?.pipeline?.forEach(step => { totalTasks++; if(s.status?.[step]==='done') doneTasks++; }));
+                  const pct = totalTasks > 0 ? Math.round((doneTasks/totalTasks)*100) : 0;
+                  return (
+                    <div>
+                      <div className="flex justify-between mb-1 text-sm font-bold"><span className="text-slate-500">{doneTasks} Terminées</span> <span className="text-blue-500">{pct}%</span></div>
+                      <div className={`w-full h-4 rounded-full overflow-hidden ${theme==='dark'?'bg-slate-950':'bg-slate-200'}`}>
+                        <div className="h-full bg-blue-600 transition-all duration-1000" style={{ width: `${pct}%` }}></div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              <div className={`border rounded-xl p-6 shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
+                <h3 className="font-black text-xl mb-6 flex items-center text-blue-500"><BarChart className="mr-3"/> Logs Récents</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm whitespace-nowrap">
+                    <thead><tr className={`border-b text-xs uppercase ${theme==='dark'?'border-slate-800 bg-slate-950 text-slate-500':'border-slate-200 bg-slate-50 text-slate-600'}`}>{canAssign && <th className="p-3">Membre</th>}<th className="p-3">Tâche</th><th className="p-3">Étape</th><th className="p-3">Temps</th></tr></thead>
+                    <tbody className={`divide-y ${theme==='dark'?'divide-slate-800/50':'divide-slate-200'}`}>
+                      {timeLogs.filter(log => canAssign || log.userId === user.uid).sort((a,b) => b.date - a.date).slice(0,20).map(log => (
+                        <tr key={log.id} className="hover:bg-slate-100 dark:hover:bg-slate-800/20">{canAssign && <td className="p-3 font-medium">{log.userName}</td>}<td className="p-3">{log.taskName}</td><td className="p-3 text-slate-500">{log.step}</td><td className="p-3 text-blue-500 font-mono font-bold">{formatTime(log.durationSeconds)}</td></tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}
@@ -1177,6 +1432,31 @@ export default function App() {
 
           {activeTab === 'settings' && isAdmin && (
             <div className="space-y-6 max-w-3xl mx-auto pb-10">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <button onClick={exportExcel} className="w-full bg-emerald-600 text-white flex items-center justify-center p-3 rounded-lg font-bold hover:bg-emerald-500 transition shadow-sm"><Download size={18} className="mr-2"/> Export Excel</button>
+                <button onClick={exportTimeCSV} className="w-full bg-blue-600 text-white flex items-center justify-center p-3 rounded-lg font-bold hover:bg-blue-500 transition shadow-sm"><Download size={18} className="mr-2"/> Temps CSV</button>
+              </div>
+
+              <div className={`border rounded-xl p-6 shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
+                <h3 className="font-black mb-3">Code d'invitation</h3>
+                <input type="text" readOnly value={workspace?.id || ''} className="w-full p-3 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-lg font-mono text-blue-500 text-center tracking-widest text-lg outline-none cursor-copy" onClick={e=>{e.target.select(); document.execCommand('copy'); openModal("Code Copié", "");}} />
+              </div>
+
+              <div className={`border rounded-xl p-6 shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
+                <h3 className="font-black mb-4 flex items-center"><ImageIcon size={18} className="mr-2 text-blue-500"/> Bannière du projet</h3>
+                {workspace?.bannerUrl ? (
+                  <div className="relative w-full h-32 rounded-lg bg-cover bg-center mb-4 overflow-hidden border border-slate-700" style={{backgroundImage:`url(${workspace.bannerUrl})`}}>
+                    <button onClick={removeBanner} className="absolute top-2 right-2 bg-red-600 hover:bg-red-500 text-white p-2 rounded transition shadow-lg"><Trash2 size={16}/></button>
+                  </div>
+                ) : (
+                  <label className={`w-full h-32 rounded-lg border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition ${theme==='dark'?'border-slate-700 hover:border-blue-500 text-slate-500':'border-slate-300 hover:border-blue-500 text-slate-400'}`}>
+                    <Upload size={24} className="mb-2"/> <span className="text-sm font-medium">Uploader une bannière</span>
+                    <input type="file" className="hidden" accept="image/*" onChange={uploadBanner} disabled={!workspace.cloudinaryCloudName} />
+                    {!workspace.cloudinaryCloudName && <p className="text-xs text-red-500 mt-2">Clés Cloudinary requises</p>}
+                  </label>
+                )}
+              </div>
+
               <div className={`border rounded-xl p-6 shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="font-black flex items-center"><FolderKanban size={18} className="mr-2 text-blue-500"/> Pipeline & Templates</h3>
@@ -1210,8 +1490,18 @@ export default function App() {
                 <h3 className="font-black flex items-center text-blue-500"><Key className="mr-2" /> Cloudinary Config</h3>
                 <div><label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Cloud Name</label><input type="text" value={cloudNameInput} onChange={(e)=>setCloudNameInput(e.target.value)} className={inputClass} required autoComplete="off" /></div>
                 <div><label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Upload Preset (Unsigned)</label><input type="text" value={uploadPresetInput} onChange={(e)=>setUploadPresetInput(e.target.value)} className={inputClass} required autoComplete="off" /></div>
+                <div className="pt-4 mt-4 border-t border-slate-200 dark:border-slate-800 space-y-4">
+                  <div className="flex items-center space-x-2 text-yellow-600 dark:text-yellow-500"><AlertTriangle size={16}/><span className="text-xs font-bold">API requise pour auto-supprimer les fichiers du cloud.</span></div>
+                  <div><label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">API Key</label><input type="text" value={apiKeyInput} onChange={(e)=>setApiKeyInput(e.target.value)} className={inputClass} autoComplete="new-password" /></div>
+                  <div><label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">API Secret</label><input type="password" value={apiSecretInput} onChange={(e)=>setApiSecretInput(e.target.value)} className={inputClass} autoComplete="new-password" /></div>
+                </div>
                 <button type="submit" className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition">Enregistrer Clés</button>
               </form>
+
+              <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/50 rounded-xl p-6 shadow-sm">
+                <h3 className="font-black text-red-600 dark:text-red-500 mb-4">Zone de danger</h3>
+                <button onClick={deleteProject} className="flex items-center space-x-2 bg-red-600 hover:bg-red-500 text-white px-5 py-2.5 rounded-lg font-bold text-sm transition"><Trash2 size={18} /> <span>Supprimer le projet entier</span></button>
+              </div>
             </div>
           )}
 
@@ -1232,6 +1522,15 @@ export default function App() {
                   <div>
                     <h4 className="font-bold text-lg mb-2">⚡️ Mode Hors Ligne</h4>
                     <p className="text-slate-600 dark:text-slate-400">Le tracker est équipé d'une base de données locale intelligente. Si vous perdez votre connexion internet, continuez de travailler, modifier des statuts et écrire. L'application synchronisera le tout vers le serveur dès votre reconnexion.</p>
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-lg mb-2">🔒 Gestion des Rôles</h4>
+                    <ul className="list-disc pl-5 space-y-1 text-slate-600 dark:text-slate-400">
+                      <li><strong className="text-blue-500">Admin :</strong> Contrôle tout (Paramètres, Pipeline, Rôles, Suppression).</li>
+                      <li><strong className="text-blue-500">Supervisor :</strong> Assigne les équipes et valide les plans.</li>
+                      <li><strong className="text-blue-500">Artist :</strong> Upload ses versions et avance ses étapes assignées.</li>
+                      <li><strong className="text-blue-500">Custom :</strong> Permet de cocher manuellement les permissions d'édition et d'assignation.</li>
+                    </ul>
                   </div>
                 </div>
               </div>
