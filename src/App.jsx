@@ -8,7 +8,7 @@ import {
 import { initializeApp } from 'firebase/app';
 import { 
   Film, Box, Settings, Plus, Play, Pause, Trash2, LogOut, 
-  Users, Upload, Clock, SkipForward, SkipBack, MonitorPlay, FolderKanban, BarChart, ChevronLeft, UserCircle, PenTool, Save, Key, Eraser, Undo, X, Bell, Download, Clapperboard
+  Users, Upload, Clock, SkipForward, SkipBack, MonitorPlay, FolderKanban, BarChart, ChevronLeft, UserCircle, PenTool, Save, Key, Eraser, Undo, X, Bell, Download, Clapperboard, AlertTriangle
 } from 'lucide-react';
 
 const keyPart1 = "AIzaSyDgTadoI2_";
@@ -30,10 +30,9 @@ const PIPELINE_2D = ['Animatic', 'Color Script', 'Layout', '2D Background', '2D 
 const PIPELINE_3D = ['Animatic', 'Color Script', 'Layout', 'Modeling', '3D Background', '3D FX', '3D Anim', '3D Lighting', '3D Render', 'Compositing'];
 const ASSET_CATEGORIES = ['Model Design', 'Props Design', 'Storyboard', 'Background Concept'];
 
-// DICTIONNAIRE
 const dict = {
   en: {
-    app: "Fabrica Tracker", login: "Login", register: "Register", pseudo: "Username (Required)", email: "Email", pwd: "Password", connect: "Sign In", createAcc: "Create Account", 
+    app: "Fabrica Tracker", login: "Login", register: "Register", pseudo: "Username", email: "Email", pwd: "Password", connect: "Sign In", createAcc: "Create Account", 
     dash: "Dashboard", myProj: "My Projects", noProj: "No projects.", role: "Role", createProj: "Create Project", joinProj: "Join Project", projName: "Project Name", 
     prod2d: "2D Production", prod3d: "3D Production", create: "Create", joinCode: "Invite Code", join: "Join", profile: "My Profile", saveModifs: "Save Changes", 
     shots: "Shots", assets: "Assets", review: "Review & Retake", time: "Time Tracker", stats: "Statistics", team: "Team", settings: "Settings", back: "Projects", logout: "Logout", 
@@ -41,12 +40,12 @@ const dict = {
     todo: "To Do", wip: "WIP", rev: "Review", reuse: "Reuse", done: "Done", upload: "Upload V1", wait: "Waiting", delShot: "Delete Shot?", delAsset: "Delete Asset?", 
     drawMode: "Drawing", draw: "Draw (Retake)", saveClose: "Save & Close", clearRetake: "Delete Retake", undo: "Undo", clearAll: "Clear", brush: "Brush:", 
     start: "Start", stopSave: "Stop & Save", task: "-- Select Task --", step: "-- Step --", export: "Export Excel",
-    danger: "Danger Zone", delProj: "Delete Project", keysInfo: "To allow file uploads, configure Cloudinary keys:", 
+    danger: "Danger Zone", delProj: "Delete Project", keysInfo: "Keys to upload files to your server:", apiSecretInfo: "(Optional) Required to auto-delete files when project is deleted.",
     saveKeys: "Save Keys", reqSeq: "Sequence: SQ + 2 digits (SQ01).", reqScene: "Scene: SC + 3 digits (SC001).", cancel: "Cancel", delVersion: "Delete version?",
-    forgotPwd: "Forgot password?", resetSent: "Password reset email sent!"
+    forgotPwd: "Forgot password?", resetSent: "Password reset email sent!", delAcc: "Delete Account", confirmDel: "Confirm Deletion", typeEmail: "Type email to confirm"
   },
   fr: {
-    app: "Fabrica Tracker", login: "Connexion", register: "Inscription", pseudo: "Pseudo (Obligatoire)", email: "Email", pwd: "Mot de passe", connect: "Se connecter", createAcc: "Créer un compte", 
+    app: "Fabrica Tracker", login: "Connexion", register: "Inscription", pseudo: "Pseudo", email: "Email", pwd: "Mot de passe", connect: "Se connecter", createAcc: "Créer un compte", 
     dash: "Tableau de bord", myProj: "Mes Projets", noProj: "Aucun projet.", role: "Rôle", createProj: "Créer un projet", joinProj: "Rejoindre un projet", projName: "Nom du projet", 
     prod2d: "Production 2D", prod3d: "Production 3D", create: "Créer", joinCode: "Code d'invitation", join: "Rejoindre", profile: "Mon Profil", saveModifs: "Enregistrer", 
     shots: "Plans (Shots)", assets: "Assets", review: "Review & Retake", time: "Chronomètre", stats: "Statistiques", team: "Équipe", settings: "Paramètres", back: "Projets", logout: "Quitter", 
@@ -54,10 +53,19 @@ const dict = {
     todo: "À faire", wip: "En cours", rev: "Review", reuse: "Réutiliser", done: "Terminé", upload: "Upload V1", wait: "En attente", delShot: "Supprimer ce Shot ?", delAsset: "Supprimer cet Asset ?", 
     drawMode: "Dessin Actif", draw: "Dessiner (Retake)", saveClose: "Sauver & Fermer", clearRetake: "Effacer Retake", undo: "Annuler", clearAll: "Tout effacer", brush: "Pinceau :", 
     start: "Démarrer", stopSave: "Stop & Save", task: "-- Sélectionner Tâche --", step: "-- Étape --", export: "Export Excel",
-    danger: "Zone de danger", delProj: "Supprimer le projet", keysInfo: "Pour autoriser l'upload de fichiers, configure les clés Cloudinary.", 
+    danger: "Zone de danger", delProj: "Supprimer le projet", keysInfo: "Clés nécessaires pour héberger les fichiers :", apiSecretInfo: "(Optionnel) Requis pour purger les fichiers du cloud si le projet est supprimé.",
     saveKeys: "Sauvegarder", reqSeq: "Séquence : SQ + 2 chiffres (SQ01).", reqScene: "Scène : SC + 3 chiffres (SC001).", cancel: "Annuler", delVersion: "Supprimer cette version ?",
-    forgotPwd: "Mot de passe oublié ?", resetSent: "E-mail de réinitialisation envoyé !"
+    forgotPwd: "Mot de passe oublié ?", resetSent: "E-mail de réinitialisation envoyé !", delAcc: "Supprimer mon compte", confirmDel: "Confirmer la suppression", typeEmail: "Tape ton email pour confirmer"
   }
+};
+
+// Cryptographie pour signer les requêtes de suppression Cloudinary côté front
+const generateCloudinarySignature = async (publicId, timestamp, apiSecret) => {
+  const msg = `public_id=${publicId}&timestamp=${timestamp}${apiSecret}`;
+  const msgBuffer = new TextEncoder().encode(msg);
+  const hashBuffer = await crypto.subtle.digest('SHA-1', msgBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 };
 
 export default function App() {
@@ -75,7 +83,10 @@ export default function App() {
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectType, setNewProjectType] = useState('2D');
   const [joinCode, setJoinCode] = useState('');
+  
   const [profileName, setProfileName] = useState('');
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const [workspace, setWorkspace] = useState(null);
   const [userRole, setUserRole] = useState('Artist');
@@ -86,8 +97,10 @@ export default function App() {
   
   const [cloudNameInput, setCloudNameInput] = useState('');
   const [uploadPresetInput, setUploadPresetInput] = useState('');
+  const [apiKeyInput, setApiKeyInput] = useState('');
+  const [apiSecretInput, setApiSecretInput] = useState('');
+  
   const [selectedVersions, setSelectedVersions] = useState({});
-
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authName, setAuthName] = useState('');
@@ -121,7 +134,6 @@ export default function App() {
   const [strokes, setStrokes] = useState([]);
   const [currentStroke, setCurrentStroke] = useState(null);
   const [uploadingMedia, setUploadingMedia] = useState(false);
-
   const [showNotifications, setShowNotifications] = useState(false);
 
   useEffect(() => {
@@ -150,7 +162,10 @@ export default function App() {
     const unsubMembers = onSnapshot(query(collection(db, 'projectMembers'), where('workspaceId', '==', workspace.id)), (snap) => setMembers(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
     const unsubLogs = onSnapshot(query(collection(db, 'timeLogs'), where('workspaceId', '==', workspace.id)), (snap) => setTimeLogs(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
     
-    setCloudNameInput(workspace.cloudinaryCloudName || ''); setUploadPresetInput(workspace.cloudinaryUploadPreset || '');
+    setCloudNameInput(workspace.cloudinaryCloudName || ''); 
+    setUploadPresetInput(workspace.cloudinaryUploadPreset || '');
+    setApiKeyInput(workspace.cloudinaryApiKey || '');
+    setApiSecretInput(workspace.cloudinaryApiSecret || '');
     return () => { unsubShots(); unsubAssets(); unsubMembers(); unsubLogs(); };
   }, [workspace]);
 
@@ -185,10 +200,8 @@ export default function App() {
 
   const handleForgotPassword = async () => {
     if(!authEmail) return alert(t('email'));
-    try {
-      await sendPasswordResetEmail(auth, authEmail);
-      alert(t('resetSent'));
-    } catch(err) { alert(err.message); }
+    try { await sendPasswordResetEmail(auth, authEmail); alert(t('resetSent')); } 
+    catch(err) { alert(err.message); }
   };
 
   const updateProfile = async (e) => {
@@ -198,6 +211,17 @@ export default function App() {
     setUserData({...userData, displayName: profileName});
     const snap = await getDocs(query(collection(db, 'projectMembers'), where('userId', '==', user.uid)));
     snap.forEach(d => updateDoc(d.ref, { displayName: profileName }));
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText !== user.email) return;
+    try {
+      await deleteDoc(doc(db, 'users', user.uid));
+      await user.delete();
+    } catch (err) {
+      if (err.code === 'auth/requires-recent-login') { alert("Sécurité : Veuillez vous déconnecter et vous reconnecter avant de supprimer le compte."); } 
+      else { alert(err.message); }
+    }
   };
 
   const createProject = async (e) => {
@@ -217,12 +241,61 @@ export default function App() {
     setJoinCode('');
   };
 
+  // Suppression des médias depuis Cloudinary API
+  const deleteMediaFromCloudinary = async (url) => {
+    if (!workspace?.cloudinaryApiKey || !workspace?.cloudinaryApiSecret || !workspace?.cloudinaryCloudName) return;
+    try {
+      const parts = url.split('/upload/');
+      if (parts.length !== 2) return;
+      const path = parts[1].split('/');
+      if (path[0].match(/^v\d+$/)) path.shift();
+      const publicIdWithExt = path.join('/');
+      const publicId = publicIdWithExt.substring(0, publicIdWithExt.lastIndexOf('.'));
+      const timestamp = Math.floor(Date.now() / 1000);
+      const signature = await generateCloudinarySignature(publicId, timestamp, workspace.cloudinaryApiSecret);
+      
+      const formData = new FormData();
+      formData.append('public_id', publicId);
+      formData.append('api_key', workspace.cloudinaryApiKey);
+      formData.append('timestamp', timestamp);
+      formData.append('signature', signature);
+      
+      const resourceType = url.includes('/video/') ? 'video' : 'image';
+      await fetch(`https://api.cloudinary.com/v1_1/${workspace.cloudinaryCloudName}/${resourceType}/destroy`, { method: 'POST', body: formData });
+    } catch(err) { console.error("Cloudinary Delete Error:", err); }
+  };
+
   const deleteProject = async () => {
     const conf = window.prompt(`Type "${workspace?.name}" to delete:`);
     if (conf === workspace?.name) {
-      const snap = await getDocs(query(collection(db, 'projectMembers'), where('workspaceId', '==', workspace.id)));
-      snap.forEach(d => deleteDoc(d.ref));
+      setUploadingMedia(true);
+      // Scan and delete all files in Cloudinary if Keys exist
+      for (const s of shots) {
+        if(s.previews) {
+          for (const step in s.previews) {
+            for (const v of s.previews[step]) { if(v.url) await deleteMediaFromCloudinary(v.url); }
+          }
+        }
+      }
+      for (const a of assets) {
+        if(a.previews) {
+          for (const v of a.previews) {
+            if(v.files) { for (const f of v.files) { if(f.url) await deleteMediaFromCloudinary(f.url); } }
+          }
+        }
+      }
+      // Delete from Firestore
+      const snapMembers = await getDocs(query(collection(db, 'projectMembers'), where('workspaceId', '==', workspace.id)));
+      snapMembers.forEach(d => deleteDoc(d.ref));
+      const snapShots = await getDocs(query(collection(db, 'shots'), where('workspaceId', '==', workspace.id)));
+      snapShots.forEach(d => deleteDoc(d.ref));
+      const snapAssets = await getDocs(query(collection(db, 'assets'), where('workspaceId', '==', workspace.id)));
+      snapAssets.forEach(d => deleteDoc(d.ref));
+      const snapLogs = await getDocs(query(collection(db, 'timeLogs'), where('workspaceId', '==', workspace.id)));
+      snapLogs.forEach(d => deleteDoc(d.ref));
+      
       await deleteDoc(doc(db, 'workspaces', workspace.id));
+      setUploadingMedia(false);
       setCurrentView('dashboard');
     }
   };
@@ -237,6 +310,13 @@ export default function App() {
 
   const deletePreview = async (id, step, versionIndex, currentVersions, collectionType = 'shots') => {
     if(!window.confirm(t('delVersion'))) return;
+    const versionToDelete = currentVersions[versionIndex];
+    if (versionToDelete) {
+      if (collectionType === 'shots' && versionToDelete.url) await deleteMediaFromCloudinary(versionToDelete.url);
+      if (collectionType === 'assets' && versionToDelete.files) {
+        for (const f of versionToDelete.files) { await deleteMediaFromCloudinary(f.url); }
+      }
+    }
     const newVersions = currentVersions.filter((_, i) => i !== versionIndex);
     const updateObj = collectionType === 'shots' ? { [`previews.${step}`]: newVersions } : { previews: newVersions };
     await updateDoc(doc(db, collectionType, id), updateObj);
@@ -274,9 +354,11 @@ export default function App() {
     if (!workspace) return;
     await updateDoc(doc(db, 'workspaces', workspace.id), {
       cloudinaryCloudName: cloudNameInput,
-      cloudinaryUploadPreset: uploadPresetInput
+      cloudinaryUploadPreset: uploadPresetInput,
+      cloudinaryApiKey: apiKeyInput,
+      cloudinaryApiSecret: apiSecretInput
     });
-    setWorkspace({ ...workspace, cloudinaryCloudName: cloudNameInput, cloudinaryUploadPreset: uploadPresetInput });
+    setWorkspace({ ...workspace, cloudinaryCloudName: cloudNameInput, cloudinaryUploadPreset: uploadPresetInput, cloudinaryApiKey: apiKeyInput, cloudinaryApiSecret: apiSecretInput });
     alert("Clés de stockage sauvegardées !");
   };
 
@@ -379,11 +461,8 @@ export default function App() {
 
   const deleteRetakeFromDB = async () => {
     const key = getAnnotationKey(); if(!key || !reviewItem) return;
-    
-    // Supprime proprement de Firestore avec deleteField()
     await updateDoc(doc(db, reviewType, reviewItem.id), { [`annotations.${reviewStep}.v${reviewVersion}.${key}`]: deleteField() });
     
-    // Nettoyage local immédiat de l'objet state pour enlever le point rouge sans délai
     if (reviewItem.annotations?.[reviewStep]?.[`v${reviewVersion}`]) {
       delete reviewItem.annotations[reviewStep][`v${reviewVersion}`][key];
       if (Object.keys(reviewItem.annotations[reviewStep][`v${reviewVersion}`]).length === 0) {
@@ -394,56 +473,97 @@ export default function App() {
     setReviewItem({ ...reviewItem });
   };
 
-  // EXPORT EXCEL OFFICIEL (Vraies couleurs d'arrière-plan par cellule)
-  const getExcelColorHex = (st) => {
+  // EXPORT XML EXCEL (Vraies couleurs natives pour garantir l'affichage sur Excel)
+  const getXMLStyleID = (st) => {
     switch(st) {
-      case 'wip': return '#bfdbfe';
-      case 'review': return '#e9d5ff';
-      case 'reuse': return '#fed7aa';
-      case 'done': return '#bbf7d0';
-      default: return '#f1f5f9';
+      case 'wip': return 'sWip';
+      case 'review': return 'sReview';
+      case 'reuse': return 'sReuse';
+      case 'done': return 'sDone';
+      default: return 'sTodo';
     }
   };
 
   const exportExcel = () => {
     if(!workspace) return;
-    let html = `\uFEFF<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-      <head><meta http-equiv="content-type" content="text/html; charset=UTF-8"></head>
-      <body>
-        <table border="1" style="border-collapse: collapse; font-family: Arial, sans-serif; text-align: center;">
-          <thead>
-            <tr style="background-color: #1e293b; color: white;">
-              <th style="background-color: #1e293b; color: white; padding: 10px;">${t('seq')}</th>
-              <th style="background-color: #1e293b; color: white; padding: 10px;">${t('scene')}</th>
-              <th style="background-color: #1e293b; color: white; padding: 10px;">${t('shotName')}</th>
-              ${workspace.pipeline.map(step => `<th style="background-color: #1e293b; color: white; padding: 10px;">${step}</th>`).join('')}
-            </tr>
-          </thead>
-          <tbody>
+    let xml = `<?xml version="1.0"?>
+      <?mso-application progid="Excel.Sheet"?>
+      <Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+        xmlns:o="urn:schemas-microsoft-com:office:office"
+        xmlns:x="urn:schemas-microsoft-com:office:excel"
+        xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+        <Styles>
+          <Style ss:ID="Default" ss:Name="Normal">
+            <Alignment ss:Vertical="Bottom"/>
+            <Borders/>
+            <Font ss:FontName="Arial" ss:Size="10" ss:Color="#000000"/>
+            <Interior/>
+          </Style>
+          <Style ss:ID="sHeader">
+            <Font ss:FontName="Arial" ss:Size="10" ss:Color="#FFFFFF" ss:Bold="1"/>
+            <Interior ss:Color="#1e293b" ss:Pattern="Solid"/>
+            <Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#000000"/><Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#000000"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#000000"/><Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#000000"/></Borders>
+          </Style>
+          <Style ss:ID="sTodo">
+            <Interior ss:Color="#f1f5f9" ss:Pattern="Solid"/>
+            <Font ss:Color="#475569" ss:Bold="1"/>
+            <Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#cbd5e1"/><Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#cbd5e1"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#cbd5e1"/><Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#cbd5e1"/></Borders>
+          </Style>
+          <Style ss:ID="sWip">
+            <Interior ss:Color="#bfdbfe" ss:Pattern="Solid"/>
+            <Font ss:Color="#1e40af" ss:Bold="1"/>
+            <Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#cbd5e1"/><Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#cbd5e1"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#cbd5e1"/><Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#cbd5e1"/></Borders>
+          </Style>
+          <Style ss:ID="sReview">
+            <Interior ss:Color="#e9d5ff" ss:Pattern="Solid"/>
+            <Font ss:Color="#6b21a8" ss:Bold="1"/>
+            <Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#cbd5e1"/><Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#cbd5e1"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#cbd5e1"/><Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#cbd5e1"/></Borders>
+          </Style>
+          <Style ss:ID="sReuse">
+            <Interior ss:Color="#fed7aa" ss:Pattern="Solid"/>
+            <Font ss:Color="#c2410c" ss:Bold="1"/>
+            <Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#cbd5e1"/><Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#cbd5e1"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#cbd5e1"/><Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#cbd5e1"/></Borders>
+          </Style>
+          <Style ss:ID="sDone">
+            <Interior ss:Color="#bbf7d0" ss:Pattern="Solid"/>
+            <Font ss:Color="#166534" ss:Bold="1"/>
+            <Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#cbd5e1"/><Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#cbd5e1"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#cbd5e1"/><Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#cbd5e1"/></Borders>
+          </Style>
+        </Styles>
+        <Worksheet ss:Name="Tracker">
+          <Table>
     `;
+
+    xml += `<Row>`;
+    xml += `<Cell ss:StyleID="sHeader"><Data ss:Type="String">${t('seq')}</Data></Cell>`;
+    xml += `<Cell ss:StyleID="sHeader"><Data ss:Type="String">${t('scene')}</Data></Cell>`;
+    xml += `<Cell ss:StyleID="sHeader"><Data ss:Type="String">${t('shotName')}</Data></Cell>`;
+    workspace.pipeline.forEach(step => {
+       xml += `<Cell ss:StyleID="sHeader"><Data ss:Type="String">${step}</Data></Cell>`;
+    });
+    xml += `</Row>`;
     
     const sortedShots = [...shots].sort((a,b)=> a.sequence.localeCompare(b.sequence) || a.scene.localeCompare(b.scene));
     sortedShots.forEach(s => {
-       html += `<tr>
-          <td style="padding: 8px; font-weight: bold; background-color: #f8fafc;">${s.sequence}</td>
-          <td style="padding: 8px; background-color: #f8fafc;">${s.scene}</td>
-          <td style="padding: 8px; font-weight: bold; background-color: #f8fafc;">${s.name}</td>
-       `;
+       xml += `<Row>`;
+       xml += `<Cell><Data ss:Type="String">${s.sequence}</Data></Cell>`;
+       xml += `<Cell><Data ss:Type="String">${s.scene}</Data></Cell>`;
+       xml += `<Cell><Data ss:Type="String">${s.name}</Data></Cell>`;
        workspace.pipeline.forEach(step => {
           const st = s.status?.[step] || 'todo';
-          const bgHex = getExcelColorHex(st);
+          const styleId = getXMLStyleID(st);
           const text = dict[lang][st] || st;
-          html += `<td bgcolor="${bgHex}" style="padding: 8px; border: 1px solid #cbd5e1; background-color: ${bgHex}; font-weight: bold;">${text}</td>`;
+          xml += `<Cell ss:StyleID="${styleId}"><Data ss:Type="String">${text}</Data></Cell>`;
        });
-       html += `</tr>`;
+       xml += `</Row>`;
     });
     
-    html += `</tbody></table></body></html>`;
+    xml += `</Table></Worksheet></Workbook>`;
 
-    const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const blob = new Blob([xml], { type: 'application/xml;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.href = url; link.download = `${workspace.name.replace(/\s+/g, '_')}_Tracker.xls`;
+    link.href = url; link.download = `${workspace.name.replace(/\s+/g, '_')}_Tracker.xml`;
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
   };
 
@@ -487,7 +607,6 @@ export default function App() {
           <span className="text-xl">{lang === 'en' ? '🇬🇧' : '🇫🇷'}</span> <span className="font-bold">{lang === 'en' ? 'EN' : 'FR'}</span>
         </button>
         <form onSubmit={handleAuth} className="bg-slate-900 border border-slate-800 p-8 rounded-xl w-full max-w-md space-y-5 shadow-2xl">
-          {/* LOGO MODERNE ET ÉPURÉ */}
           <div className="flex flex-col items-center justify-center space-y-2 mb-2">
             <div className="w-12 h-12 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20">
               <Clapperboard size={26} className="text-white" />
@@ -574,15 +693,31 @@ export default function App() {
     return (
       <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-6 relative">
         <button onClick={() => setCurrentView('dashboard')} className="flex items-center space-x-2 text-slate-400 hover:text-white mb-6 absolute top-6 left-6"><ChevronLeft size={20} /> <span>{t('back')}</span></button>
-        <form onSubmit={updateProfile} className="bg-slate-900 border border-slate-800 p-8 rounded-xl w-full max-w-md space-y-6">
+        <div className="bg-slate-900 border border-slate-800 p-8 rounded-xl w-full max-w-md space-y-6">
           <h2 className="text-2xl font-bold text-center">{t('profile')}</h2>
-          <div className="space-y-2"><label className="text-sm text-slate-400">{t('email')}</label><input type="email" value={userData?.email} disabled className="w-full p-2 bg-slate-950 border border-slate-800 rounded text-slate-500 cursor-not-allowed" /></div>
-          <div className="space-y-2"><label className="text-sm text-slate-400">{t('pseudo')}</label><input type="text" value={profileName} onChange={(e)=>setProfileName(e.target.value)} className="w-full p-2 bg-slate-950 border border-slate-800 rounded outline-none focus:border-blue-500" required /></div>
-          
-          <button type="button" onClick={handleForgotPassword} className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-sm font-bold rounded transition">{t('forgotPwd')}</button>
-          
-          <button type="submit" className="w-full py-2 bg-blue-600 hover:bg-blue-500 font-bold rounded transition">{t('saveModifs')}</button>
-        </form>
+          <form onSubmit={updateProfile} className="space-y-6">
+            <div className="space-y-2"><label className="text-sm text-slate-400">{t('email')}</label><input type="email" value={userData?.email} disabled className="w-full p-2 bg-slate-950 border border-slate-800 rounded text-slate-500 cursor-not-allowed" /></div>
+            <div className="space-y-2"><label className="text-sm text-slate-400">{t('pseudo')}</label><input type="text" value={profileName} onChange={(e)=>setProfileName(e.target.value)} className="w-full p-2 bg-slate-950 border border-slate-800 rounded outline-none focus:border-blue-500" required /></div>
+            
+            <button type="button" onClick={handleForgotPassword} className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-sm font-bold rounded transition">{t('forgotPwd')}</button>
+            <button type="submit" className="w-full py-2 bg-blue-600 hover:bg-blue-500 font-bold rounded transition">{t('saveModifs')}</button>
+          </form>
+
+          <div className="pt-6 mt-6 border-t border-slate-800">
+            {!showDeleteConfirm ? (
+              <button type="button" onClick={() => setShowDeleteConfirm(true)} className="w-full py-2 bg-red-950 hover:bg-red-900 text-red-500 font-bold rounded transition">{t('delAcc')}</button>
+            ) : (
+              <div className="space-y-3 bg-red-950/30 p-4 border border-red-900 rounded-lg">
+                <p className="text-xs text-red-400 text-center font-bold uppercase">{t('confirmDel')}</p>
+                <input type="text" placeholder={t('typeEmail')} value={deleteConfirmText} onChange={(e)=>setDeleteConfirmText(e.target.value)} className="w-full p-2 bg-slate-950 border border-red-900 rounded outline-none focus:border-red-500 text-sm text-center" />
+                <div className="flex space-x-2">
+                  <button onClick={() => {setShowDeleteConfirm(false); setDeleteConfirmText('');}} className="flex-1 py-2 bg-slate-800 rounded text-sm font-bold">{t('cancel')}</button>
+                  <button onClick={handleDeleteAccount} className={`flex-1 py-2 rounded text-sm font-bold transition ${deleteConfirmText === user.email ? 'bg-red-600 hover:bg-red-500 text-white' : 'bg-red-950 text-red-800 cursor-not-allowed'}`}>{t('delAcc')}</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     );
   }
@@ -637,12 +772,11 @@ export default function App() {
       </aside>
 
       <main className="flex-1 p-6 overflow-x-auto relative">
-        {uploadingMedia && <div className="fixed top-4 right-4 bg-blue-600 px-4 py-2 rounded text-sm animate-pulse shadow-lg z-50">Upload...</div>}
+        {uploadingMedia && <div className="fixed top-4 right-4 bg-blue-600 px-4 py-2 rounded text-sm animate-pulse shadow-lg z-50">Upload / Delete...</div>}
         
         <header className="mb-6 flex justify-between items-center border-b border-slate-800 pb-4">
           <h2 className="text-2xl font-bold tracking-tight">{t(activeTab)}</h2>
           <div className="flex items-center space-x-6">
-            
             {['Admin', 'Supervisor'].includes(userRole) && (
               <div className="relative">
                 <button onClick={() => setShowNotifications(!showNotifications)} className="relative p-2 text-slate-400 hover:text-white transition">
@@ -661,7 +795,6 @@ export default function App() {
                 )}
               </div>
             )}
-
             <p className="text-xs text-slate-400 uppercase tracking-wider">{t('role')} : <span className="text-blue-400 font-bold ml-1">{userRole}</span></p>
           </div>
         </header>
@@ -879,6 +1012,11 @@ export default function App() {
                         </div>
                         <button onClick={() => setStrokes(strokes.slice(0, -1))} className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded transition" title={t('undo')}><Undo size={18} /></button>
                         <button onClick={() => setStrokes([])} className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded transition" title={t('clearAll')}><Eraser size={18} /></button>
+                        {strokes.length > 0 && (
+                          <button onClick={deleteRetakeFromDB} className="p-2 text-red-500 hover:text-white hover:bg-red-600 rounded transition border-l border-slate-800 ml-1 pl-3" title={t('clearRetake')}>
+                            <Trash2 size={18} />
+                          </button>
+                        )}
                       </div>
                     )}
                     
@@ -886,8 +1024,6 @@ export default function App() {
                       <PenTool size={16} /> <span>{isDrawing ? t('drawMode') : t('draw')}</span>
                     </button>
                     {isDrawing && <button onClick={saveAnnotations} className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-500 px-4 py-2.5 rounded font-bold text-sm transition shadow"><Save size={16} /> <span>{t('saveClose')}</span></button>}
-                    
-                    {strokes.length > 0 && <button onClick={deleteRetakeFromDB} className="flex items-center space-x-1 px-3 py-2.5 rounded font-bold text-sm text-red-400 hover:bg-red-950 transition border border-red-900/50" title={t('clearRetake')}><X size={16} /> <span className="hidden md:inline">{t('clearRetake')}</span></button>}
                   </div>
                 </div>
 
@@ -1014,6 +1150,13 @@ export default function App() {
               <p className="text-sm text-slate-400 leading-relaxed">{t('keysInfo')}</p>
               <div><label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Cloud Name</label><input type="text" value={cloudNameInput} onChange={(e)=>setCloudNameInput(e.target.value)} placeholder="ex: mon-studio-cloud" className="w-full p-3 bg-slate-950 border border-slate-800 rounded-lg text-sm font-mono outline-none focus:border-blue-500" required /></div>
               <div><label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">Upload Preset (Unsigned)</label><input type="text" value={uploadPresetInput} onChange={(e)=>setUploadPresetInput(e.target.value)} placeholder="ex: ml_default" className="w-full p-3 bg-slate-950 border border-slate-800 rounded-lg text-sm font-mono outline-none focus:border-blue-500" required /></div>
+              
+              <div className="pt-4 mt-4 border-t border-slate-800 space-y-4">
+                <div className="flex items-center space-x-2 text-yellow-500"><AlertTriangle size={16}/><span className="text-xs font-bold">{t('apiSecretInfo')}</span></div>
+                <div><label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">API Key</label><input type="text" value={apiKeyInput} onChange={(e)=>setApiKeyInput(e.target.value)} className="w-full p-3 bg-slate-950 border border-slate-800 rounded-lg text-sm font-mono outline-none focus:border-blue-500" /></div>
+                <div><label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">API Secret</label><input type="password" value={apiSecretInput} onChange={(e)=>setApiSecretInput(e.target.value)} className="w-full p-3 bg-slate-950 border border-slate-800 rounded-lg text-sm font-mono outline-none focus:border-blue-500" /></div>
+              </div>
+
               <button type="submit" className="w-full py-3 bg-blue-600 hover:bg-blue-500 font-bold rounded-lg transition">{t('saveKeys')}</button>
             </form>
 
