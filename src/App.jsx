@@ -8,7 +8,7 @@ import {
 import { initializeApp } from 'firebase/app';
 import { 
   Film, Box, Settings, Plus, Play, Pause, Trash2, LogOut, 
-  Users, Upload, Clock, SkipForward, SkipBack, MonitorPlay, FolderKanban, BarChart, ChevronLeft, UserCircle, PenTool, Save, Key, Eraser, Undo, X, Bell, Download, Clapperboard, AlertTriangle, MessageSquare, Type, CheckSquare, Search, HelpCircle, Moon, Sun, Edit3, UserPlus, HeartHandshake
+  Users, Upload, Clock, SkipForward, SkipBack, MonitorPlay, FolderKanban, BarChart, ChevronLeft, UserCircle, PenTool, Save, Key, Eraser, Undo, X, Bell, Download, Clapperboard, AlertTriangle, MessageSquare, Type, CheckSquare, Search, HelpCircle, Moon, Sun, Edit3, UserPlus, HeartHandshake, Image as ImageIcon
 } from 'lucide-react';
 
 const keyPart1 = "AIzaSyDgTadoI2_";
@@ -40,14 +40,16 @@ const generateCloudinarySignature = async (publicId, timestamp, apiSecret) => {
 
 const dict = {
   fr: {
-    projects: "Mes Projets", friends: "Mes Amis", assets: "Assets", shots: "Plans (Shots)", review: "Review & Retake", time: "Chronomètre", stats: "Statistiques", team: "Équipe", settings: "Paramètres", help: "Aide & Guide",
-    ok: "Ok", cancel: "Annuler", batchAction: "Action en lot", manualTime: "Saisie manuelle", join: "Rejoindre", addFriend: "Ajouter Ami", friendId: "ID Utilisateur de l'ami", myId: "Mon ID", sharedProj: "projet(s) en commun",
-    createProj: "Créer un projet", joinProj: "Rejoindre un projet", projName: "Nom du projet", joinCode: "Code d'invitation", searchShot: "Chercher un plan...", allStatus: "Tous les statuts", allMembers: "Tous les membres", addShot: "Ajouter Plan"
+    projects: "Mes Projets", friends: "Mes Amis", assets: "Assets", shots: "Plans", review: "Validation & Retakes", time: "Chronomètre", stats: "Statistiques", team: "Équipe", settings: "Paramètres", help: "Aide & Guide",
+    ok: "Ok", cancel: "Annuler", batchAction: "Multi-action", manualTime: "Saisie manuelle", join: "Rejoindre", addFriend: "Ajouter Ami", friendId: "ID Utilisateur de l'ami", myId: "Mon ID", sharedProj: "projet(s) en commun",
+    createProj: "Créer un projet", joinProj: "Rejoindre un projet", projName: "Nom du projet", joinCode: "Code d'invitation", searchShot: "Rechercher...", allStatus: "Tous les statuts", allMembers: "Toute l'équipe", addShot: "Ajouter un plan",
+    todo: "À faire", wip: "En cours", reviewStatus: "En validation", reuse: "Réutiliser", done: "Terminé", upload: "Envoyer un fichier", wait: "En attente"
   },
   en: {
     projects: "My Projects", friends: "My Friends", assets: "Assets", shots: "Shots", review: "Review & Retake", time: "Time Tracker", stats: "Statistics", team: "Team", settings: "Settings", help: "Help & Guide",
     ok: "Ok", cancel: "Cancel", batchAction: "Batch Action", manualTime: "Manual Entry", join: "Join", addFriend: "Add Friend", friendId: "Friend's User ID", myId: "My ID", sharedProj: "shared project(s)",
-    createProj: "Create Project", joinProj: "Join Project", projName: "Project Name", joinCode: "Invite Code", searchShot: "Search a shot...", allStatus: "All Statuses", allMembers: "All Members", addShot: "Add Shot"
+    createProj: "Create Project", joinProj: "Join Project", projName: "Project Name", joinCode: "Invite Code", searchShot: "Search...", allStatus: "All Statuses", allMembers: "All Members", addShot: "Add Shot",
+    todo: "To Do", wip: "WIP", reviewStatus: "Review", reuse: "Reuse", done: "Done", upload: "Upload File", wait: "Waiting"
   }
 };
 
@@ -61,7 +63,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   
   const [currentView, setCurrentView] = useState('dashboard');
-  const [dashTab, setDashTab] = useState('projects'); // 'projects' ou 'friends'
+  const [dashTab, setDashTab] = useState('projects'); 
   const [activeTab, setActiveTab] = useState('assets');
   
   const [myProjects, setMyProjects] = useState([]);
@@ -103,7 +105,6 @@ export default function App() {
   const [addScene, setAddScene] = useState('SC001');
   const [addName, setAddName] = useState('SH010');
 
-  // FILTRES ET BATCH EDIT
   const [searchQuery, setSearchQuery] = useState('');
   const [filterAssignee, setFilterAssignee] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
@@ -111,7 +112,6 @@ export default function App() {
   const [batchActionStep, setBatchActionStep] = useState('');
   const [batchActionStatus, setBatchActionStatus] = useState('');
 
-  // REVIEW STATES
   const [reviewItem, setReviewItem] = useState(null);
   const [reviewType, setReviewType] = useState('shots');
   const [reviewStep, setReviewStep] = useState(null);
@@ -140,7 +140,6 @@ export default function App() {
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   
-  // EASTER EGG & FRIENDS
   const [logoPixelated, setLogoPixelated] = useState(false);
   const [friendsList, setFriendsList] = useState([]);
   const [friendInput, setFriendInput] = useState('');
@@ -150,7 +149,6 @@ export default function App() {
   const [pmMessages, setPmMessages] = useState([]);
   const [newPmMsg, setNewPmMsg] = useState('');
 
-  // MODAL GENERIQUE (Intra-site)
   const [modal, setModal] = useState({ isOpen: false, title: '', msg: '', onConfirm: null });
   const openModal = (title, msg, onConfirm = null) => setModal({ isOpen: true, title, msg, onConfirm });
   const closeModal = () => setModal({ isOpen: false, title: '', msg: '', onConfirm: null });
@@ -176,7 +174,6 @@ export default function App() {
     const qProjects = query(collection(db, 'projectMembers'), where('userId', '==', user.uid));
     const unsubP = onSnapshot(qProjects, (snap) => setMyProjects(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
     
-    // Écoute des amis
     const qFriends = query(collection(db, 'friendships'), where('users', 'array-contains', user.uid));
     const unsubF = onSnapshot(qFriends, (snap) => {
       const flist = [];
@@ -202,7 +199,6 @@ export default function App() {
     return () => { unsubShots(); unsubAssets(); unsubMembers(); unsubLogs(); };
   }, [workspace]);
 
-  // Écouteur pour les commentaires de la Review active
   useEffect(() => {
     if (!reviewItem || !reviewStep) return;
     const q = query(collection(db, `${reviewType}/${reviewItem.id}/comments`), orderBy('date', 'asc'));
@@ -217,13 +213,11 @@ export default function App() {
     }
   }, [shots, assets]);
 
-  // Écouteur pour les messages privés
   useEffect(() => {
     if (!activeFriend) return;
     const q = query(collection(db, `friendships/${activeFriend.friendshipId}/messages`), orderBy('date', 'asc'));
     const unsub = onSnapshot(q, (snap) => setPmMessages(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
     
-    // Calcul des projets partagés
     const fetchShared = async () => {
       const memSnaps = await getDocs(query(collection(db, 'projectMembers'), where('userId', '==', activeFriend.id)));
       const fProjects = memSnaps.docs.map(d => d.data());
@@ -231,7 +225,6 @@ export default function App() {
       setSharedProjects(shared);
     };
     fetchShared();
-    
     return () => unsub();
   }, [activeFriend, myProjects]);
 
@@ -249,19 +242,19 @@ export default function App() {
     e.preventDefault();
     try {
       if (authMode === 'register') {
-        if(!authName) return openModal("Erreur", "Pseudo requis", null);
+        if(!authName) return openModal("Erreur", "Pseudo requis");
         const res = await createUserWithEmailAndPassword(auth, authEmail, authPassword);
         await setDoc(doc(db, 'users', res.user.uid), { email: authEmail, displayName: authName, wantsEmailNotifications: emailNotifs });
         setUserData({ id: res.user.uid, email: authEmail, displayName: authName, wantsEmailNotifications: emailNotifs });
       } else { await signInWithEmailAndPassword(auth, authEmail, authPassword); }
       setCurrentView('dashboard');
-    } catch (err) { openModal("Erreur", err.message, null); }
+    } catch (err) { openModal("Erreur", err.message); }
   };
 
   const handleForgotPassword = async () => {
-    if(!authEmail) return openModal("Erreur", "Tapez votre e-mail d'abord.", null);
-    try { await sendPasswordResetEmail(auth, authEmail); openModal("Succès", "E-mail de réinitialisation envoyé !", null); } 
-    catch(err) { openModal("Erreur", err.message, null); }
+    if(!authEmail) return openModal("Erreur", "Tapez votre e-mail d'abord.");
+    try { await sendPasswordResetEmail(auth, authEmail); openModal("Succès", "E-mail de réinitialisation envoyé !"); } 
+    catch(err) { openModal("Erreur", err.message); }
   };
 
   const updateProfile = async (e) => {
@@ -271,13 +264,13 @@ export default function App() {
     setUserData({...userData, displayName: profileName, wantsEmailNotifications: emailNotifs});
     const snap = await getDocs(query(collection(db, 'projectMembers'), where('userId', '==', user.uid)));
     snap.forEach(d => updateDoc(d.ref, { displayName: profileName }));
-    openModal("Profil à jour", "Modifications enregistrées.", null);
+    openModal("Profil à jour", "Modifications enregistrées.");
   };
 
   const handleDeleteAccount = async () => {
     if (deleteConfirmText !== user.email) return;
     try { await deleteDoc(doc(db, 'users', user.uid)); await user.delete(); } 
-    catch (err) { openModal("Erreur de sécurité", "Veuillez vous déconnecter/reconnecter avant de supprimer.", null); }
+    catch (err) { openModal("Erreur de sécurité", "Veuillez vous déconnecter/reconnecter avant de supprimer."); }
   };
 
   const createProject = async (e) => {
@@ -292,38 +285,24 @@ export default function App() {
     e.preventDefault();
     if (!joinCode) return;
     const wsDoc = await getDoc(doc(db, 'workspaces', joinCode));
-    if (!wsDoc.exists() || myProjects.find(p => p.workspaceId === joinCode)) return openModal("Erreur", "Code invalide ou déjà rejoint.", null);
-    await addDoc(collection(db, 'projectMembers'), { workspaceId: wsDoc.id, workspaceName: wsDoc.data().name, userId: user.uid, displayName: userData.displayName, email: user.email, role: 'Guest' });
+    if (!wsDoc.exists() || myProjects.find(p => p.workspaceId === joinCode)) return openModal("Erreur", "Code invalide ou déjà rejoint.");
+    await addDoc(collection(db, 'projectMembers'), { workspaceId: wsDoc.id, workspaceName: wsDoc.data().name, userId: user.uid, displayName: userData.displayName, email: user.email, role: 'Guest', bannerUrl: wsDoc.data().bannerUrl || '' });
     setJoinCode('');
-  };
-
-  const renameProject = (p) => {
-    const newName = window.prompt("Nouveau nom du projet :", p.workspaceName);
-    if(newName && newName !== p.workspaceName) {
-      updateDoc(doc(db, 'workspaces', p.workspaceId), { name: newName });
-      getDocs(query(collection(db, 'projectMembers'), where('workspaceId', '==', p.workspaceId))).then(snap => {
-        snap.forEach(m => updateDoc(m.ref, { workspaceName: newName }));
-      });
-    }
   };
 
   const addFriend = async (e) => {
     e.preventDefault();
-    if(!friendInput || friendInput === user.uid) return openModal("Erreur", "ID Invalide", null);
-    if(friendsList.find(f => f.id === friendInput)) return openModal("Erreur", "Déjà ami", null);
-    
+    if(!friendInput || friendInput === user.uid) return openModal("Erreur", "ID Invalide");
+    if(friendsList.find(f => f.id === friendInput)) return openModal("Erreur", "Déjà ami");
     try {
       const friendDoc = await getDoc(doc(db, 'users', friendInput));
-      if(!friendDoc.exists()) return openModal("Erreur", "Utilisateur introuvable", null);
-      
+      if(!friendDoc.exists()) return openModal("Erreur", "Utilisateur introuvable");
       const friendData = friendDoc.data();
       await addDoc(collection(db, 'friendships'), {
-        users: [user.uid, friendInput],
-        names: { [user.uid]: userData.displayName, [friendInput]: friendData.displayName },
-        createdAt: serverTimestamp()
+        users: [user.uid, friendInput], names: { [user.uid]: userData.displayName, [friendInput]: friendData.displayName }, createdAt: serverTimestamp()
       });
-      setFriendInput(''); openModal("Succès", "Ami ajouté !", null);
-    } catch(err) { openModal("Erreur", err.message, null); }
+      setFriendInput(''); openModal("Succès", "Ami ajouté !");
+    } catch(err) { openModal("Erreur", err.message); }
   };
 
   const postPm = async (e) => {
@@ -332,15 +311,50 @@ export default function App() {
     setNewPmMsg('');
   };
 
+  const uploadMediaToCloud = async (file, cropOptions = null) => {
+    const cloudName = workspace?.cloudinaryCloudName || cloudNameInput; 
+    const uploadPreset = workspace?.cloudinaryUploadPreset || uploadPresetInput;
+    if (!cloudName || !uploadPreset) { openModal("Erreur", "Clés Cloudinary manquantes dans les paramètres."); return null; }
+    const formData = new FormData(); formData.append('file', file); formData.append('upload_preset', uploadPreset);
+    const resourceType = file.type.startsWith('video') ? 'video' : 'image';
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`, { method: 'POST', body: formData });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+    
+    let finalUrl = data.secure_url;
+    if (cropOptions) { finalUrl = finalUrl.replace('/upload/', `/upload/${cropOptions}/`); }
+    return { url: finalUrl, type: resourceType };
+  };
+
+  const uploadBanner = async (e) => {
+    const file = e.target.files[0]; if(!file || !workspace) return;
+    setUploadingMedia(true);
+    try {
+      const uploaded = await uploadMediaToCloud(file, "c_fill,w_1200,h_300,q_auto");
+      if(uploaded?.url) {
+        await updateDoc(doc(db, 'workspaces', workspace.id), { bannerUrl: uploaded.url });
+        setWorkspace({...workspace, bannerUrl: uploaded.url});
+        const snap = await getDocs(query(collection(db, 'projectMembers'), where('workspaceId', '==', workspace.id)));
+        snap.forEach(d => updateDoc(d.ref, { bannerUrl: uploaded.url }));
+      }
+    } catch(err) { openModal("Erreur", err.message); }
+    setUploadingMedia(false);
+  };
+
+  const removeBanner = async () => {
+    if(!workspace) return;
+    await updateDoc(doc(db, 'workspaces', workspace.id), { bannerUrl: deleteField() });
+    const newWs = {...workspace}; delete newWs.bannerUrl; setWorkspace(newWs);
+    const snap = await getDocs(query(collection(db, 'projectMembers'), where('workspaceId', '==', workspace.id)));
+    snap.forEach(d => updateDoc(d.ref, { bannerUrl: deleteField() }));
+  };
+
   const deleteMediaFromCloudinary = async (url) => {
     if (!workspace?.cloudinaryApiKey || !workspace?.cloudinaryApiSecret || !workspace?.cloudinaryCloudName) return;
     try {
-      const parts = url.split('/upload/');
-      if (parts.length !== 2) return;
-      const path = parts[1].split('/');
-      if (path[0].match(/^v\d+$/)) path.shift();
-      const publicIdWithExt = path.join('/');
-      const publicId = publicIdWithExt.substring(0, publicIdWithExt.lastIndexOf('.'));
+      const parts = url.split('/upload/'); if (parts.length !== 2) return;
+      const path = parts[1].split('/'); if (path[0].match(/^v\d+$/) || path[0].includes('c_fill')) path.shift();
+      const publicIdWithExt = path.join('/'); const publicId = publicIdWithExt.substring(0, publicIdWithExt.lastIndexOf('.'));
       const timestamp = Math.floor(Date.now() / 1000);
       const signature = await generateCloudinarySignature(publicId, timestamp, workspace.cloudinaryApiSecret);
       
@@ -356,12 +370,8 @@ export default function App() {
     const conf = window.prompt(`Tapez "${workspace?.name}" pour confirmer la suppression (IRREVERSIBLE) :`);
     if (conf === workspace?.name) {
       setUploadingMedia(true);
-      for (const s of shots) {
-        if(s.previews) { for (const step in s.previews) { for (const v of s.previews[step]) { if(v.url) await deleteMediaFromCloudinary(v.url); } } }
-      }
-      for (const a of assets) {
-        if(a.previews) { for (const v of a.previews) { if(v.files) { for (const f of v.files) { if(f.url) await deleteMediaFromCloudinary(f.url); } } } }
-      }
+      for (const s of shots) { if(s.previews) { for (const step in s.previews) { for (const v of s.previews[step]) { if(v.url) await deleteMediaFromCloudinary(v.url); } } } }
+      for (const a of assets) { if(a.previews) { for (const v of a.previews) { if(v.files) { for (const f of v.files) { if(f.url) await deleteMediaFromCloudinary(f.url); } } } } }
       const snapMembers = await getDocs(query(collection(db, 'projectMembers'), where('workspaceId', '==', workspace.id))); snapMembers.forEach(d => deleteDoc(d.ref));
       const snapShots = await getDocs(query(collection(db, 'shots'), where('workspaceId', '==', workspace.id))); snapShots.forEach(d => deleteDoc(d.ref));
       const snapAssets = await getDocs(query(collection(db, 'assets'), where('workspaceId', '==', workspace.id))); snapAssets.forEach(d => deleteDoc(d.ref));
@@ -374,8 +384,8 @@ export default function App() {
 
   const handleAddShot = async (e) => {
     e.preventDefault();
-    if (!/^SQ\d{2,}$/.test(addSeq)) return openModal("Format invalide", "Séquence: SQ + 2 chiffres (SQ01).", null);
-    if (!/^SC\d{3,}$/.test(addScene)) return openModal("Format invalide", "Scène: SC + 3 chiffres (SC001).", null);
+    if (!/^SQ\d{2,}$/.test(addSeq)) return openModal("Format invalide", "Séquence: SQ + 2 chiffres (SQ01).");
+    if (!/^SC\d{3,}$/.test(addScene)) return openModal("Format invalide", "Scène: SC + 3 chiffres (SC001).");
     await addDoc(collection(db, 'shots'), { sequence: addSeq, scene: addScene, name: addName, workspaceId: workspace.id, status: {}, assignedTo: {}, previews: {} });
     setShowAddShot(false);
   };
@@ -401,10 +411,10 @@ export default function App() {
         await addDoc(collection(db, 'timeLogs'), {
           workspaceId: workspace.id, userId: user.uid, userName: userData.displayName, taskId: selectedTask, taskName: taskName, step: selectedStep, durationSeconds, date: serverTimestamp()
         });
-        openModal("Temps enregistré", `Durée sauvegardée avec succès.`, null);
-      } catch (err) { openModal("Erreur", err.message, null); }
+        openModal("Temps enregistré", `Durée sauvegardée avec succès.`);
+      } catch (err) { openModal("Erreur", err.message); }
     } else {
-      openModal("Erreur", "Sélectionnez une tâche et une étape.", null);
+      openModal("Erreur", "Sélectionnez une tâche et une étape.");
     }
   };
 
@@ -440,25 +450,14 @@ export default function App() {
   };
 
   const applyBatchAction = async () => {
-    if(batchSelection.length === 0) return openModal("Erreur", "Sélectionnez des plans.", null);
-    if(!batchActionStep) return openModal("Erreur", "Sélectionnez une étape.", null);
+    if(batchSelection.length === 0) return openModal("Erreur", "Sélectionnez des plans.");
+    if(!batchActionStep) return openModal("Erreur", "Sélectionnez une étape.");
     
     for (const id of batchSelection) {
       const shot = shots.find(s => s.id === id);
       if (shot && batchActionStatus) await changeStatus(shot, batchActionStep, batchActionStatus, 'shots');
     }
-    setBatchSelection([]); openModal(t('batchAction'), "Action en lot appliquée.", null);
-  };
-
-  const uploadMediaToCloud = async (file) => {
-    const cloudName = workspace?.cloudinaryCloudName; const uploadPreset = workspace?.cloudinaryUploadPreset;
-    if (!cloudName || !uploadPreset) { openModal("Erreur Cloudinary", "Clés manquantes dans les paramètres.", null); return null; }
-    const formData = new FormData(); formData.append('file', file); formData.append('upload_preset', uploadPreset);
-    const resourceType = file.type.startsWith('video') ? 'video' : 'image';
-    const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`, { method: 'POST', body: formData });
-    const data = await res.json();
-    if (data.error) throw new Error(data.error.message);
-    return { url: data.secure_url, type: resourceType };
+    setBatchSelection([]); openModal(t('batchAction'), "Action en lot appliquée.");
   };
 
   const uploadShotPreview = async (shotId, step, file, currentVersions = []) => {
@@ -469,7 +468,7 @@ export default function App() {
         const newVersion = { url: uploaded.url, type: uploaded.type, version: currentVersions.length + 1, date: new Date().toISOString() };
         await updateDoc(doc(db, 'shots', shotId), { [`previews.${step}`]: [...currentVersions, newVersion] });
       }
-    } catch(err) { openModal("Erreur Upload", err.message, null); }
+    } catch(err) { openModal("Erreur Upload", err.message); }
     setUploadingMedia(false);
   };
 
@@ -482,14 +481,13 @@ export default function App() {
         const newV = { version: currentVersions.length + 1, files: uploadedFiles, date: new Date().toISOString() };
         await updateDoc(doc(db, 'assets', assetId), { previews: [...currentVersions, newV] });
       }
-    } catch(err) { openModal("Erreur Upload", err.message, null); }
+    } catch(err) { openModal("Erreur Upload", err.message); }
     setUploadingMedia(false);
   };
 
   const openReview = (item, step, version, previewObj, type = 'shots') => {
     setReviewItem(item); setReviewType(type); setReviewStep(step); setReviewVersion(version); setReviewPreview(previewObj);
-    setCompareMode(false); setCompareVersion('');
-    setActiveTab('review'); setStrokes([]); setCurrentStroke(null); setDrawMode('pen');
+    setCompareMode(false); setCompareVersion(''); setActiveTab('review'); setStrokes([]); setCurrentStroke(null); setDrawMode('pen');
   };
 
   const getAnnotationKey = () => {
@@ -555,7 +553,7 @@ export default function App() {
   const saveAnnotations = async () => {
     const key = getAnnotationKey(); if(!key || !reviewItem) return;
     await updateDoc(doc(db, reviewType, reviewItem.id), { [`annotations.${reviewStep}.v${reviewVersion}.${key}`]: JSON.stringify(strokes) });
-    openModal("Retake Sauvegardée", "Le point rouge a été ajouté.", null);
+    openModal("Retake Sauvegardée", "Le point rouge a été ajouté.");
   };
 
   const deleteRetakeFromDB = () => {
@@ -624,6 +622,12 @@ export default function App() {
   };
 
   const saveCustomPipeline = async (newPipeline) => { await updateDoc(doc(db, 'workspaces', workspace.id), { pipeline: newPipeline }); setWorkspace({...workspace, pipeline: newPipeline}); };
+  const saveStorageSettings = async (e) => {
+    e.preventDefault(); if (!workspace) return;
+    await updateDoc(doc(db, 'workspaces', workspace.id), { cloudinaryCloudName: cloudNameInput, cloudinaryUploadPreset: uploadPresetInput, cloudinaryApiKey: apiKeyInput, cloudinaryApiSecret: apiSecretInput });
+    setWorkspace({ ...workspace, cloudinaryCloudName: cloudNameInput, cloudinaryUploadPreset: uploadPresetInput, cloudinaryApiKey: apiKeyInput, cloudinaryApiSecret: apiSecretInput });
+    openModal("Succès", "Clés de stockage sauvegardées !");
+  };
 
   const canEdit = ['Admin', 'Supervisor', 'Artist'].includes(userRole);
   const canAssign = ['Admin', 'Supervisor'].includes(userRole);
@@ -671,11 +675,8 @@ export default function App() {
   const groupedAssets = assets.reduce((acc, a) => { (acc[a.category] = acc[a.category] || []).push(a); return acc; }, {});
   const sortedCats = Object.keys(groupedAssets).sort();
 
-  const bgMain = "bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 transition-colors duration-300";
-  const bgPanel = "bg-white border-slate-200 shadow-lg dark:bg-slate-900 dark:border-slate-800 dark:shadow-none transition-colors duration-300";
   const inputClass = "w-full p-2 bg-slate-100 border border-slate-300 rounded outline-none focus:border-blue-500 dark:bg-slate-950 dark:border-slate-800";
   
-  // ANIMATION STYLES INJECTION
   const pixelateStyle = `
     @keyframes pixelateAnim {
       0% { filter: blur(0px) contrast(1); transform: scale(1); }
@@ -715,7 +716,6 @@ export default function App() {
           <button type="submit" className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded transition">{authMode === 'login' ? 'Se connecter' : 'Créer un compte'}</button>
         </form>
         
-        {/* MODAL INTRA-SITE DE SECOURS (ERREURS AUTH) */}
         {modal.isOpen && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4 backdrop-blur-sm">
             <div className={`p-6 rounded-xl border w-full max-w-sm space-y-4 shadow-2xl ${theme==='dark'?'bg-slate-900 border-slate-800 text-white':'bg-white border-slate-200 text-slate-900'}`}>
@@ -735,18 +735,19 @@ export default function App() {
     return (
       <div className={`min-h-screen p-6 relative ${theme === 'dark' ? 'dark bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'}`}>
         <style>{pixelateStyle}</style>
-        <div className="absolute top-4 right-4 flex space-x-2">
-          <button onClick={()=>setLang(lang==='fr'?'en':'fr')} className="px-3 py-1 rounded font-bold text-sm bg-slate-200 dark:bg-slate-800 uppercase text-slate-500">{lang}</button>
-          <button onClick={()=>setTheme(theme==='dark'?'light':'dark')} className="p-2 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-500">{theme==='dark' ? <Sun size={20}/> : <Moon size={20}/>}</button>
-        </div>
-        <header className="flex justify-between items-center mb-10 max-w-5xl mx-auto">
+        
+        <header className="flex flex-col md:flex-row justify-between items-center mb-10 max-w-5xl mx-auto space-y-4 md:space-y-0">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-lg flex items-center justify-center shadow-md"><Clapperboard size={22} className="text-white" /></div>
             <h1 onClick={triggerEasterEgg} className="text-2xl font-black cursor-pointer select-none" style={{ animation: logoPixelated ? 'pixelateAnim 0.5s ease-in-out' : 'none' }}>Fabrica Tracker</h1>
           </div>
-          <div className="flex items-center space-x-4">
-            <button onClick={() => setCurrentView('profile')} className={`flex items-center space-x-2 px-3 py-1.5 rounded-full border ${theme==='dark'?'bg-slate-900 border-slate-800 hover:text-white':'bg-white border-slate-300'} transition`}><UserCircle size={20} /> <span className="text-sm font-medium">{userData?.displayName}</span></button>
-            <button onClick={() => signOut(auth)} className="text-red-500 p-2"><LogOut size={20} /></button>
+          
+          <div className="flex items-center space-x-3 bg-slate-100 dark:bg-slate-900 p-2 rounded-xl border border-slate-200 dark:border-slate-800">
+            <button onClick={()=>setLang(lang==='fr'?'en':'fr')} className="px-3 py-1.5 rounded font-bold text-sm bg-white dark:bg-slate-800 uppercase text-slate-600 dark:text-slate-300 shadow-sm">{lang}</button>
+            <button onClick={()=>setTheme(theme==='dark'?'light':'dark')} className="p-2 rounded-lg bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 shadow-sm">{theme==='dark' ? <Sun size={18}/> : <Moon size={18}/>}</button>
+            <div className="w-px h-6 bg-slate-300 dark:bg-slate-700 mx-1"></div>
+            <button onClick={() => setCurrentView('profile')} className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg border shadow-sm ${theme==='dark'?'bg-slate-800 border-slate-700 hover:text-white':'bg-white border-slate-200'} transition`}><UserCircle size={18} /> <span className="text-sm font-medium">{userData?.displayName}</span></button>
+            <button onClick={() => signOut(auth)} className="text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 p-2 rounded-lg transition"><LogOut size={18} /></button>
           </div>
         </header>
 
@@ -763,19 +764,28 @@ export default function App() {
                 <div className="space-y-3">
                   {myProjects.length === 0 ? <p className="text-slate-500 italic">Aucun projet.</p> : null}
                   {myProjects.map(p => (
-                    <div key={p.id} className={`border p-4 rounded-lg flex justify-between items-center transition ${theme==='dark'?'bg-slate-950 border-slate-800 hover:border-blue-500':'bg-slate-50 border-slate-200 hover:border-blue-500'}`}>
-                      <div className="flex-1 cursor-pointer flex items-center" onClick={async () => {
-                        const wsDoc = await getDoc(doc(db, 'workspaces', p.workspaceId));
-                        if(wsDoc.exists()) { setWorkspace({ id: wsDoc.id, ...wsDoc.data() }); setUserRole(p.role); setCurrentView('workspace'); setActiveTab('assets'); }
-                      }}>
-                        <div><h3 className="font-bold text-lg">{p.workspaceName}</h3><p className="text-xs text-slate-500 uppercase tracking-wider mt-1">Rôle : <span className="text-blue-500 font-bold">{p.role}</span></p></div>
-                      </div>
-                      <div className="flex items-center space-x-3">
-                        {p.role === 'Admin' && <button onClick={() => renameProject(p)} className="p-2 text-slate-400 hover:text-blue-500 transition"><Edit3 size={18}/></button>}
-                        <div onClick={async () => {
+                    <div key={p.id} className={`relative rounded-lg overflow-hidden border transition group ${theme==='dark'?'bg-slate-950 border-slate-800 hover:border-blue-500':'bg-slate-50 border-slate-200 hover:border-blue-500'}`}>
+                      {p.bannerUrl && <div className="absolute inset-0 bg-cover bg-center opacity-30 group-hover:opacity-40 transition" style={{backgroundImage: `url(${p.bannerUrl})`}}></div>}
+                      <div className="relative z-10 p-4 flex justify-between items-center backdrop-blur-[2px]">
+                        <div className="flex-1 cursor-pointer flex items-center" onClick={async () => {
                           const wsDoc = await getDoc(doc(db, 'workspaces', p.workspaceId));
                           if(wsDoc.exists()) { setWorkspace({ id: wsDoc.id, ...wsDoc.data() }); setUserRole(p.role); setCurrentView('workspace'); setActiveTab('assets'); }
-                        }} className="cursor-pointer w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-500"><Play size={18} className="ml-1" /></div>
+                        }}>
+                          <div><h3 className="font-bold text-lg drop-shadow-md">{p.workspaceName}</h3><p className="text-xs text-slate-600 dark:text-slate-400 uppercase tracking-wider mt-1 drop-shadow">Rôle : <span className="text-blue-600 dark:text-blue-400 font-bold">{p.role}</span></p></div>
+                        </div>
+                        <div className="flex items-center space-x-3 bg-white/50 dark:bg-slate-950/50 p-1.5 rounded-full backdrop-blur-md">
+                          {p.role === 'Admin' && <button onClick={() => {
+                            const newName = window.prompt("Nouveau nom :", p.workspaceName);
+                            if(newName) {
+                              updateDoc(doc(db, 'workspaces', p.workspaceId), { name: newName });
+                              getDocs(query(collection(db, 'projectMembers'), where('workspaceId', '==', p.workspaceId))).then(snap => snap.forEach(m => updateDoc(m.ref, { workspaceName: newName })));
+                            }
+                          }} className="p-2 text-slate-600 dark:text-slate-400 hover:text-blue-600 transition"><Edit3 size={18}/></button>}
+                          <div onClick={async () => {
+                            const wsDoc = await getDoc(doc(db, 'workspaces', p.workspaceId));
+                            if(wsDoc.exists()) { setWorkspace({ id: wsDoc.id, ...wsDoc.data() }); setUserRole(p.role); setCurrentView('workspace'); setActiveTab('assets'); }
+                          }} className="cursor-pointer w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white shadow-lg transform hover:scale-105 transition"><Play size={18} className="ml-1" /></div>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -825,7 +835,6 @@ export default function App() {
           )}
         </div>
 
-        {/* MODAL INTRA-SITE DE SECOURS (DASHBOARD) */}
         {modal.isOpen && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4 backdrop-blur-sm">
             <div className={`p-6 rounded-xl border w-full max-w-sm space-y-4 shadow-2xl ${theme==='dark'?'bg-slate-900 border-slate-800 text-white':'bg-white border-slate-200 text-slate-900'}`}>
@@ -838,7 +847,6 @@ export default function App() {
           </div>
         )}
 
-        {/* FRIEND PROFILE MODAL */}
         {activeFriend && (
           <div className="fixed inset-0 bg-black/60 flex justify-end z-[90] backdrop-blur-sm">
              <div className={`w-full max-w-md h-full shadow-2xl flex flex-col ${theme==='dark'?'bg-slate-950 border-l border-slate-800':'bg-slate-50 border-l border-slate-200'}`}>
@@ -846,7 +854,6 @@ export default function App() {
                   <div className="flex items-center space-x-3"><UserCircle size={32} className="text-slate-400"/> <h2 className="text-xl font-bold">{activeFriend.displayName}</h2></div>
                   <button onClick={() => setActiveFriend(null)} className="p-2 text-slate-400 hover:text-red-500"><X size={20}/></button>
                 </div>
-                
                 <div className="p-4">
                   <button onClick={()=>setShowSharedProjects(!showSharedProjects)} className={`w-full p-4 rounded-xl flex justify-between items-center border font-bold transition ${theme==='dark'?'bg-slate-900 border-slate-800 hover:bg-slate-800':'bg-white border-slate-200 hover:bg-slate-100'}`}>
                     <span className="flex items-center"><HeartHandshake className="mr-2 text-purple-500"/> {sharedProjects.length} {t('sharedProj')}</span>
@@ -863,7 +870,6 @@ export default function App() {
                     </div>
                   )}
                 </div>
-
                 <div className={`flex-1 flex flex-col mt-2 border-t overflow-hidden ${theme==='dark'?'border-slate-800':'border-slate-200'}`}>
                   <div className={`p-3 text-center text-xs font-bold uppercase tracking-wider ${theme==='dark'?'bg-slate-900 text-slate-500':'bg-white text-slate-400'}`}>Message Privé</div>
                   <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -896,7 +902,7 @@ export default function App() {
           <form onSubmit={updateProfile} className="space-y-6">
             <div className="space-y-2"><label className="text-sm text-slate-500">Email</label><input type="email" value={userData?.email} disabled className={`${inputClass} opacity-50 cursor-not-allowed`} /></div>
             <div className="space-y-2"><label className="text-sm text-slate-500">Pseudo</label><input type="text" value={profileName} onChange={(e)=>setProfileName(e.target.value)} className={inputClass} required /></div>
-            <div className="space-y-2"><label className="text-sm text-slate-500">ID Utilisateur (Pour ajouts amis)</label><div className="font-mono bg-slate-200 dark:bg-slate-950 p-2 rounded text-blue-500 font-bold select-all text-center">{user.uid}</div></div>
+            <div className="space-y-2"><label className="text-sm text-slate-500">ID Utilisateur</label><div className="font-mono bg-slate-200 dark:bg-slate-950 p-2 rounded text-blue-500 font-bold select-all text-center">{user.uid}</div></div>
             <label className="flex items-center space-x-2 text-sm font-medium"><input type="checkbox" checked={emailNotifs} onChange={(e)=>setEmailNotifs(e.target.checked)}/> <span>M'alerter par E-mail des retakes</span></label>
             <button type="submit" className="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded transition">Sauvegarder</button>
           </form>
@@ -962,14 +968,20 @@ export default function App() {
         </div>
       )}
 
-      <aside className={`w-16 md:w-64 border-r flex flex-col justify-between p-4 shrink-0 h-screen sticky top-0 ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
-        <div className="space-y-6">
-          <button onClick={() => setCurrentView('dashboard')} className="flex items-center space-x-2 text-slate-500 hover:text-blue-500 transition-colors"><ChevronLeft size={20} /> <span className="hidden md:inline font-bold">Projets</span></button>
-          <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-lg flex items-center justify-center shrink-0"><Clapperboard size={18} className="text-white" /></div>
-            <div className="text-sm font-black hidden md:block leading-tight truncate">{workspace?.name}</div>
+      <aside className={`w-16 md:w-64 border-r flex flex-col justify-between shrink-0 h-screen sticky top-0 ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
+        <div className="space-y-4">
+          <div className="relative p-4 border-b border-slate-200 dark:border-slate-800 bg-cover bg-center" style={workspace?.bannerUrl ? {backgroundImage: `url(${workspace.bannerUrl})`} : {}}>
+            {workspace?.bannerUrl && <div className="absolute inset-0 bg-white/70 dark:bg-slate-950/70 backdrop-blur-sm"></div>}
+            <div className="relative z-10 space-y-4">
+              <button onClick={() => setCurrentView('dashboard')} className="flex items-center space-x-2 text-slate-600 dark:text-slate-400 hover:text-blue-500 transition-colors"><ChevronLeft size={20} /> <span className="hidden md:inline font-bold">Projets</span></button>
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-lg flex items-center justify-center shrink-0"><Clapperboard size={18} className="text-white" /></div>
+                <div className="text-sm font-black hidden md:block leading-tight truncate drop-shadow-sm">{workspace?.name}</div>
+              </div>
+            </div>
           </div>
-          <nav className="space-y-1.5">
+          
+          <nav className="space-y-1.5 px-4">
             <button onClick={() => setActiveTab('assets')} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'assets' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Box size={18} /> <span className="hidden md:inline font-medium">{t('assets')}</span></button>
             <button onClick={() => setActiveTab('shots')} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'shots' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Film size={18} /> <span className="hidden md:inline font-medium">{t('shots')}</span></button>
             <button onClick={() => setActiveTab('review')} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'review' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><MonitorPlay size={18} /> <span className="hidden md:inline font-medium">{t('review')}</span></button>
@@ -980,8 +992,8 @@ export default function App() {
             <button onClick={() => setActiveTab('help')} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'help' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><HelpCircle size={18} /> <span className="hidden md:inline font-medium">{t('help')}</span></button>
           </nav>
         </div>
-        <div className="flex flex-col space-y-4">
-          <button onClick={()=>setLang(lang==='fr'?'en':'fr')} className="flex items-center justify-center p-2 rounded border dark:border-slate-800 border-slate-200 transition text-sm text-slate-500 font-bold uppercase">{lang}</button>
+        <div className="p-4">
+          <button onClick={()=>setLang(lang==='fr'?'en':'fr')} className="w-full flex items-center justify-center p-2 rounded border dark:border-slate-800 border-slate-200 transition text-sm text-slate-500 font-bold uppercase">{lang}</button>
         </div>
       </aside>
 
@@ -999,10 +1011,10 @@ export default function App() {
                 </button>
                 {showNotifications && (
                   <div className={`absolute top-10 right-0 w-64 border rounded-lg shadow-2xl z-50 p-3 max-h-64 overflow-y-auto ${theme==='dark'?'bg-slate-900 border-slate-700':'bg-white border-slate-200'}`}>
-                    <h4 className="text-sm font-bold border-b border-slate-200 dark:border-slate-800 pb-2 mb-2">À Review (Mes Assignations)</h4>
+                    <h4 className="text-sm font-bold border-b border-slate-200 dark:border-slate-800 pb-2 mb-2">À Valider (Mes Assignations)</h4>
                     {pendingReviews.length === 0 ? <p className="text-xs text-slate-500">Rien à voir !</p> : pendingReviews.map(s => (
                       <div key={s.id} className="text-xs p-2 rounded mb-1 border cursor-pointer hover:bg-blue-50 dark:hover:bg-slate-800 border-slate-200 dark:border-slate-800" onClick={()=>{setActiveTab('shots'); setShowNotifications(false);}}>
-                        <span className="font-bold text-blue-500">{s.name}</span> prêt pour review.
+                        <span className="font-bold text-blue-500">{s.name}</span> prêt pour validation.
                       </div>
                     ))}
                   </div>
@@ -1018,7 +1030,7 @@ export default function App() {
             <div className={`p-4 rounded-xl border flex flex-col md:flex-row gap-4 items-center justify-between ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200 shadow-sm'}`}>
               <div className="flex flex-1 gap-2 w-full">
                 <div className="relative flex-1"><Search className="absolute left-3 top-2.5 text-slate-400" size={16}/><input type="text" placeholder={t('searchShot')} value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} className={`${inputClass} pl-10`} /></div>
-                <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)} className={inputClass + " flex-1"}><option value="">{t('allStatus')}</option><option value="todo">To Do</option><option value="wip">WIP</option><option value="review">Review</option><option value="reuse">Reuse</option><option value="done">Done</option></select>
+                <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)} className={inputClass + " flex-1"}><option value="">{t('allStatus')}</option><option value="todo">{t('todo')}</option><option value="wip">{t('wip')}</option><option value="review">{t('reviewStatus')}</option><option value="reuse">{t('reuse')}</option><option value="done">{t('done')}</option></select>
                 <select value={filterAssignee} onChange={e=>setFilterAssignee(e.target.value)} className={inputClass + " flex-1"}><option value="">{t('allMembers')}</option>{members.map(m=><option key={m.userId} value={m.userId}>{m.displayName}</option>)}</select>
               </div>
               {canAssign && <button onClick={() => setShowAddShot(true)} className="flex items-center space-x-2 bg-blue-600 text-white hover:bg-blue-500 px-4 py-2 rounded font-bold text-sm shrink-0"><Plus size={16} /> <span>{t('addShot')}</span></button>}
@@ -1029,7 +1041,7 @@ export default function App() {
                 <div className="font-bold flex items-center"><CheckSquare className="mr-2"/> {batchSelection.length} sélectionnés</div>
                 <div className="flex space-x-2 items-center">
                   <select value={batchActionStep} onChange={e=>setBatchActionStep(e.target.value)} className="bg-blue-800 text-white border-none rounded p-1.5 text-sm outline-none"><option value="">-- Étape --</option>{workspace?.pipeline?.map(p=><option key={p} value={p}>{p}</option>)}</select>
-                  <select value={batchActionStatus} onChange={e=>setBatchActionStatus(e.target.value)} className="bg-blue-800 text-white border-none rounded p-1.5 text-sm outline-none"><option value="">-- Statut --</option><option value="todo">To Do</option><option value="wip">WIP</option><option value="review">Review</option><option value="done">Done</option></select>
+                  <select value={batchActionStatus} onChange={e=>setBatchActionStatus(e.target.value)} className="bg-blue-800 text-white border-none rounded p-1.5 text-sm outline-none"><option value="">-- Statut --</option><option value="todo">{t('todo')}</option><option value="wip">{t('wip')}</option><option value="review">{t('reviewStatus')}</option><option value="done">{t('done')}</option></select>
                   <button onClick={applyBatchAction} className="bg-white text-blue-600 px-3 py-1.5 rounded font-bold text-sm hover:bg-blue-50">Appliquer</button>
                 </div>
               </div>
@@ -1076,7 +1088,7 @@ export default function App() {
                                     ))}
                                   </div>
                                   {canAssign && (<select className={`${inputClass} !p-1 !text-xs !py-1`} value="" onChange={(e) => { if(e.target.value) addAssignee('shots', s.id, step, e.target.value) }}><option value="">+ Assigner</option>{members.filter(m => !assignees.includes(m.userId)).map(m => <option key={m.userId} value={m.userId}>{m.displayName}</option>)}</select>)}
-                                  <select disabled={userRole==='Guest'} className={`rounded p-1 text-xs font-semibold outline-none transition-colors border ${getStatusColor(s.status?.[step])}`} value={s.status?.[step] || 'todo'} onChange={(e) => changeStatus(s, step, e.target.value, 'shots')}><option value="todo">To Do</option><option value="wip">WIP</option><option value="review">Review</option><option value="reuse">Reuse</option><option value="done">Done</option></select>
+                                  <select disabled={userRole==='Guest'} className={`rounded p-1 text-xs font-semibold outline-none transition-colors border ${getStatusColor(s.status?.[step])}`} value={s.status?.[step] || 'todo'} onChange={(e) => changeStatus(s, step, e.target.value, 'shots')}><option value="todo">{t('todo')}</option><option value="wip">{t('wip')}</option><option value="review">{t('reviewStatus')}</option><option value="reuse">{t('reuse')}</option><option value="done">{t('done')}</option></select>
                                 </div>
                                 <div className={`pt-2 border-t h-[4.5rem] ${theme==='dark'?'border-slate-800/50':'border-slate-200'}`}>
                                   {activePreview ? (
@@ -1091,7 +1103,7 @@ export default function App() {
                                         {s.annotations?.[step]?.[`v${activePreview.version}`] && Object.keys(s.annotations[step][`v${activePreview.version}`]).length > 0 && (<div className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-black shadow"></div>)}
                                       </div>
                                     </div>
-                                  ) : (canUpload ? (<label className={`text-xs flex flex-col items-center justify-center border border-dashed text-slate-400 w-full rounded cursor-pointer h-full transition group/up ${theme==='dark'?'bg-slate-950 border-slate-700 hover:border-blue-500':'bg-slate-50 border-slate-300 hover:border-blue-500 hover:text-blue-600'}`}><Upload size={16} className="mb-1 group-hover/up:-translate-y-0.5 transition-transform"/> <span>Upload</span><input type="file" accept="image/*,video/mp4,video/quicktime" className="hidden" onChange={(e)=>uploadShotPreview(s.id, step, e.target.files[0], versions)} /></label>) : (<div className={`text-xs w-full h-full flex items-center justify-center italic rounded ${theme==='dark'?'text-slate-600 bg-slate-950/50':'text-slate-400 bg-slate-100'}`}>En attente</div>))}
+                                  ) : (canUpload ? (<label className={`text-xs flex flex-col items-center justify-center border border-dashed text-slate-400 w-full rounded cursor-pointer h-full transition group/up ${theme==='dark'?'bg-slate-950 border-slate-700 hover:border-blue-500':'bg-slate-50 border-slate-300 hover:border-blue-500 hover:text-blue-600'}`}><Upload size={16} className="mb-1 group-hover/up:-translate-y-0.5 transition-transform"/> <span>{t('upload')}</span><input type="file" accept="image/*,video/mp4,video/quicktime" className="hidden" onChange={(e)=>uploadShotPreview(s.id, step, e.target.files[0], versions)} /></label>) : (<div className={`text-xs w-full h-full flex items-center justify-center italic rounded ${theme==='dark'?'text-slate-600 bg-slate-950/50':'text-slate-400 bg-slate-100'}`}>{t('wait')}</div>))}
                                 </div>
                               </td>
                             );
@@ -1265,21 +1277,21 @@ export default function App() {
 
         {activeTab === 'time' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto mt-6">
-            <div className={`border p-8 rounded-2xl space-y-8 shadow-xl ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
+            <div className={`border p-8 rounded-2xl space-y-8 shadow-xl flex flex-col justify-center ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
               <h3 className="font-black text-xl text-center">Chronomètre en Direct</h3>
               <div className="space-y-4">
                 <select value={selectedTask} onChange={(e) => setSelectedTask(e.target.value)} className={inputClass} disabled={isTimerActive}><option value="">Sélectionner Plan/Asset</option>{[...shots, ...assets].map(tk => <option key={tk.id} value={tk.id}>{tk.name}</option>)}</select>
                 <select value={selectedStep} onChange={(e) => setSelectedStep(e.target.value)} className={inputClass} disabled={isTimerActive}><option value="">Étape de production</option>{workspace?.pipeline?.map(step => <option key={step} value={step}>{step}</option>)}</select>
               </div>
               <div className="text-center">
-                <div className="text-6xl font-black font-mono tracking-widest mb-8 text-blue-500 drop-shadow">{formatTime(timer)}</div>
+                <div className="text-5xl sm:text-6xl font-black font-mono tracking-widest mb-8 text-blue-500 drop-shadow break-all">{formatTime(timer)}</div>
                 <div className="flex justify-center">
-                  {!isTimerActive ? (<button onClick={() => { if(!selectedTask || !selectedStep) return openModal("Erreur", "Sélectionnez tâche et étape.", null); setIsTimerActive(true); }} className="flex items-center space-x-2 bg-green-600 hover:bg-green-500 text-white px-8 py-4 rounded-xl font-bold text-lg shadow-lg transition transform hover:scale-105"><Play size={20} fill="currentColor"/> <span>Démarrer</span></button>) : (<button onClick={handleStopTimer} className="flex items-center space-x-2 bg-yellow-500 hover:bg-yellow-400 text-black px-8 py-4 rounded-xl font-bold text-lg shadow-lg transition"><Pause size={20} fill="currentColor"/> <span>Stop & Sauver</span></button>)}
+                  {!isTimerActive ? (<button onClick={() => { if(!selectedTask || !selectedStep) return openModal("Erreur", "Sélectionnez tâche et étape."); setIsTimerActive(true); }} className="flex items-center space-x-2 bg-green-600 hover:bg-green-500 text-white px-8 py-4 rounded-xl font-bold text-lg shadow-lg transition transform hover:scale-105"><Play size={20} fill="currentColor"/> <span>Démarrer</span></button>) : (<button onClick={handleStopTimer} className="flex items-center space-x-2 bg-yellow-500 hover:bg-yellow-400 text-black px-8 py-4 rounded-xl font-bold text-lg shadow-lg transition"><Pause size={20} fill="currentColor"/> <span>Stop & Sauver</span></button>)}
                 </div>
               </div>
             </div>
 
-            <div className={`border p-8 rounded-2xl space-y-6 shadow-xl flex flex-col justify-between ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
+            <div className={`border p-8 rounded-2xl space-y-6 shadow-xl flex flex-col justify-center ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
               <div>
                 <h3 className="font-black text-xl mb-4">{t('manualTime')}</h3>
                 <form onSubmit={handleAddManualTime} className="space-y-4">
@@ -1287,12 +1299,6 @@ export default function App() {
                   <button type="submit" className="w-full bg-blue-600 text-white font-bold p-3 rounded-lg hover:bg-blue-500 transition">Ajouter au log</button>
                 </form>
               </div>
-              {isAdmin && (
-                <div className="pt-6 border-t border-slate-200 dark:border-slate-800">
-                  <h3 className="font-bold text-sm mb-3">Administration</h3>
-                  <button onClick={exportTimeCSV} className="w-full bg-emerald-600 text-white flex items-center justify-center p-3 rounded-lg font-bold hover:bg-emerald-500 transition"><Download size={18} className="mr-2"/> Exporter Temps (CSV)</button>
-                </div>
-              )}
             </div>
           </div>
         )}
@@ -1346,7 +1352,7 @@ export default function App() {
               {members.map(m => (
                 <div key={m.id} className={`flex justify-between items-center p-4 rounded-lg border ${theme==='dark'?'bg-slate-950 border-slate-800':'bg-slate-50 border-slate-200'}`}>
                   <div className="flex items-center space-x-3"><UserCircle size={32} className="text-slate-400"/><div><div className="font-bold text-base">{m.displayName}</div><div className="text-xs text-slate-500 font-mono">{m.email}</div></div></div>
-                  {isAdmin && m.userId !== user.uid ? (<select className={`${inputClass} !p-1.5 !w-auto !text-sm !font-bold !text-blue-500`} value={m.role} onChange={async (e) => await updateDoc(doc(db, 'projectMembers', m.id), { role: e.target.value })}><option value="Guest">Guest (L. Seule)</option><option value="Artist">Artist</option><option value="Supervisor">Supervisor</option><option value="Admin">Admin</option></select>) : <span className="text-sm text-blue-600 dark:text-blue-400 font-bold px-3 py-1 bg-blue-100 dark:bg-blue-900/20 rounded-full">{m.role}</span>}
+                  {isAdmin && m.userId !== user.uid ? (<select className={`${inputClass} !p-1.5 !w-auto !text-sm !font-bold !text-blue-500`} value={m.role} onChange={async (e) => await updateDoc(doc(db, 'projectMembers', m.id), { role: e.target.value })}><option value="Guest">Guest (Lecture seule)</option><option value="Artist">Artist</option><option value="Supervisor">Supervisor</option><option value="Admin">Admin</option></select>) : <span className="text-sm text-blue-600 dark:text-blue-400 font-bold px-3 py-1 bg-blue-100 dark:bg-blue-900/20 rounded-full">{m.role}</span>}
                 </div>
               ))}
             </div>
@@ -1355,13 +1361,34 @@ export default function App() {
 
         {activeTab === 'settings' && isAdmin && (
           <div className="space-y-6 max-w-2xl">
-            <div className={`border rounded-xl p-6 shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
-              <h3 className="font-black mb-3">Code d'invitation</h3>
-              <input type="text" readOnly value={workspace?.id || ''} className="w-full p-3 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-lg font-mono text-blue-500 text-center tracking-widest text-lg outline-none" onClick={e=>{e.target.select(); document.execCommand('copy'); openModal("Code Copié", "", null);}} />
+            
+            <div className="grid grid-cols-2 gap-4">
+              <button onClick={exportExcel} className="w-full bg-emerald-600 text-white flex items-center justify-center p-3 rounded-lg font-bold hover:bg-emerald-500 transition shadow-sm"><Download size={18} className="mr-2"/> Export Excel</button>
+              <button onClick={exportTimeCSV} className="w-full bg-blue-600 text-white flex items-center justify-center p-3 rounded-lg font-bold hover:bg-blue-500 transition shadow-sm"><Download size={18} className="mr-2"/> Temps CSV</button>
             </div>
 
             <div className={`border rounded-xl p-6 shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
-              <h3 className="font-black mb-4">Pipeline Personnalisable</h3>
+              <h3 className="font-black mb-3">Code d'invitation</h3>
+              <input type="text" readOnly value={workspace?.id || ''} className="w-full p-3 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-lg font-mono text-blue-500 text-center tracking-widest text-lg outline-none cursor-copy" onClick={e=>{e.target.select(); document.execCommand('copy'); openModal("Code Copié", "");}} />
+            </div>
+
+            <div className={`border rounded-xl p-6 shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
+              <h3 className="font-black mb-4 flex items-center"><ImageIcon size={18} className="mr-2 text-blue-500"/> Bannière du projet</h3>
+              {workspace?.bannerUrl ? (
+                <div className="relative w-full h-32 rounded-lg bg-cover bg-center mb-4 overflow-hidden border border-slate-700" style={{backgroundImage:`url(${workspace.bannerUrl})`}}>
+                  <button onClick={removeBanner} className="absolute top-2 right-2 bg-red-600 hover:bg-red-500 text-white p-2 rounded transition shadow-lg"><Trash2 size={16}/></button>
+                </div>
+              ) : (
+                <label className={`w-full h-32 rounded-lg border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition ${theme==='dark'?'border-slate-700 hover:border-blue-500 text-slate-500':'border-slate-300 hover:border-blue-500 text-slate-400'}`}>
+                  <Upload size={24} className="mb-2"/> <span className="text-sm font-medium">Uploader une bannière</span>
+                  <input type="file" className="hidden" accept="image/*" onChange={uploadBanner} disabled={!workspace.cloudinaryCloudName} />
+                  {!workspace.cloudinaryCloudName && <p className="text-xs text-red-500 mt-2">Clés Cloudinary requises</p>}
+                </label>
+              )}
+            </div>
+
+            <div className={`border rounded-xl p-6 shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
+              <h3 className="font-black mb-4 flex items-center"><FolderKanban size={18} className="mr-2 text-blue-500"/> Pipeline Personnalisable</h3>
               <div className="space-y-2 mb-4">
                 {workspace?.pipeline?.map((p, idx) => (
                   <div key={idx} className={`flex justify-between items-center p-2 border rounded ${theme==='dark'?'bg-slate-950 border-slate-800':'bg-slate-50 border-slate-200'}`}>
@@ -1421,7 +1448,7 @@ export default function App() {
                 </div>
                 <div>
                   <h4 className="font-bold text-lg mb-2">3. L'outil Review & Retake</h4>
-                  <p className="text-slate-600 dark:text-slate-400">Cliquez sur une image dans le tableau pour ouvrir l'outil de Review. Vous pouvez utiliser le pinceau (raccourci T pour passer au texte) afin de pointer des erreurs. Le bouton "Comparer" permet d'afficher l'ancienne version côte à côte pour vérifier la correction.</p>
+                  <p className="text-slate-600 dark:text-slate-400">Cliquez sur une image dans le tableau pour ouvrir l'outil de validation. Vous pouvez utiliser le pinceau (raccourci texte en cliquant sur le "T") afin de pointer des erreurs. Le bouton "Comparer" permet d'afficher l'ancienne version côte à côte pour vérifier la correction.</p>
                 </div>
               </div>
             </div>
