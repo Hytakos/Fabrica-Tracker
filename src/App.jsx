@@ -505,9 +505,7 @@ export default function App() {
   };
 
   const groupedShots = shots.filter(s => {
-    const nameStr = s.name || '';
-    const sceneStr = s.scene || '';
-    const matchSearch = nameStr.toLowerCase().includes(searchQuery.toLowerCase()) || sceneStr.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchSearch = s.name.toLowerCase().includes(searchQuery.toLowerCase()) || s.scene.toLowerCase().includes(searchQuery.toLowerCase());
     const matchStatus = filterStatus ? workspace?.pipeline?.some(step => s.status?.[step] === filterStatus) : true;
     const matchAssignee = filterAssignee ? workspace?.pipeline?.some(step => getAssignees(s, step).includes(filterAssignee)) : true;
     return matchSearch && matchStatus && matchAssignee;
@@ -539,14 +537,6 @@ export default function App() {
     const seqShots = (groupedShots[seqName]||[]).sort((a,b) => (a.order||0) - (b.order||0));
     const currentShot = seqShots[currentIndex];
     const nextShot = seqShots[currentIndex + 1];
-	
-	const myAssignedShots = shots.filter(s => 
-    workspace?.pipeline?.some(step => getAssignees(s, step).includes(user?.uid))
-  );
-
-  const myAssignedAssets = assets.filter(a => 
-    getAssignees(a, 'Global').includes(user?.uid)
-  );
     
     let newOrder;
     if (nextShot) newOrder = (currentShot.order + nextShot.order) / 2;
