@@ -61,106 +61,46 @@ const dict = {
   }
 };
 
-// Composant PingPongGame TOTALEMENT JOUABLE
+// Composant PingPongGame 
 const PingPongGame = ({ onClose }) => {
   const canvasRef = useRef(null);
-  const [score, setScore] = useState({ player: 0, ai: 0 });
-  
-  // Utilisation de useRef pour la boucle d'animation (évite les re-rendus)
-  const gameState = useRef({
-    paddleY: 50, 
-    aiY: 50, 
-    ball: { x: 150, y: 75, dx: 3.5, dy: 3.5, r: 5 },
-    running: true
-  });
-
   useEffect(() => {
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    let afId;
+     const canvas = canvasRef.current;
+     const ctx = canvas.getContext('2d');
+     let afId;
+     let paddleY = 50; let aiY = 50;
+     let ball = { x: 150, y: 75, dx: 3, dy: 3, r: 4 };
 
-    const move = (e) => {
-      if (!canvas) return;
-      const rect = canvas.getBoundingClientRect();
-      // Limite la raquette dans les bordures du canvas
-      let y = e.clientY - rect.top - 15; 
-      gameState.current.paddleY = Math.max(0, Math.min(150 - 30, y));
-    };
-    window.addEventListener('mousemove', move);
+     const move = (e) => {
+       const rect = canvas.getBoundingClientRect();
+       paddleY = e.clientY - rect.top - 15;
+     };
+     window.addEventListener('mousemove', move);
 
-    const loop = () => {
-      const state = gameState.current;
-      const ball = state.ball;
+     const loop = () => {
+       ctx.clearRect(0,0,300,150);
+       ctx.fillStyle = '#fff';
+       ctx.fillRect(10, paddleY, 4, 30);
+       ctx.fillRect(286, aiY, 4, 30);
+       ctx.beginPath(); ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI*2); ctx.fill();
 
-      ctx.clearRect(0, 0, 300, 150);
-      
-      // Dessin
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(10, state.paddleY, 5, 30); // Raquette Joueur
-      ctx.fillRect(285, state.aiY, 5, 30); // Raquette IA
-      ctx.beginPath(); 
-      ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2); 
-      ctx.fill();
+       ball.x += ball.dx; ball.y += ball.dy;
+       if(ball.y < 0 || ball.y > 150) ball.dy *= -1;
+       if(ball.x < 15 && ball.y > paddleY && ball.y < paddleY+30) ball.dx *= -1.1; // accélère
+       if(ball.x > 285 && ball.y > aiY && ball.y < aiY+30) ball.dx *= -1.1;
 
-      if (state.running) {
-        ball.x += ball.dx; 
-        ball.y += ball.dy;
+       aiY += (ball.y - (aiY + 15)) * 0.08;
 
-        // Collisions murs haut/bas
-        if (ball.y - ball.r < 0 || ball.y + ball.r > 150) ball.dy *= -1;
-
-        // Collision Raquette Joueur (Gauche)
-        if (ball.dx < 0 && ball.x - ball.r < 15 && ball.y > state.paddleY && ball.y < state.paddleY + 30) {
-          ball.dx = Math.abs(ball.dx) * 1.05; // Accélère un peu
-          let hitPos = (ball.y - (state.paddleY + 15)) / 15; // Angle selon où on tape
-          ball.dy = hitPos * 5;
-        }
-
-        // Collision Raquette IA (Droite)
-        if (ball.dx > 0 && ball.x + ball.r > 285 && ball.y > state.aiY && ball.y < state.aiY + 30) {
-          ball.dx = -Math.abs(ball.dx) * 1.05;
-          let hitPos = (ball.y - (state.aiY + 15)) / 15;
-          ball.dy = hitPos * 5;
-        }
-
-        // IA suit la balle
-        state.aiY += (ball.y - (state.aiY + 15)) * 0.08;
-        state.aiY = Math.max(0, Math.min(150 - 30, state.aiY));
-
-        // Buts
-        if (ball.x < 0) {
-          setScore(s => ({ ...s, ai: s.ai + 1 }));
-          state.running = false;
-          setTimeout(() => {
-            state.ball = { x: 150, y: 75, dx: 3.5, dy: 3.5, r: 5 };
-            state.running = true;
-          }, 1000);
-        } else if (ball.x > 300) {
-          setScore(s => ({ ...s, player: s.player + 1 }));
-          state.running = false;
-          setTimeout(() => {
-            state.ball = { x: 150, y: 75, dx: -3.5, dy: 3.5, r: 5 };
-            state.running = true;
-          }, 1000);
-        }
-      }
-
-      afId = requestAnimationFrame(loop);
-    };
-    
-    loop();
-    return () => { 
-      cancelAnimationFrame(afId); 
-      window.removeEventListener('mousemove', move); 
-    };
+       if(ball.x < 0 || ball.x > 300) { ball.x = 150; ball.y = 75; ball.dx = (ball.dx > 0 ? -3 : 3); }
+       afId = requestAnimationFrame(loop);
+     };
+     loop();
+     return () => { cancelAnimationFrame(afId); window.removeEventListener('mousemove', move); }
   }, []);
-
   return (
      <div className="fixed bottom-24 left-6 bg-slate-900 p-3 rounded-xl shadow-2xl z-50 border border-slate-700">
-       <div className="flex justify-between text-white text-xs mb-2 font-bold px-1 items-center">
-         <span className="flex items-center"><Gamepad2 size={14} className="mr-1"/> Ping Pong</span>
-         <span className="text-blue-400 text-sm">{score.player} - {score.ai}</span>
-         <button onClick={onClose} className="text-red-400 hover:text-red-500"><X size={16}/></button>
+       <div className="flex justify-between text-white text-xs mb-2 font-bold px-1">
+         <span className="flex items-center"><Gamepad2 size={14} className="mr-1"/> Ping Pong</span><button onClick={onClose} className="text-red-400 hover:text-red-500"><X size={16}/></button>
        </div>
        <canvas ref={canvasRef} width={300} height={150} className="bg-slate-800 rounded cursor-crosshair border border-slate-700"/>
      </div>
@@ -172,6 +112,7 @@ export default function App() {
   const t = (key) => dict[lang][key] || key;
   const [theme, setTheme] = useState('dark');
   
+  // Personnalisation des couleurs
   const [primaryColor, setPrimaryColor] = useState(localStorage.getItem('customPrimary') || '#2563eb');
   const [secondaryColor, setSecondaryColor] = useState(localStorage.getItem('customSecondary') || '#3b82f6');
   
@@ -272,6 +213,7 @@ export default function App() {
   const [newPmMsg, setNewPmMsg] = useState('');
   const [showPingPong, setShowPingPong] = useState(false);
 
+  // Profil Modal state
   const [viewProfileId, setViewProfileId] = useState(null);
   const [profileModalData, setProfileModalData] = useState(null);
 
@@ -544,6 +486,7 @@ export default function App() {
     } catch(err) { console.error("Cloudinary Delete:", err); }
   };
 
+  // --- AUTOMATIC SCENE & SEQUENCE RENUMBERING ---
   const recalculateSequenceShots = async (seqName) => {
     const snap = await getDocs(query(collection(db, 'shots'), where('workspaceId', '==', workspace.id), where('sequence', '==', seqName)));
     let localShots = snap.docs.map(d => ({id: d.id, ...d.data()}));
@@ -561,13 +504,8 @@ export default function App() {
     }
   };
 
-  // CORRECTION DE L'ERREUR .toLowerCase() (ajout de sécurité || '')
   const groupedShots = shots.filter(s => {
-    const nameSafe = (s.name || '').toLowerCase();
-    const sceneSafe = (s.scene || '').toLowerCase();
-    const querySafe = (searchQuery || '').toLowerCase();
-    
-    const matchSearch = nameSafe.includes(querySafe) || sceneSafe.includes(querySafe);
+    const matchSearch = s.name.toLowerCase().includes(searchQuery.toLowerCase()) || s.scene.toLowerCase().includes(searchQuery.toLowerCase());
     const matchStatus = filterStatus ? workspace?.pipeline?.some(step => s.status?.[step] === filterStatus) : true;
     const matchAssignee = filterAssignee ? workspace?.pipeline?.some(step => getAssignees(s, step).includes(filterAssignee)) : true;
     return matchSearch && matchStatus && matchAssignee;
@@ -607,7 +545,9 @@ export default function App() {
     await addDoc(collection(db, 'shots'), { sequence: seqName, scene: 'TEMP', name: 'TEMP', order: newOrder, workspaceId: workspace.id, status: {}, assignedTo: {}, previews: {}, priority: 'Normal', tags: [] });
     setTimeout(() => recalculateSequenceShots(seqName), 500);
   };
+  // ---------------------------------------------
 
+  // --- CSV / EXCEL EXPORT ---
   const exportCSV = () => {
     let csv = "Sequence,Scene,Nom,Statut,Priorite\n";
     shots.forEach(s => {
@@ -704,6 +644,7 @@ export default function App() {
   const groupedAssets = assets.reduce((acc, a) => { (acc[a.category] = acc[a.category] || []).push(a); return acc; }, {});
   const sortedCats = Object.keys(groupedAssets).sort();
 
+  // --- VARIABLES CSS POUR THÈMES SUR MESURE ---
   const pixelateStyle = `
     @keyframes pixelateAnim { 0% { filter: blur(0px) contrast(1); transform: scale(1); } 50% { filter: blur(3px) contrast(5); transform: scale(1.05); } 100% { filter: blur(0px) contrast(1); transform: scale(1); } }
     :root {
@@ -718,25 +659,8 @@ export default function App() {
     .to-indigo-500 { --tw-gradient-to: var(--secondary) !important; }
     .from-blue-500 { --tw-gradient-from: var(--primary) !important; }
   `;
-  const lightWrapperClass = "bg-[#f4f7fb] text-slate-800"; 
+  const lightWrapperClass = "bg-[#f4f7fb] text-slate-800"; // Light mode très doux
   const lightCardClass = "bg-white border-slate-200 shadow-sm"; 
-
-  // --- CORRECTION : DÉFINITION DES VARIABLES MANQUANTES ---
-  const myAssignedShots = shots.filter(s => {
-    return workspace?.pipeline?.some(step => getAssignees(s, step).includes(user?.uid));
-  });
-
-  const myAssignedAssets = assets.filter(a => {
-    return getAssignees(a, 'Global').includes(user?.uid);
-  });
-
-  const myStats = {
-    todo: myAssignedShots.filter(s => workspace?.pipeline?.some(step => getAssignees(s, step).includes(user?.uid) && (!s.status?.[step] || s.status[step] === 'todo'))).length,
-    wip: myAssignedShots.filter(s => workspace?.pipeline?.some(step => getAssignees(s, step).includes(user?.uid) && s.status?.[step] === 'wip')).length,
-    review: myAssignedShots.filter(s => workspace?.pipeline?.some(step => getAssignees(s, step).includes(user?.uid) && s.status?.[step] === 'review')).length,
-    done: myAssignedShots.filter(s => workspace?.pipeline?.some(step => getAssignees(s, step).includes(user?.uid) && s.status?.[step] === 'done')).length,
-  };
-  // --------------------------------------------------------
 
   if (loading) return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white">Chargement...</div>;
 
@@ -745,6 +669,7 @@ export default function App() {
       <div className={`min-h-screen flex flex-col items-center justify-center p-4 relative ${theme === 'dark' ? 'bg-slate-950 text-white' : lightWrapperClass}`}>
         <style>{pixelateStyle}</style>
         <div className="absolute top-4 right-4 flex space-x-2">
+          {/* CORRECTIF VISIBILITÉ TEXTE BOUTONS */}
           <button onClick={()=>setLang(lang==='fr'?'en':'fr')} className="px-3 py-1 rounded font-bold text-sm bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100 uppercase">{lang}</button>
           <button onClick={()=>setTheme(theme==='dark'?'light':'dark')} className="p-2 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100">{theme==='dark' ? <Sun size={20}/> : <Moon size={20}/>}</button>
         </div>
@@ -772,6 +697,7 @@ export default function App() {
     );
   }
 
+  // --- Page Profil (avec Personnalisation UI) ---
   if (currentView === 'profile') {
     return (
       <div className={`min-h-screen p-6 flex flex-col items-center justify-center relative ${theme==='dark'?'bg-slate-950 text-white':lightWrapperClass}`}>
@@ -881,6 +807,7 @@ export default function App() {
         <style>{pixelateStyle}</style>
         {renderChatWidget()}
         
+        {/* Ping Pong Button */}
         <button onClick={() => setShowPingPong(!showPingPong)} className="fixed bottom-6 left-6 w-14 h-14 bg-slate-800 text-white rounded-full flex items-center justify-center shadow-2xl hover:scale-105 transition z-50"><Gamepad2 size={24}/></button>
         {showPingPong && <PingPongGame onClose={() => setShowPingPong(false)} />}
         
@@ -899,6 +826,7 @@ export default function App() {
           </div>
         </header>
 
+        {/* Modal Profils Cliquables */}
         {viewProfileId && profileModalData && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[200] p-4 backdrop-blur-sm no-print">
             <div className={`p-6 rounded-xl border w-full max-w-sm space-y-6 shadow-2xl ${theme==='dark'?'bg-slate-900 border-slate-800 text-white':lightCardClass}`}>
@@ -1029,6 +957,7 @@ export default function App() {
         </div>
       )}
 
+      {/* Profil Modal In-Project */}
       {viewProfileId && profileModalData && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[200] p-4 backdrop-blur-sm no-print">
             <div className={`p-6 rounded-xl border w-full max-w-sm space-y-6 shadow-2xl ${theme==='dark'?'bg-slate-900 border-slate-800 text-white':lightCardClass}`}>
@@ -1090,6 +1019,7 @@ export default function App() {
           </nav>
         </div>
         <div className="p-4 flex items-center space-x-2">
+          {/* CORRECTIF VISIBILITÉ TEXTE BOUTONS DANS PROJET */}
           <button onClick={()=>setLang(lang==='fr'?'en':'fr')} className="flex-1 p-2 rounded border dark:border-slate-800 border-slate-300 bg-slate-100 dark:bg-slate-900 transition text-xs text-slate-900 dark:text-slate-100 font-bold uppercase shadow-sm">{lang}</button>
           <button onClick={()=>setTheme(theme==='dark'?'light':'dark')} className="p-2 rounded border dark:border-slate-800 border-slate-300 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm">{theme==='dark' ? <Sun size={16}/> : <Moon size={16}/>}</button>
         </div>
@@ -1287,6 +1217,7 @@ export default function App() {
                                 );
                               })}
                             </tr>
+                            {/* BOUTON D'INSERTION ENTRE LES PLANS */}
                             {userPermissions.canAssign && (
                               <tr className="h-0 opacity-0 group-hover:opacity-100 transition-opacity no-print relative">
                                 <td colSpan={workspace?.pipeline?.length + 1} className="p-0 text-center relative border-none">
@@ -1395,4 +1326,232 @@ export default function App() {
                 <div className="text-center">
                   <div className="text-5xl sm:text-6xl font-black font-mono tracking-widest mb-8 text-blue-600 drop-shadow break-all">{formatTime(timer)}</div>
                   <div className="flex justify-center">
-                    {
+                    {!isTimerActive ? (<button onClick={() => { if(!selectedTask || !selectedStep) return openModal("Erreur", "Sélectionnez tâche et étape."); setIsTimerActive(true); }} className="flex items-center space-x-2 bg-green-600 text-white px-8 py-4 rounded-xl font-bold text-lg shadow-lg transition transform hover:scale-105"><Play size={20} fill="currentColor"/> <span>Démarrer</span></button>) : (<button onClick={handleStopTimer} className="flex items-center space-x-2 bg-yellow-500 text-black px-8 py-4 rounded-xl font-bold text-lg shadow-lg transition"><Pause size={20} fill="currentColor"/> <span>Stop & Sauver</span></button>)}
+                  </div>
+                </div>
+              </div>
+
+              <div className={`border p-8 rounded-2xl space-y-6 shadow-xl flex flex-col justify-center ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}>
+                <div>
+                  <h3 className="font-black text-xl mb-4">{t('manualTime')}</h3>
+                  <form onSubmit={handleAddManualTime} className="space-y-4">
+                    <div className="flex space-x-4"><div className="flex-1"><label className="text-xs font-bold text-slate-500">Heures</label><input type="number" min="0" value={manualTime.h} onChange={e=>setManualTime({...manualTime, h: e.target.value})} className={inputClass}/></div><div className="flex-1"><label className="text-xs font-bold text-slate-500">Minutes</label><input type="number" min="0" max="59" value={manualTime.m} onChange={e=>setManualTime({...manualTime, m: e.target.value})} className={inputClass}/></div></div>
+                    <button type="submit" className="w-full bg-blue-600 text-white font-bold p-3 rounded-xl transition shadow-sm">Ajouter au log</button>
+                  </form>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'stats' && (
+            <div className="space-y-6 max-w-6xl mx-auto">
+              <div className="flex justify-between items-center no-print">
+                <h2 className="text-xl font-bold text-slate-500">Statistiques</h2>
+                <button onClick={exportPDFReport} className="flex items-center space-x-2 bg-slate-800 text-white px-4 py-2 rounded-lg font-bold text-sm shadow-sm transition"><Printer size={16}/> <span>{t('report')}</span></button>
+              </div>
+
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className={`border rounded-xl p-4 text-center ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}><div className="text-3xl font-black text-slate-400">{myStats.todo}</div><div className="text-xs font-bold text-slate-500 uppercase">To Do</div></div>
+                <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-xl p-4 text-center shadow-sm"><div className="text-3xl font-black text-blue-600">{myStats.wip}</div><div className="text-xs font-bold text-blue-700 dark:text-blue-500 uppercase">WIP</div></div>
+                <div className="bg-purple-50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-800 rounded-xl p-4 text-center shadow-sm"><div className="text-3xl font-black text-purple-600 dark:text-purple-500">{myStats.review}</div><div className="text-xs font-bold text-purple-700 dark:text-purple-500 uppercase">Review</div></div>
+                <div className="bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-xl p-4 text-center shadow-sm"><div className="text-3xl font-black text-green-600 dark:text-green-500">{myStats.done}</div><div className="text-xs font-bold text-green-700 dark:text-green-500 uppercase">Done</div></div>
+              </div>
+
+              <div className={`border rounded-xl p-6 shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}>
+                <h3 className="font-black text-xl mb-4 text-blue-600">Progression Globale du Projet</h3>
+                {(() => {
+                  let totalTasks = 0; let doneTasks = 0;
+                  shots.forEach(s => workspace?.pipeline?.forEach(step => { totalTasks++; if(s.status?.[step]==='done') doneTasks++; }));
+                  const pct = totalTasks > 0 ? Math.round((doneTasks/totalTasks)*100) : 0;
+                  return (
+                    <div>
+                      <div className="flex justify-between mb-1 text-sm font-bold"><span className="text-slate-600 dark:text-slate-400">{doneTasks} / {totalTasks} Tâches Terminées</span> <span className="text-blue-600">{pct}%</span></div>
+                      <div className={`w-full h-4 rounded-full overflow-hidden ${theme==='dark'?'bg-slate-950':'bg-slate-100 border'}`}>
+                        <div className="h-full bg-blue-600 transition-all duration-1000" style={{ width: `${pct}%` }}></div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              <div className={`border rounded-xl p-6 shadow-sm no-print ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}>
+                <h3 className="font-black text-xl mb-6 flex items-center text-blue-600"><BarChart className="mr-3"/> Logs Récents</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm whitespace-nowrap">
+                    <thead><tr className={`border-b text-xs uppercase ${theme==='dark'?'border-slate-800 bg-slate-950 text-slate-500':'border-slate-200 bg-[#f4f7fb] text-slate-500'}`}>{userPermissions.canAssign && <th className="p-3 font-bold">Membre</th>}<th className="p-3 font-bold">Tâche</th><th className="p-3 font-bold">Étape</th><th className="p-3 font-bold">Temps</th></tr></thead>
+                    <tbody className={`divide-y ${theme==='dark'?'divide-slate-800/50':'divide-slate-200'}`}>
+                      {timeLogs.filter(log => userPermissions.canAssign || log.userId === user.uid).sort((a,b) => b.date - a.date).slice(0,20).map(log => (
+                        <tr key={log.id} className={`hover:bg-[#f4f7fb] dark:hover:bg-slate-800/20`}>{userPermissions.canAssign && <td className="p-3 font-bold text-slate-700 dark:text-slate-300">{log.userName}</td>}<td className="p-3 font-medium">{log.taskName}</td><td className="p-3 text-slate-500 font-bold">{log.step}</td><td className="p-3 text-blue-600 font-mono font-bold">{formatTime(log.durationSeconds)}</td></tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'team' && (
+            <div className={`border rounded-xl p-6 max-w-4xl mx-auto shadow-sm no-print ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}>
+              <h3 className="font-black text-xl mb-6 text-blue-600">Membres ({members.length})</h3>
+              <div className="space-y-4">
+                {members.map(m => (
+                  <div key={m.id} className={`flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4 p-4 rounded-xl border shadow-sm ${theme==='dark'?'bg-slate-950 border-slate-800':'bg-[#f4f7fb] border-slate-200'}`}>
+                    <div className="flex items-center space-x-3 cursor-pointer hover:opacity-80" onClick={()=>setViewProfileId(m.userId)}>
+                       <UserCircle size={32} className="text-slate-400 shrink-0"/>
+                       <div>
+                          <div className="font-black text-base flex items-center space-x-2 hover:underline"><span>{m.displayName}</span> {onlineUsers[m.userId] && <div className="w-2.5 h-2.5 bg-green-500 rounded-full shadow" title="En ligne"></div>}</div>
+                          <div className="text-xs text-slate-500 font-mono font-bold">{m.email}</div>
+                       </div>
+                    </div>
+                    {userPermissions.role === 'Admin' && m.userId !== user.uid ? (
+                      <div className="flex flex-col sm:flex-row items-center gap-3">
+                         {m.role === 'Custom' && (
+                            <div className="flex items-center space-x-3 text-xs bg-white dark:bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 shadow-sm">
+                               <label className="flex items-center space-x-1 cursor-pointer font-bold text-slate-600 dark:text-slate-300"><input type="checkbox" checked={m.canEdit} onChange={e=>updateDoc(doc(db, 'projectMembers', m.id), { canEdit: e.target.checked })}/><span>Édition</span></label>
+                               <label className="flex items-center space-x-1 cursor-pointer font-bold text-slate-600 dark:text-slate-300"><input type="checkbox" checked={m.canAssign} onChange={e=>updateDoc(doc(db, 'projectMembers', m.id), { canAssign: e.target.checked })}/><span>Assigner/Valider</span></label>
+                            </div>
+                         )}
+                         <select className={`${inputClass} !p-2 !w-auto !text-sm !font-black !text-blue-600`} value={m.role} onChange={async (e) => await updateDoc(doc(db, 'projectMembers', m.id), { role: e.target.value, canEdit: false, canAssign: false })}>
+                           <option value="Guest">Guest (Lecture seule)</option>
+                           <option value="Artist">Artist</option>
+                           <option value="Supervisor">Supervisor</option>
+                           <option value="Admin">Admin</option>
+                           <option value="Custom">Custom (Personnalisé)</option>
+                         </select>
+                      </div>
+                    ) : <span className="text-sm text-blue-700 font-black px-4 py-1.5 bg-blue-100 dark:bg-blue-900/30 rounded-full text-center shadow-sm">{m.role}</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'settings' && userPermissions.role === 'Admin' && (
+            <div className="space-y-6 max-w-3xl mx-auto pb-10 no-print">
+              <div className={`p-6 rounded-xl border ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}>
+                <h3 className="font-black text-xl mb-4 text-blue-600">Configuration Cloudinary</h3>
+                <p className="text-sm text-slate-500 mb-4 font-medium">Pour pouvoir uploader des images et des vidéos dans le tracker, vous devez configurer gratuitement une API Cloudinary et lier les clés ici.</p>
+                <div className="space-y-4">
+                  <div><label className="text-xs font-bold text-slate-500">Cloud Name</label><input type="text" placeholder="ex: dp6xxxx" value={cloudNameInput} onChange={e=>setCloudNameInput(e.target.value)} className={inputClass} /></div>
+                  <div><label className="text-xs font-bold text-slate-500">Upload Preset (unsigned)</label><input type="text" placeholder="ex: fabrica_preset" value={uploadPresetInput} onChange={e=>setUploadPresetInput(e.target.value)} className={inputClass} /></div>
+                  <div><label className="text-xs font-bold text-slate-500">API Key (Pour la suppression)</label><input type="text" placeholder="Clé publique" value={apiKeyInput} onChange={e=>setApiKeyInput(e.target.value)} className={inputClass} /></div>
+                  <div><label className="text-xs font-bold text-slate-500">API Secret (Pour la suppression)</label><input type="password" placeholder="Clé secrète" value={apiSecretInput} onChange={e=>setApiSecretInput(e.target.value)} className={inputClass} /></div>
+                  <button onClick={() => updateDoc(doc(db, 'workspaces', workspace.id), { cloudinaryCloudName: cloudNameInput, cloudinaryUploadPreset: uploadPresetInput, cloudinaryApiKey: apiKeyInput, cloudinaryApiSecret: apiSecretInput }).then(()=>openModal('Succès', 'Configuration Cloudinary sauvegardée !'))} className="bg-blue-600 text-white px-6 py-2.5 rounded-lg font-bold text-sm shadow-md transition w-full sm:w-auto">Sauvegarder les clés</button>
+                </div>
+              </div>
+            </div>
+          )}
+        </main>
+        
+        {reviewItem && reviewPreview && (
+          <>
+            <div className={`w-1.5 md:w-2 cursor-col-resize shrink-0 transition-colors z-30 no-print ${isResizing ? 'bg-blue-500' : (theme==='dark'?'bg-slate-700 hover:bg-slate-600':'bg-slate-300 hover:bg-slate-400')}`} onMouseDown={(e) => { e.preventDefault(); setIsResizing(true); }}><div className="h-full flex items-center justify-center opacity-50"><GripVertical size={16} /></div></div>
+            <aside style={{ width: reviewPanelWidth }} className={`flex flex-col border-l shadow-2xl z-20 shrink-0 no-print ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-300'}`}>
+              <div className={`flex-1 flex flex-col min-h-[40%] border-b ${theme==='dark'?'border-slate-800':'border-slate-300'}`}>
+                <div className={`flex flex-wrap justify-between items-center p-3 shrink-0 ${theme==='dark'?'bg-slate-950/50':'bg-white shadow-sm'}`}>
+                  <div>
+                    <div className="flex items-center space-x-2"><h3 className="font-black text-lg truncate max-w-[200px]">{reviewItem.name}</h3>{reviewStep !== 'Global' && <span className="text-blue-700 bg-blue-100 dark:text-blue-400 dark:bg-blue-900/30 text-xs px-2 py-0.5 rounded-full font-bold whitespace-nowrap">{reviewStep}</span>}</div>
+                    <div className="flex items-center space-x-3 mt-1 text-[10px] text-slate-500 font-bold uppercase tracking-wider"><span>V{reviewVersion}</span>{(reviewItem.previews?.[reviewStep]?.length > 1 || (reviewType==='assets' && reviewItem.previews?.length > 1)) && (<label className="flex items-center space-x-1 cursor-pointer hover:text-blue-600 dark:hover:text-blue-400"><input type="checkbox" checked={compareMode} onChange={e=>setCompareMode(e.target.checked)} className="mr-1"/>Comparer</label>)}</div>
+                  </div>
+                  <div className="flex flex-wrap gap-2 justify-end items-center mt-2 2xl:mt-0">
+                    {compareMode && (<select value={compareVersion} onChange={e=>setCompareVersion(e.target.value)} className={`${inputClass} !w-auto !py-1 !text-xs font-bold`}><option value="">-- Comparer --</option>{(reviewType==='shots' ? reviewItem.previews[reviewStep] : reviewItem.previews).map((v, i) => v.version !== reviewVersion && <option key={i} value={i}>V{v.version}</option>)}</select>)}
+                    {drawMode && (
+                      <div className={`flex border rounded-lg p-0.5 space-x-0.5 ${theme==='dark'?'bg-slate-950 border-slate-800':'bg-slate-100 border-slate-300'}`}>
+                        <button onClick={()=>setDrawMode(drawMode==='pen' ? 'text' : 'pen')} className={`p-1.5 rounded transition ${drawMode==='text' ? 'bg-slate-300 text-blue-600 dark:bg-slate-800 dark:text-blue-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-white'}`}><Type size={14}/></button>
+                        <div className={`px-1 flex items-center border-l border-r space-x-1 ${theme==='dark'?'border-slate-800':'border-slate-300'}`}>{[2, 4, 8].map(sz => (<button key={sz} onClick={() => setBrushSize(sz)} className={`w-5 h-5 rounded-full flex items-center justify-center transition-colors ${brushSize === sz ? 'bg-slate-300 dark:bg-slate-700' : 'hover:bg-slate-200 dark:hover:bg-slate-800'}`}><div className="bg-red-500 rounded-full shadow-sm" style={{ width: sz+2, height: sz+2 }}></div></button>))}</div>
+                        <button onClick={() => setStrokes(strokes.slice(0, -1))} className="p-1.5 text-slate-500 hover:text-slate-700 dark:hover:text-white rounded transition"><Undo size={14} /></button>
+                        <button onClick={() => setStrokes([])} className="p-1.5 text-slate-500 hover:text-slate-700 dark:hover:text-white rounded transition"><Eraser size={14} /></button>
+                        {strokes.length > 0 && <button onClick={deleteRetakeFromDB} className="p-1.5 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/50 rounded transition border-l border-slate-300 dark:border-slate-800 ml-0.5 pl-1.5"><Trash2 size={14} /></button>}
+                      </div>
+                    )}
+                    <button onClick={saveAnnotations} className="bg-blue-600 text-white p-1.5 rounded-lg transition shadow" title="Enregistrer le point rouge"><Save size={16} /></button>
+                    <button onClick={() => setReviewItem(null)} className="ml-2 text-slate-400 hover:text-red-500 transition"><X size={24}/></button>
+                  </div>
+                </div>
+
+                <div className="flex-1 relative bg-black flex flex-col md:flex-row shadow-inner overflow-hidden">
+                  <div className="relative flex-1 w-full h-full flex items-center justify-center border-r border-slate-800 min-h-0 bg-slate-900">
+                    {reviewPreview.type === 'video' ? (<video ref={videoRef} src={reviewPreview.url} className="max-w-full max-h-full object-contain" onTimeUpdate={(e) => setVideoProgress(e.target.currentTime)} onLoadedMetadata={(e) => setVideoDuration(e.target.duration)} onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)} />) : (<img src={reviewPreview.url} className="max-w-full max-h-full object-contain" />)}
+                    <canvas ref={canvasRef} onMouseDown={startDraw} onMouseMove={onDraw} onMouseUp={endDraw} onMouseLeave={endDraw} onTouchStart={startDraw} onTouchMove={onDraw} onTouchEnd={endDraw} className="absolute top-0 left-0 w-full h-full z-10 cursor-crosshair" width={1920} height={1080} style={{ width: '100%', height: '100%' }} />
+                    {textInputPos && (<input type="text" autoFocus value={textInputValue} onChange={e=>setTextInputValue(e.target.value)} onBlur={commitTextAnnotation} onKeyDown={e=>{if(e.key==='Enter') commitTextAnnotation()}} className="absolute z-20 bg-transparent text-red-500 outline-none border-b-2 border-red-500 font-bold drop-shadow-md" style={{ left: textInputPos.px, top: textInputPos.py, fontSize: `${brushSize * 4}px` }} placeholder="Taper..." />)}
+                    {reviewPreview.type !== 'video' && reviewItem.annotations?.[reviewStep]?.[`v${reviewVersion}`]?.[getAnnotationKey()] && (<div className="absolute bottom-4 left-4 w-4 h-4 bg-red-600 rounded-full animate-pulse z-20 shadow-lg border-2 border-black"></div>)}
+                  </div>
+                  {compareMode && compareVersion !== '' && (
+                    <div className="relative flex-1 w-full h-full flex items-center justify-center bg-slate-950 min-h-0 border-l border-slate-800">
+                      <div className="absolute top-2 right-2 z-20 bg-black/70 text-white text-[10px] px-2 py-0.5 rounded font-bold shadow-md">V{(reviewType==='shots' ? reviewItem.previews[reviewStep][compareVersion] : reviewItem.previews[compareVersion]).version}</div>
+                      {(reviewType==='shots' ? reviewItem.previews[reviewStep][compareVersion] : reviewItem.previews[compareVersion]).type === 'video' ? (<video ref={compareVideoRef} src={(reviewType==='shots' ? reviewItem.previews[reviewStep][compareVersion] : reviewItem.previews[compareVersion]).url} className="max-w-full max-h-full object-contain" muted />) : (<img src={(reviewType==='shots' ? reviewItem.previews[reviewStep][compareVersion].url : reviewItem.previews[compareVersion].files[reviewPreview.fileIndex].url)} className="max-w-full max-h-full object-contain" />)}
+                    </div>
+                  )}
+                </div>
+
+                {reviewPreview.type === 'video' && (
+                  <div className={`p-3 shrink-0 flex flex-col justify-center ${theme==='dark'?'bg-slate-950/50':'bg-white shadow-sm z-10'}`}>
+                    <div className={`relative w-full h-2.5 rounded-full cursor-pointer mb-2 border overflow-hidden shadow-inner ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-slate-200 border-slate-300'}`} onClick={(e) => { if(videoRef.current) { const rect = e.currentTarget.getBoundingClientRect(); const time = ((e.clientX - rect.left) / rect.width) * videoDuration; videoRef.current.currentTime = time; if(compareVideoRef.current) compareVideoRef.current.currentTime = time; } }}>
+                      <div className="absolute top-0 left-0 h-full bg-blue-600 transition-all duration-75" style={{ width: `${Math.min(100, Math.max(0, (videoProgress / (videoDuration||1)) * 100))}%` }}></div>
+                      {Object.keys(reviewItem.annotations?.[reviewStep]?.[`v${reviewVersion}`] || {}).map(frameTime => (
+                        <div key={frameTime} className="absolute top-0 h-full w-2 bg-red-500 shadow-sm border-x border-black" style={{ left: `${(parseFloat(frameTime) / ((videoDuration||1)*FRAMERATE)) * 100}%` }}></div>
+                      ))}
+                    </div>
+                    
+                    <div className="flex justify-between items-center text-[10px] text-slate-500 font-mono font-bold mb-3 px-1">
+                      <span className="cursor-pointer hover:text-blue-600 transition" onClick={() => setShowSeconds(!showSeconds)} title="Cliquez pour changer (Frames / Secondes)">
+                        {showSeconds ? formatTime(videoProgress) : `${Math.floor(videoProgress * FRAMERATE)} f`}
+                      </span>
+                      <span>
+                        {showSeconds ? formatTime(videoDuration) : `${Math.floor(videoDuration * FRAMERATE)} f`}
+                      </span>
+                    </div>
+                    
+                    <div className="flex justify-center items-center space-x-6">
+                      <button onClick={() => { if(videoRef.current) { videoRef.current.pause(); videoRef.current.currentTime -= (1/FRAMERATE); if(compareVideoRef.current){compareVideoRef.current.pause(); compareVideoRef.current.currentTime -= (1/FRAMERATE);} } }} className="p-2 text-slate-500 hover:text-blue-600 rounded-full transition"><SkipBack size={20} /></button>
+                      <button onClick={toggleVideoPlay} className="p-3.5 bg-blue-600 text-white rounded-full transition shadow-md transform hover:scale-105">{isPlaying ? <Pause size={20} fill="currentColor"/> : <Play size={20} fill="currentColor" className="ml-0.5" />}</button>
+                      <button onClick={() => { if(videoRef.current) { videoRef.current.pause(); videoRef.current.currentTime += (1/FRAMERATE); if(compareVideoRef.current){compareVideoRef.current.pause(); compareVideoRef.current.currentTime += (1/FRAMERATE);} } }} className="p-2 text-slate-500 hover:text-blue-600 rounded-full transition"><SkipForward size={20} /></button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex-1 flex flex-col min-h-0">
+                <div className={`flex border-b text-sm font-bold shadow-sm ${theme==='dark'?'border-slate-800 bg-slate-950/80':'border-slate-300 bg-slate-100'}`}>
+                   <button onClick={()=>setReviewTab('chat')} className={`flex-1 p-3 flex items-center justify-center transition ${reviewTab==='chat'?'text-blue-600 border-b-2 border-blue-600 bg-white dark:bg-slate-900':'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}><MessageSquare size={16} className="mr-2"/> Discussions</button>
+                   <button onClick={()=>setReviewTab('history')} className={`flex-1 p-3 flex items-center justify-center transition ${reviewTab==='history'?'text-blue-600 border-b-2 border-blue-600 bg-white dark:bg-slate-900':'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}><History size={16} className="mr-2"/> {t('history')}</button>
+                </div>
+                
+                <div className={`flex-1 p-3 overflow-y-auto space-y-3 ${theme==='dark'?'bg-transparent':'bg-[#f4f7fb]'}`}>
+                  {reviewTab === 'chat' ? (
+                     <>
+                        {chatMessages.filter(m => m.type !== 'system').length === 0 ? <p className="text-xs text-center text-slate-500 italic mt-4 font-bold">Aucun commentaire pour ce plan.</p> : null}
+                        {chatMessages.filter(m => m.type !== 'system').map(msg => (
+                           <div key={msg.id} className={`p-3 rounded-xl text-xs shadow-sm ${msg.author === userData.displayName ? 'bg-blue-600 text-white ml-6 rounded-tr-none' : (theme==='dark'?'bg-slate-800 text-slate-200 mr-6 rounded-tl-none':'bg-white border border-slate-200 text-slate-700 mr-6 rounded-tl-none')}`}>
+                             <div className={`font-black text-[10px] mb-1 ${msg.author === userData.displayName ? 'text-blue-200' : 'text-slate-500'}`}>{msg.author}</div><p className="whitespace-pre-wrap">{msg.text}</p>
+                             <div className={`text-[9px] text-right mt-1.5 opacity-70 font-bold`}>{new Date(msg.date?.toDate()).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                           </div>
+                        ))}
+                     </>
+                  ) : (
+                     <>
+                        {chatMessages.filter(m => m.type === 'system').length === 0 ? <p className="text-xs text-center text-slate-500 italic mt-4 font-bold">Historique vierge.</p> : null}
+                        {chatMessages.filter(m => m.type === 'system').map(msg => (
+                           <div key={msg.id} className={`text-[11px] p-2.5 rounded-lg border-l-4 font-medium shadow-sm ${theme==='dark'?'bg-slate-950 border-slate-700 text-slate-400':'bg-white border-slate-300 text-slate-600'}`}>
+                              <span className="font-bold text-slate-700 dark:text-slate-300">{msg.author}</span> {msg.text.charAt(0).toLowerCase() + msg.text.slice(1)}
+                              <div className="opacity-50 text-[9px] mt-1.5 font-bold">{new Date(msg.date?.toDate()).toLocaleString()}</div>
+                           </div>
+                        ))}
+                     </>
+                  )}
+                </div>
+                
+                {reviewTab === 'chat' && (
+                   <form onSubmit={postComment} className={`p-3 border-t flex space-x-2 shrink-0 ${theme==='dark'?'border-slate-800 bg-slate-950/80':'border-slate-300 bg-white shadow-inner'}`}>
+                     <input type="text" value={newChatMsg} onChange={e=>setNewChatMsg(e.target.value)} placeholder="Ajouter un commentaire..." className={inputClass} />
+                     <button type="submit" className="bg-blue-600 text-white p-3 rounded-lg shadow-sm"><Plus size={18}/></button>
+                   </form>
+                )}
+              </div>
+            </aside>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
