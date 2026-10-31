@@ -396,6 +396,16 @@ export default function App() {
       setCurrentView('dashboard');
     } catch (err) { openModal("Erreur", err.message); }
   };
+  
+  const handleForgotPassword = async () => {
+    if(!authEmail) return openModal("Erreur", "Tapez votre e-mail d'abord.");
+    try {
+      await sendPasswordResetEmail(auth, authEmail);
+      openModal("Succès", "E-mail de réinitialisation envoyé !");
+    } catch(err) {
+      openModal("Erreur", err.message);
+    }
+  };
 
   const updateProfile = async (e) => {
     e.preventDefault();
