@@ -9,7 +9,7 @@ import {
 import { initializeApp } from 'firebase/app';
 import { 
   Film, Box, Settings, Plus, Play, Pause, Trash2, LogOut, 
-  Users, Upload, Clock, SkipForward, SkipBack, MonitorPlay, FolderKanban, BarChart, ChevronLeft, UserCircle, PenTool, Save, Key, Eraser, Undo, X, Bell, Download, Clapperboard, AlertTriangle, MessageSquare, Type, CheckSquare, Search, HelpCircle, Moon, Sun, Edit3, UserPlus, HeartHandshake, Image as ImageIcon, MessageCircle, GripVertical, Calendar, ArrowUp, ArrowDown
+  Users, Upload, Clock, SkipForward, SkipBack, MonitorPlay, FolderKanban, BarChart, ChevronLeft, UserCircle, Save, Key, Eraser, Undo, X, Bell, Download, Clapperboard, AlertTriangle, MessageSquare, Type, CheckSquare, Search, HelpCircle, Moon, Sun, Edit3, UserPlus, Image as ImageIcon, MessageCircle, GripVertical, ArrowUp, ArrowDown
 } from 'lucide-react';
 
 const keyPart1 = "AIzaSyDgTadoI2_";
@@ -25,7 +25,6 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const auth = initializeAuth(app);
-// Mode hors-ligne persistant multi-onglets activé
 const db = initializeFirestore(app, {
   localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
 });
@@ -47,13 +46,13 @@ const generateCloudinarySignature = async (publicId, timestamp, apiSecret) => {
 
 const dict = {
   fr: {
-    projects: "Mes Projets", friends: "Mes Amis", assets: "Assets", shots: "Plans", planning: "Planning", time: "Chrono", stats: "Stats", team: "Équipe", settings: "Paramètres", help: "Aide",
+    projects: "Mes Projets", friends: "Mes Amis", assets: "Assets", shots: "Plans", time: "Chrono", stats: "Stats", team: "Équipe", settings: "Paramètres", help: "Aide",
     ok: "Ok", cancel: "Annuler", batchAction: "Multi-action", manualTime: "Saisie manuelle", join: "Rejoindre", addFriend: "Ajouter Ami", friendId: "ID Ami", myId: "Mon ID", sharedProj: "projet(s) partagé(s)",
     createProj: "Créer un projet", joinProj: "Rejoindre", projName: "Nom", joinCode: "Code", searchShot: "Rechercher...", allStatus: "Tous statuts", allMembers: "Toute l'équipe", addShot: "Ajouter Plan",
     todo: "À faire", wip: "En cours", reviewStatus: "En validation", reuse: "Réutiliser", done: "Terminé", upload: "Upload", wait: "En attente"
   },
   en: {
-    projects: "My Projects", friends: "My Friends", assets: "Assets", shots: "Shots", planning: "Gantt", time: "Time Tracker", stats: "Stats", team: "Team", settings: "Settings", help: "Help",
+    projects: "My Projects", friends: "My Friends", assets: "Assets", shots: "Shots", time: "Time Tracker", stats: "Stats", team: "Team", settings: "Settings", help: "Help",
     ok: "Ok", cancel: "Cancel", batchAction: "Batch Action", manualTime: "Manual Entry", join: "Join", addFriend: "Add Friend", friendId: "Friend ID", myId: "My ID", sharedProj: "shared project(s)",
     createProj: "Create Project", joinProj: "Join Project", projName: "Name", joinCode: "Code", searchShot: "Search...", allStatus: "All Status", allMembers: "All Team", addShot: "Add Shot",
     todo: "To Do", wip: "WIP", reviewStatus: "Review", reuse: "Reuse", done: "Done", upload: "Upload", wait: "Waiting"
@@ -253,7 +252,6 @@ export default function App() {
     return () => { window.removeEventListener('mousemove', handleMouseMove); window.removeEventListener('mouseup', handleMouseUp); };
   }, [isResizing]);
 
-  // NOTIFICATIONS PUSH NAVIGATEUR
   const getAssignees = (item, step) => Array.isArray(item.assignedTo?.[step]) ? item.assignedTo[step] : (item.assignedTo?.[step] ? [item.assignedTo[step]] : []);
   const pendingReviews = shots.filter(s => workspace?.pipeline?.some(step => s.status?.[step] === 'review' && getAssignees(s, step).includes(user?.uid)));
   
@@ -274,7 +272,6 @@ export default function App() {
     } else { setBrowserNotifs(false); await updateDoc(doc(db, 'users', user.uid), { browserNotifs: false }); }
   };
 
-  // RACCOURCIS CLAVIER REVIEW
   useEffect(() => {
     if (!reviewItem) return;
     const handleKeyDown = (e) => {
@@ -342,7 +339,7 @@ export default function App() {
   const createProject = async (e) => {
     e.preventDefault();
     if (!newProjectName) return;
-    const wsRef = await addDoc(collection(db, 'workspaces'), { name: newProjectName, type: newProjectType, pipeline: TEMPLATES[newProjectType] || TEMPLATES['2D'], createdAt: serverTimestamp(), sequenceDates: {} });
+    const wsRef = await addDoc(collection(db, 'workspaces'), { name: newProjectName, type: newProjectType, pipeline: TEMPLATES[newProjectType] || TEMPLATES['2D'], createdAt: serverTimestamp() });
     await addDoc(collection(db, 'projectMembers'), { workspaceId: wsRef.id, workspaceName: newProjectName, userId: user.uid, displayName: userData.displayName, email: user.email, role: 'Admin' });
     setNewProjectName('');
   };
@@ -377,7 +374,6 @@ export default function App() {
     setNewPmMsg('');
   };
 
-  // COMPRESSION & OPTIMISATION DES MEDIAS (Optimisation Cloudinary q_auto, f_auto)
   const uploadMediaToCloud = async (file, cropOptions = null) => {
     const cloudName = workspace?.cloudinaryCloudName || cloudNameInput; 
     const uploadPreset = workspace?.cloudinaryUploadPreset || uploadPresetInput;
@@ -695,26 +691,12 @@ export default function App() {
     if (direction === 'up' && idx > 0) { const temp = newPipe[idx-1]; newPipe[idx-1] = newPipe[idx]; newPipe[idx] = temp; }
     else if (direction === 'down' && idx < newPipe.length - 1) { const temp = newPipe[idx+1]; newPipe[idx+1] = newPipe[idx]; newPipe[idx] = temp; }
     await updateDoc(doc(db, 'workspaces', workspace.id), { pipeline: newPipe });
-    setWorkspace({...workspace, pipeline: newPipe});
   };
 
-  const saveCustomPipeline = async (newPipeline) => { 
-    await updateDoc(doc(db, 'workspaces', workspace.id), { pipeline: newPipeline }); 
-    setWorkspace({...workspace, pipeline: newPipeline}); 
-  };
-
-  const saveSequenceDates = async (seq, start, end) => {
-    if (!workspace) return;
-    const dates = workspace.sequenceDates || {};
-    dates[seq] = { start, end };
-    await updateDoc(doc(db, 'workspaces', workspace.id), { sequenceDates: dates });
-    setWorkspace({...workspace, sequenceDates: dates});
-  };
-
+  const saveCustomPipeline = async (newPipeline) => { await updateDoc(doc(db, 'workspaces', workspace.id), { pipeline: newPipeline }); };
   const saveStorageSettings = async (e) => {
     e.preventDefault(); if (!workspace) return;
     await updateDoc(doc(db, 'workspaces', workspace.id), { cloudinaryCloudName: cloudNameInput, cloudinaryUploadPreset: uploadPresetInput, cloudinaryApiKey: apiKeyInput, cloudinaryApiSecret: apiSecretInput });
-    setWorkspace({ ...workspace, cloudinaryCloudName: cloudNameInput, cloudinaryUploadPreset: uploadPresetInput, cloudinaryApiKey: apiKeyInput, cloudinaryApiSecret: apiSecretInput });
     openModal("Succès", "Clés de stockage sauvegardées !");
   };
 
@@ -771,6 +753,8 @@ export default function App() {
       50% { filter: blur(3px) contrast(5); transform: scale(1.05); }
       100% { filter: blur(0px) contrast(1); transform: scale(1); }
     }
+    select option { background-color: var(--bg-option, white); color: var(--text-option, black); }
+    .dark select option { background-color: var(--bg-option, #0f172a); color: var(--text-option, white); }
   `;
 
   if (loading) return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white">...</div>;
@@ -1086,11 +1070,10 @@ export default function App() {
           <nav className="space-y-1.5 px-4 overflow-y-auto">
             <button onClick={() => {setActiveTab('assets'); setReviewItem(null);}} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'assets' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Box size={18} /> <span className="hidden md:inline font-medium">{t('assets')}</span></button>
             <button onClick={() => {setActiveTab('shots'); setReviewItem(null);}} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'shots' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Film size={18} /> <span className="hidden md:inline font-medium">{t('shots')}</span></button>
-            <button onClick={() => {setActiveTab('planning'); setReviewItem(null);}} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'planning' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Calendar size={18} /> <span className="hidden md:inline font-medium">{t('planning')}</span></button>
             <button onClick={() => {setActiveTab('time'); setReviewItem(null);}} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'time' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Clock size={18} /> <span className="hidden md:inline font-medium">{t('time')}</span></button>
             <button onClick={() => {setActiveTab('stats'); setReviewItem(null);}} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'stats' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><BarChart size={18} /> <span className="hidden md:inline font-medium">{t('stats')}</span></button>
             <button onClick={() => {setActiveTab('team'); setReviewItem(null);}} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'team' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Users size={18} /> <span className="hidden md:inline font-medium">{t('team')}</span></button>
-            {isAdmin && <button onClick={() => {setActiveTab('settings'); setReviewItem(null);}} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'settings' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Settings size={18} /> <span className="hidden md:inline font-medium">{t('settings')}</span></button>}
+            {userPermissions.role === 'Admin' && <button onClick={() => {setActiveTab('settings'); setReviewItem(null);}} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'settings' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><Settings size={18} /> <span className="hidden md:inline font-medium">{t('settings')}</span></button>}
             <button onClick={() => {setActiveTab('help'); setReviewItem(null);}} className={`w-full flex items-center space-x-3 p-2 rounded transition-colors ${activeTab === 'help' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}><HelpCircle size={18} /> <span className="hidden md:inline font-medium">{t('help')}</span></button>
           </nav>
         </div>
@@ -1107,7 +1090,7 @@ export default function App() {
           <header className="mb-6 flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-4">
             <h2 className="text-2xl font-bold tracking-tight uppercase">{t(activeTab)}</h2>
             <div className="flex items-center space-x-6">
-              {canAssign && (
+              {userPermissions.canAssign && (
                 <div className="relative">
                   <button onClick={() => setShowNotifications(!showNotifications)} className="relative p-2 text-slate-400 hover:text-blue-500 transition">
                     <Bell size={20} />
@@ -1137,10 +1120,10 @@ export default function App() {
                   <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)} className={inputClass + " flex-1"}><option value="">{t('allStatus')}</option><option value="todo">{t('todo')}</option><option value="wip">{t('wip')}</option><option value="review">{t('reviewStatus')}</option><option value="reuse">{t('reuse')}</option><option value="done">{t('done')}</option></select>
                   <select value={filterAssignee} onChange={e=>setFilterAssignee(e.target.value)} className={inputClass + " flex-1"}><option value="">{t('allMembers')}</option>{members.map(m=><option key={m.userId} value={m.userId}>{m.displayName}</option>)}</select>
                 </div>
-                {canAssign && <button onClick={() => setShowAddShot(true)} className="w-full xl:w-auto flex items-center justify-center space-x-2 bg-blue-600 text-white hover:bg-blue-500 px-4 py-2 rounded font-bold text-sm shrink-0"><Plus size={16} /> <span>{t('addShot')}</span></button>}
+                {userPermissions.canAssign && <button onClick={() => setShowAddShot(true)} className="w-full xl:w-auto flex items-center justify-center space-x-2 bg-blue-600 text-white hover:bg-blue-500 px-4 py-2 rounded font-bold text-sm shrink-0"><Plus size={16} /> <span>{t('addShot')}</span></button>}
               </div>
 
-              {canEdit && batchSelection.length > 0 && (
+              {userPermissions.canEdit && batchSelection.length > 0 && (
                 <div className="bg-blue-600 text-white p-3 rounded-xl flex items-center justify-between shadow-lg sticky top-0 z-40">
                   <div className="font-bold flex items-center"><CheckSquare className="mr-2"/> {batchSelection.length} sélectionnés</div>
                   <div className="flex space-x-2 items-center">
@@ -1159,7 +1142,7 @@ export default function App() {
                       <thead>
                         <tr className={`border-b text-xs uppercase ${theme==='dark'?'border-slate-800 text-slate-500 bg-slate-900':'border-slate-200 text-slate-600 bg-white'}`}>
                           <th className="p-3 sticky left-0 z-10 w-48 font-semibold bg-inherit">
-                            {canEdit && <input type="checkbox" onChange={(e) => setBatchSelection(e.target.checked ? groupedShots[seq].map(s=>s.id) : batchSelection.filter(id => !groupedShots[seq].map(s=>s.id).includes(id))) } className="mr-2 cursor-pointer"/>} Scène / Nom
+                            {userPermissions.canEdit && <input type="checkbox" onChange={(e) => setBatchSelection(e.target.checked ? groupedShots[seq].map(s=>s.id) : batchSelection.filter(id => !groupedShots[seq].map(s=>s.id).includes(id))) } className="mr-2 cursor-pointer"/>} Scène / Nom
                           </th>
                           {workspace?.pipeline?.map(step => <th key={step} className={`p-3 min-w-[240px] border-l font-semibold ${theme==='dark'?'border-slate-800':'border-slate-200'}`}>{step}</th>)}
                         </tr>
@@ -1169,14 +1152,14 @@ export default function App() {
                           <tr key={s.id} className="hover:bg-slate-100 dark:hover:bg-slate-800/20 transition-colors group">
                             <td className={`p-3 font-medium sticky left-0 z-10 align-top ${theme==='dark'?'bg-slate-900':'bg-white'}`}>
                               <div className="flex justify-between items-start">
-                                <div className="flex items-start">{canEdit && <input type="checkbox" checked={batchSelection.includes(s.id)} onChange={(e) => setBatchSelection(e.target.checked ? [...batchSelection, s.id] : batchSelection.filter(id=>id!==s.id))} className="mr-3 mt-1 cursor-pointer"/>}<div><div className="text-slate-400 font-mono text-xs mb-0.5">{s.scene}</div><div className="font-bold text-base">{s.name}</div></div></div>
-                                {canAssign && <button onClick={() => openModal("Supprimer Plan", `Détruire définitivement le plan ${s.name} ?`, async () => { await deleteDoc(doc(db, 'shots', s.id)); closeModal(); })} className="text-slate-400 hover:text-red-500 transition opacity-0 group-hover:opacity-100"><Trash2 size={16}/></button>}
+                                <div className="flex items-start">{userPermissions.canEdit && <input type="checkbox" checked={batchSelection.includes(s.id)} onChange={(e) => setBatchSelection(e.target.checked ? [...batchSelection, s.id] : batchSelection.filter(id=>id!==s.id))} className="mr-3 mt-1 cursor-pointer"/>}<div><div className="text-slate-400 font-mono text-xs mb-0.5">{s.scene}</div><div className="font-bold text-base">{s.name}</div></div></div>
+                                {userPermissions.canAssign && <button onClick={() => openModal("Supprimer Plan", `Détruire définitivement le plan ${s.name} ?`, async () => { await deleteDoc(doc(db, 'shots', s.id)); closeModal(); })} className="text-slate-400 hover:text-red-500 transition opacity-0 group-hover:opacity-100"><Trash2 size={16}/></button>}
                               </div>
                             </td>
                             {workspace?.pipeline?.map(step => {
                               const assignees = getAssignees(s, step);
                               const isMyTask = assignees.includes(user.uid);
-                              const canUpload = canEdit && (isMyTask || canAssign);
+                              const canUpload = userPermissions.canEdit && (isMyTask || userPermissions.canAssign);
                               const versions = Array.isArray(s.previews?.[step]) ? s.previews[step] : [];
                               const activeIdx = selectedVersions[`${s.id}_${step}`] ?? (versions.length > 0 ? versions.length - 1 : -1);
                               const activePreview = activeIdx >= 0 ? versions[activeIdx] : null;
@@ -1186,13 +1169,13 @@ export default function App() {
                                   <div className="flex flex-col space-y-1.5">
                                     <div className="flex flex-wrap gap-1">
                                       {assignees.map(uid => (
-                                        <span key={uid} onClick={() => canAssign && removeAssignee('shots', s.id, step, uid)} className={`text-[10px] px-1.5 py-0.5 rounded flex items-center font-bold ${canAssign ? 'cursor-pointer bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 hover:bg-red-100 dark:hover:bg-red-900/50 hover:text-red-600 dark:hover:text-red-300' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}`}>
-                                          {members.find(m => m.userId === uid)?.displayName || 'Inconnu'} {canAssign && <X size={10} className="ml-1"/>}
+                                        <span key={uid} onClick={() => userPermissions.canAssign && removeAssignee('shots', s.id, step, uid)} className={`text-[10px] px-1.5 py-0.5 rounded flex items-center font-bold ${userPermissions.canAssign ? 'cursor-pointer bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 hover:bg-red-100 dark:hover:bg-red-900/50 hover:text-red-600 dark:hover:text-red-300' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}`}>
+                                          {members.find(m => m.userId === uid)?.displayName || 'Inconnu'} {userPermissions.canAssign && <X size={10} className="ml-1"/>}
                                         </span>
                                       ))}
                                     </div>
-                                    {canAssign && (<select className={`${inputClass} !p-1 !text-xs !py-1`} value="" onChange={(e) => { if(e.target.value) addAssignee('shots', s.id, step, e.target.value) }}><option value="">+ Assigner</option>{members.filter(m => !assignees.includes(m.userId)).map(m => <option key={m.userId} value={m.userId}>{m.displayName}</option>)}</select>)}
-                                    <select disabled={!canEdit} className={`rounded p-1 text-xs font-semibold outline-none transition-colors border ${getStatusColor(s.status?.[step])}`} value={s.status?.[step] || 'todo'} onChange={(e) => changeStatus(s, step, e.target.value, 'shots')}><option value="todo">{t('todo')}</option><option value="wip">{t('wip')}</option><option value="review">{t('reviewStatus')}</option><option value="reuse">{t('reuse')}</option><option value="done">{t('done')}</option></select>
+                                    {userPermissions.canAssign && (<select className={`${inputClass} !p-1 !text-xs !py-1`} value="" onChange={(e) => { if(e.target.value) addAssignee('shots', s.id, step, e.target.value) }}><option value="">+ Assigner</option>{members.filter(m => !assignees.includes(m.userId)).map(m => <option key={m.userId} value={m.userId}>{m.displayName}</option>)}</select>)}
+                                    <select disabled={!userPermissions.canEdit} className={`rounded p-1 text-xs font-semibold outline-none transition-colors border ${getStatusColor(s.status?.[step])}`} value={s.status?.[step] || 'todo'} onChange={(e) => changeStatus(s, step, e.target.value, 'shots')}><option value="todo">{t('todo')}</option><option value="wip">{t('wip')}</option><option value="review">{t('reviewStatus')}</option><option value="reuse">{t('reuse')}</option><option value="done">{t('done')}</option></select>
                                   </div>
                                   <div className={`pt-2 border-t h-[4.5rem] ${theme==='dark'?'border-slate-800/50':'border-slate-200'}`}>
                                     {activePreview ? (
@@ -1224,7 +1207,7 @@ export default function App() {
 
           {activeTab === 'assets' && (
             <div className="space-y-8">
-              {canAssign && <button onClick={() => { const n = prompt("Nom de l'asset"); if (n) addDoc(collection(db, 'assets'), { name: n, category: 'Model Design', workspaceId: workspace.id, assignedTo: {} }); }} className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded font-bold text-sm shadow-lg"><Plus size={16} /> <span>Ajouter Asset</span></button>}
+              {userPermissions.canAssign && <button onClick={() => { const n = prompt("Nom de l'asset"); if (n) addDoc(collection(db, 'assets'), { name: n, category: 'Model Design', workspaceId: workspace.id, assignedTo: {} }); }} className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded font-bold text-sm shadow-lg"><Plus size={16} /> <span>Ajouter Asset</span></button>}
               
               {sortedCats.map(cat => (
                 <div key={cat} className="space-y-4">
@@ -1232,14 +1215,14 @@ export default function App() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                     {groupedAssets[cat].map(a => {
                       const assignees = getAssignees(a, 'Global');
-                      const canUpload = canEdit && (assignees.includes(user.uid) || canAssign);
+                      const canUpload = userPermissions.canEdit && (assignees.includes(user.uid) || userPermissions.canAssign);
                       const versions = Array.isArray(a.previews) ? a.previews : [];
                       const activeIdx = selectedVersions[`asset_${a.id}`] ?? (versions.length > 0 ? versions.length - 1 : -1);
                       const activePreview = activeIdx >= 0 ? versions[activeIdx] : null;
 
                       return (
                       <div key={a.id} className={`border rounded-xl overflow-hidden flex flex-col relative shadow-sm hover:border-slate-400 transition group/asset ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
-                        {canAssign && <button onClick={() => openModal("Supprimer", "Détruire cet asset ?", async()=>{await deleteDoc(doc(db, 'assets', a.id)); closeModal()})} className="absolute top-2 right-2 bg-black/60 p-1.5 rounded text-white hover:text-red-500 z-10 opacity-0 group-hover/asset:opacity-100 transition"><Trash2 size={14}/></button>}
+                        {userPermissions.canAssign && <button onClick={() => openModal("Supprimer", "Détruire cet asset ?", async()=>{await deleteDoc(doc(db, 'assets', a.id)); closeModal()})} className="absolute top-2 right-2 bg-black/60 p-1.5 rounded text-white hover:text-red-500 z-10 opacity-0 group-hover/asset:opacity-100 transition"><Trash2 size={14}/></button>}
                         {activePreview && activePreview.files?.length > 0 ? (
                           <div className="relative w-full h-40 bg-black overflow-hidden flex overflow-x-auto snap-x">
                             {activePreview.files.map((file, i) => (
@@ -1261,11 +1244,11 @@ export default function App() {
                             <div className="font-bold text-sm truncate pr-2">{a.name}</div>
                             {versions.length > 0 && (<div className="flex items-center space-x-1">{canUpload && <label className="cursor-pointer text-blue-500 hover:text-blue-400" title="Nouvelle Version (Multi-images)"><Plus size={14}/><input type="file" multiple accept="image/*" className="hidden" onChange={(e)=>uploadAssetPreviews(a.id, e.target.files, versions)}/></label>}<select value={activeIdx} onChange={(e) => setSelectedVersions({...selectedVersions, [`asset_${a.id}`]: parseInt(e.target.value)})} className="bg-transparent text-xs font-bold text-slate-500 outline-none">{versions.map((v, i) => <option key={i} value={i}>V{v.version}</option>)}</select></div>)}
                           </div>
-                          {canAssign ? <select className={`${inputClass} !p-1 !text-xs`} value={a.category || ''} onChange={async (e) => await updateDoc(doc(db, 'assets', a.id), { category: e.target.value })}>{ASSET_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}</select> : <div className="text-xs text-slate-500">{a.category}</div>}
+                          {userPermissions.canAssign ? <select className={`${inputClass} !p-1 !text-xs`} value={a.category || ''} onChange={async (e) => await updateDoc(doc(db, 'assets', a.id), { category: e.target.value })}>{ASSET_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}</select> : <div className="text-xs text-slate-500">{a.category}</div>}
                           <div className="flex flex-wrap gap-1 pt-1">
-                            {assignees.map(uid => (<span key={uid} onClick={() => canAssign && removeAssignee('assets', a.id, 'Global', uid)} className={`text-[10px] px-1.5 py-0.5 rounded flex items-center font-bold ${canAssign ? 'cursor-pointer bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300 hover:bg-red-100 hover:text-red-600' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}`}>{members.find(m => m.userId === uid)?.displayName || uid} {canAssign && <X size={10} className="ml-1"/>}</span>))}
+                            {assignees.map(uid => (<span key={uid} onClick={() => userPermissions.canAssign && removeAssignee('assets', a.id, 'Global', uid)} className={`text-[10px] px-1.5 py-0.5 rounded flex items-center font-bold ${userPermissions.canAssign ? 'cursor-pointer bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300 hover:bg-red-100 hover:text-red-600' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}`}>{members.find(m => m.userId === uid)?.displayName || uid} {userPermissions.canAssign && <X size={10} className="ml-1"/>}</span>))}
                           </div>
-                          {canAssign && (<select className={`${inputClass} !p-1 !text-xs`} value="" onChange={(e) => { if(e.target.value) addAssignee('assets', a.id, 'Global', e.target.value) }}><option value="">+ Assigner</option>{members.filter(m => !assignees.includes(m.userId)).map(m => <option key={m.userId} value={m.userId}>{m.displayName}</option>)}</select>)}
+                          {userPermissions.canAssign && (<select className={`${inputClass} !p-1 !text-xs`} value="" onChange={(e) => { if(e.target.value) addAssignee('assets', a.id, 'Global', e.target.value) }}><option value="">+ Assigner</option>{members.filter(m => !assignees.includes(m.userId)).map(m => <option key={m.userId} value={m.userId}>{m.displayName}</option>)}</select>)}
                         </div>
                       </div>
                     )})}
@@ -1273,61 +1256,6 @@ export default function App() {
                 </div>
               ))}
             </div>
-          )}
-
-          {activeTab === 'planning' && (
-             <div className="space-y-6 max-w-6xl mx-auto">
-                <div className={`p-6 rounded-xl border flex flex-col items-center justify-center ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200 shadow-sm'}`}>
-                   <h3 className="font-black text-2xl mb-2 flex items-center text-blue-500"><Calendar className="mr-3" size={28}/> Planning Global (Gantt)</h3>
-                   <p className="text-sm text-slate-500 mb-6">Définissez les dates de chaque séquence pour visualiser le calendrier de production.</p>
-                   
-                   <div className="w-full overflow-x-auto pb-4">
-                     <table className="w-full text-sm text-left">
-                       <thead>
-                         <tr className={`uppercase text-xs font-bold ${theme==='dark'?'text-slate-500':'text-slate-500'}`}>
-                           <th className="p-3 w-32">Séquence</th>
-                           {canAssign && <th className="p-3 w-40">Début</th>}
-                           {canAssign && <th className="p-3 w-40">Fin</th>}
-                           <th className="p-3">Timeline 2026</th>
-                         </tr>
-                       </thead>
-                       <tbody className="space-y-2">
-                         {sortedSeqs.map(seq => {
-                           const start = workspace?.sequenceDates?.[seq]?.start || '';
-                           const end = workspace?.sequenceDates?.[seq]?.end || '';
-                           
-                           const getGanttStyle = (s, e) => {
-                             if(!s || !e) return {width: '0%', left: '0%', opacity: 0};
-                             const sDate = new Date(s); const eDate = new Date(e);
-                             const yearStart = new Date('2026-01-01'); const totalMs = 365 * 24 * 60 * 60 * 1000;
-                             const leftPct = Math.max(0, ((sDate - yearStart) / totalMs) * 100);
-                             const widthPct = Math.max(2, ((eDate - sDate) / totalMs) * 100);
-                             return { left: `${leftPct}%`, width: `${widthPct}%`, opacity: 1 };
-                           };
-                           const style = getGanttStyle(start, end);
-
-                           return (
-                             <tr key={seq} className={`border-b ${theme==='dark'?'border-slate-800/50':'border-slate-100'}`}>
-                               <td className="p-3 font-black text-blue-500">{seq}</td>
-                               {canAssign && <td className="p-3"><input type="date" value={start} onChange={(e) => saveSequenceDates(seq, e.target.value, end)} className={`${inputClass} !p-1.5 !text-xs`}/></td>}
-                               {canAssign && <td className="p-3"><input type="date" value={end} onChange={(e) => saveSequenceDates(seq, start, e.target.value)} className={`${inputClass} !p-1.5 !text-xs`}/></td>}
-                               <td className="p-3 relative min-w-[400px]">
-                                 <div className={`w-full h-6 rounded-full relative overflow-hidden flex items-center ${theme==='dark'?'bg-slate-950':'bg-slate-200'}`}>
-                                    {style.opacity === 1 ? (
-                                      <div className="absolute h-full bg-gradient-to-r from-blue-600 to-indigo-500 rounded-full shadow-md transition-all duration-500" style={style}></div>
-                                    ) : (
-                                      <span className="text-xs text-slate-500 px-3 italic">Dates non définies</span>
-                                    )}
-                                 </div>
-                               </td>
-                             </tr>
-                           )
-                         })}
-                       </tbody>
-                     </table>
-                   </div>
-                </div>
-             </div>
           )}
 
           {activeTab === 'time' && (
@@ -1388,10 +1316,10 @@ export default function App() {
                 <h3 className="font-black text-xl mb-6 flex items-center text-blue-500"><BarChart className="mr-3"/> Logs Récents</h3>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-sm whitespace-nowrap">
-                    <thead><tr className={`border-b text-xs uppercase ${theme==='dark'?'border-slate-800 bg-slate-950 text-slate-500':'border-slate-200 bg-slate-50 text-slate-600'}`}>{canAssign && <th className="p-3">Membre</th>}<th className="p-3">Tâche</th><th className="p-3">Étape</th><th className="p-3">Temps</th></tr></thead>
+                    <thead><tr className={`border-b text-xs uppercase ${theme==='dark'?'border-slate-800 bg-slate-950 text-slate-500':'border-slate-200 bg-slate-50 text-slate-600'}`}>{userPermissions.canAssign && <th className="p-3">Membre</th>}<th className="p-3">Tâche</th><th className="p-3">Étape</th><th className="p-3">Temps</th></tr></thead>
                     <tbody className={`divide-y ${theme==='dark'?'divide-slate-800/50':'divide-slate-200'}`}>
-                      {timeLogs.filter(log => canAssign || log.userId === user.uid).sort((a,b) => b.date - a.date).slice(0,20).map(log => (
-                        <tr key={log.id} className="hover:bg-slate-100 dark:hover:bg-slate-800/20">{canAssign && <td className="p-3 font-medium">{log.userName}</td>}<td className="p-3">{log.taskName}</td><td className="p-3 text-slate-500">{log.step}</td><td className="p-3 text-blue-500 font-mono font-bold">{formatTime(log.durationSeconds)}</td></tr>
+                      {timeLogs.filter(log => userPermissions.canAssign || log.userId === user.uid).sort((a,b) => b.date - a.date).slice(0,20).map(log => (
+                        <tr key={log.id} className="hover:bg-slate-100 dark:hover:bg-slate-800/20">{userPermissions.canAssign && <td className="p-3 font-medium">{log.userName}</td>}<td className="p-3">{log.taskName}</td><td className="p-3 text-slate-500">{log.step}</td><td className="p-3 text-blue-500 font-mono font-bold">{formatTime(log.durationSeconds)}</td></tr>
                       ))}
                     </tbody>
                   </table>
@@ -1407,7 +1335,7 @@ export default function App() {
                 {members.map(m => (
                   <div key={m.id} className={`flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4 p-4 rounded-lg border ${theme==='dark'?'bg-slate-950 border-slate-800':'bg-slate-50 border-slate-200'}`}>
                     <div className="flex items-center space-x-3"><UserCircle size={32} className="text-slate-400 shrink-0"/><div><div className="font-bold text-base">{m.displayName}</div><div className="text-xs text-slate-500 font-mono">{m.email}</div></div></div>
-                    {isAdmin && m.userId !== user.uid ? (
+                    {userPermissions.role === 'Admin' && m.userId !== user.uid ? (
                       <div className="flex flex-col sm:flex-row items-center gap-3">
                          {m.role === 'Custom' && (
                             <div className="flex items-center space-x-3 text-xs bg-slate-200 dark:bg-slate-900 px-3 py-1.5 rounded-lg border dark:border-slate-700">
@@ -1430,7 +1358,7 @@ export default function App() {
             </div>
           )}
 
-          {activeTab === 'settings' && isAdmin && (
+          {activeTab === 'settings' && userPermissions.role === 'Admin' && (
             <div className="space-y-6 max-w-3xl mx-auto pb-10">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <button onClick={exportExcel} className="w-full bg-emerald-600 text-white flex items-center justify-center p-3 rounded-lg font-bold hover:bg-emerald-500 transition shadow-sm"><Download size={18} className="mr-2"/> Export Excel</button>
@@ -1506,39 +1434,90 @@ export default function App() {
           )}
 
           {activeTab === 'help' && (
-            <div className="max-w-3xl space-y-6 mx-auto">
+            <div className="max-w-4xl space-y-8 mx-auto pb-10">
               <div className={`border rounded-xl p-8 shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
-                <h3 className="font-black text-2xl mb-6 text-blue-500 flex items-center"><HelpCircle className="mr-3"/> Guide & Raccourcis</h3>
-                <div className="space-y-6 text-sm leading-relaxed">
-                  <div>
-                    <h4 className="font-bold text-lg mb-2">⌨️ Raccourcis Claviers (Dans l'outil de Validation)</h4>
-                    <ul className="list-disc pl-5 space-y-1 text-slate-600 dark:text-slate-400">
-                      <li><kbd className="bg-slate-200 dark:bg-slate-800 px-1 rounded">Espace</kbd> : Play / Pause la vidéo.</li>
-                      <li><kbd className="bg-slate-200 dark:bg-slate-800 px-1 rounded">←</kbd> et <kbd className="bg-slate-200 dark:bg-slate-800 px-1 rounded">→</kbd> : Reculer ou avancer image par image.</li>
-                      <li><kbd className="bg-slate-200 dark:bg-slate-800 px-1 rounded">Ctrl + Z</kbd> : Annuler le dernier dessin au pinceau rouge.</li>
-                      <li><kbd className="bg-slate-200 dark:bg-slate-800 px-1 rounded">1 à 5</kbd> : Changer instantanément le statut du plan (Todo, Wip, Review, Reuse, Done).</li>
+                <h3 className="font-black text-3xl mb-8 text-blue-500 flex items-center"><HelpCircle className="mr-3" size={32}/> Documentation & Guide Complet</h3>
+                
+                <div className="space-y-12">
+                  
+                  <section>
+                    <h4 className="font-black text-xl mb-4 border-b border-slate-200 dark:border-slate-800 pb-2">📂 1. Configuration Initiale (Cloudinary)</h4>
+                    <p className="text-slate-600 dark:text-slate-400 mb-3">
+                      Pour stocker vos images et vidéos sans surcharger la base de données, Fabrica Tracker utilise <strong>Cloudinary</strong>, un service tiers gratuit et performant.
+                    </p>
+                    <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-100 dark:border-blue-900/50 text-sm">
+                      <ol className="list-decimal pl-5 space-y-2">
+                        <li>Créez un compte gratuit sur <a href="https://cloudinary.com" target="_blank" className="text-blue-600 font-bold hover:underline">Cloudinary.com</a>.</li>
+                        <li>Sur votre Dashboard, notez votre <strong>Cloud Name</strong>.</li>
+                        <li>Allez dans <em>Settings {'>'} Upload</em>. Scrollez jusqu'à "Upload Presets" et cliquez sur "Add upload preset".</li>
+                        <li>Nommez-le comme vous voulez, mais <strong>changez impérativement le "Signing Mode" en "Unsigned"</strong> et sauvegardez.</li>
+                        <li>Copiez ce nom, puis collez le Cloud Name et l'Upload Preset dans l'onglet <strong>Paramètres</strong> du Tracker.</li>
+                      </ol>
+                    </div>
+                  </section>
+
+                  <section>
+                    <h4 className="font-black text-xl mb-4 border-b border-slate-200 dark:border-slate-800 pb-2">🛡️ 2. Gestion des Rôles & Permissions</h4>
+                    <p className="text-slate-600 dark:text-slate-400 mb-3">La gestion des droits d'accès se passe dans l'onglet <strong>Équipe</strong>. Voici les rôles standards :</p>
+                    <ul className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                      <li className="bg-slate-100 dark:bg-slate-950 p-4 rounded-lg border dark:border-slate-800">
+                        <strong className="text-blue-500 block mb-1">Admin</strong>
+                        Peut modifier les paramètres, le pipeline, changer les rôles de l'équipe et détruire le projet entier.
+                      </li>
+                      <li className="bg-slate-100 dark:bg-slate-950 p-4 rounded-lg border dark:border-slate-800">
+                        <strong className="text-blue-500 block mb-1">Supervisor</strong>
+                        Peut ajouter/supprimer des plans, assigner des tâches aux membres de l'équipe et uploader des fichiers pour tout le monde.
+                      </li>
+                      <li className="bg-slate-100 dark:bg-slate-950 p-4 rounded-lg border dark:border-slate-800">
+                        <strong className="text-blue-500 block mb-1">Artist</strong>
+                        Peut uploader des médias et changer le statut <strong>uniquement sur les tâches qui lui ont été assignées</strong>.
+                      </li>
+                      <li className="bg-slate-100 dark:bg-slate-950 p-4 rounded-lg border dark:border-slate-800">
+                        <strong className="text-blue-500 block mb-1">Guest</strong>
+                        Mode lecture seule. Ne peut rien uploader ni changer. Il peut néanmoins utiliser le chat.
+                      </li>
+                      <li className="bg-slate-100 dark:bg-slate-950 p-4 rounded-lg border dark:border-slate-800 md:col-span-2">
+                        <strong className="text-blue-500 block mb-1">Custom (Personnalisé)</strong>
+                        En choisissant ce rôle, deux cases à cocher apparaissent : <em>Édition</em> et <em>Assigner/Valider</em>. Cela permet de créer des rôles sur mesure.
+                      </li>
                     </ul>
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-lg mb-2">⚡️ Mode Hors Ligne</h4>
-                    <p className="text-slate-600 dark:text-slate-400">Le tracker est équipé d'une base de données locale intelligente. Si vous perdez votre connexion internet, continuez de travailler, modifier des statuts et écrire. L'application synchronisera le tout vers le serveur dès votre reconnexion.</p>
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-lg mb-2">🔒 Gestion des Rôles</h4>
-                    <ul className="list-disc pl-5 space-y-1 text-slate-600 dark:text-slate-400">
-                      <li><strong className="text-blue-500">Admin :</strong> Contrôle tout (Paramètres, Pipeline, Rôles, Suppression).</li>
-                      <li><strong className="text-blue-500">Supervisor :</strong> Assigne les équipes et valide les plans.</li>
-                      <li><strong className="text-blue-500">Artist :</strong> Upload ses versions et avance ses étapes assignées.</li>
-                      <li><strong className="text-blue-500">Custom :</strong> Permet de cocher manuellement les permissions d'édition et d'assignation.</li>
+                  </section>
+
+                  <section>
+                    <h4 className="font-black text-xl mb-4 border-b border-slate-200 dark:border-slate-800 pb-2">🎬 3. L'Outil de Validation (Review / Retake)</h4>
+                    <p className="text-slate-600 dark:text-slate-400 mb-3">En cliquant sur n'importe quelle miniature, le panneau latéral s'ouvre. Ce n'est pas qu'un lecteur vidéo, c'est un outil d'annotation complet :</p>
+                    <ul className="list-disc pl-5 space-y-2 text-sm text-slate-600 dark:text-slate-400">
+                      <li><strong>Dessin & Annotation :</strong> En haut à droite du lecteur, sélectionnez l'outil Crayon ou Texte pour dessiner directement sur la frame.</li>
+                      <li><strong>Sauvegarde (Point Rouge) :</strong> N'oubliez pas de cliquer sur la <strong>disquette bleue</strong> (Save) pour enregistrer votre retake. Un point rouge apparaitra sur la timeline, visible par toute l'équipe.</li>
+                      <li><strong>Mode Comparaison :</strong> Cochez la case "Comparer" en haut à gauche pour afficher deux versions côte à côte. Les deux vidéos se synchronisent lors de la lecture.</li>
                     </ul>
-                  </div>
+                    <div className="mt-4 bg-slate-100 dark:bg-slate-950 p-4 rounded-lg border dark:border-slate-800 text-sm">
+                      <strong className="text-slate-900 dark:text-white block mb-2">⌨️ Raccourcis Claviers (Dans l'outil de Validation) :</strong>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        <div><kbd className="bg-slate-200 dark:bg-slate-800 px-1.5 py-0.5 text-xs rounded border border-slate-300 dark:border-slate-700">Espace</kbd> Play / Pause</div>
+                        <div><kbd className="bg-slate-200 dark:bg-slate-800 px-1.5 py-0.5 text-xs rounded border border-slate-300 dark:border-slate-700">←</kbd> / <kbd className="bg-slate-200 dark:bg-slate-800 px-1.5 py-0.5 text-xs rounded border border-slate-300 dark:border-slate-700">→</kbd> Image par image (24 fps)</div>
+                        <div><kbd className="bg-slate-200 dark:bg-slate-800 px-1.5 py-0.5 text-xs rounded border border-slate-300 dark:border-slate-700">Ctrl + Z</kbd> Annuler le dernier dessin</div>
+                        <div><kbd className="bg-slate-200 dark:bg-slate-800 px-1.5 py-0.5 text-xs rounded border border-slate-300 dark:border-slate-700">1 à 5</kbd> Changer le statut instantanément</div>
+                      </div>
+                    </div>
+                  </section>
+                  
+                  <section>
+                    <h4 className="font-black text-xl mb-4 border-b border-slate-200 dark:border-slate-800 pb-2">📶 4. Utilisation Hors-Ligne (Offline Mode)</h4>
+                    <p className="text-slate-600 dark:text-slate-400 text-sm">
+                      Fabrica Tracker est équipé d'une base de données locale persistant sur de multiples onglets. 
+                      <strong>Si vous perdez votre connexion internet</strong>, vous pouvez continuer à modifier les statuts, écrire des messages et assigner des personnes. Les modifications seront enregistrées localement sur votre ordinateur et synchronisées automatiquement sur le serveur centralisé dès le retour de votre connexion. 
+                      <br/><br/>
+                      <em>Note : Le transfert de nouveaux médias lourds nécessitera tout de même une connexion active.</em>
+                    </p>
+                  </section>
+
                 </div>
               </div>
             </div>
           )}
         </main>
         
-        {/* PANNEAU LATERAL DE VALIDATION REDIMENSIONNABLE (REVIEW & CHAT) */}
         {reviewItem && reviewPreview && (
           <>
             <div className={`w-1.5 md:w-2 cursor-col-resize shrink-0 transition-colors z-30 ${isResizing ? 'bg-blue-500' : (theme==='dark'?'bg-slate-700 hover:bg-slate-600':'bg-slate-300 hover:bg-slate-400')}`} onMouseDown={(e) => { e.preventDefault(); setIsResizing(true); }}><div className="h-full flex items-center justify-center opacity-50"><GripVertical size={16} /></div></div>
