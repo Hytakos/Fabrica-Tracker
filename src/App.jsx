@@ -61,11 +61,11 @@ const dict = {
   }
 };
 
-// Composant PingPongGame 
 const PingPongGame = ({ onClose }) => {
   const canvasRef = useRef(null);
   useEffect(() => {
      const canvas = canvasRef.current;
+     if (!canvas) return;
      const ctx = canvas.getContext('2d');
      let afId;
      let paddleY = 50; let aiY = 50;
@@ -86,7 +86,7 @@ const PingPongGame = ({ onClose }) => {
 
        ball.x += ball.dx; ball.y += ball.dy;
        if(ball.y < 0 || ball.y > 150) ball.dy *= -1;
-       if(ball.x < 15 && ball.y > paddleY && ball.y < paddleY+30) ball.dx *= -1.1; // accélère
+       if(ball.x < 15 && ball.y > paddleY && ball.y < paddleY+30) ball.dx *= -1.1;
        if(ball.x > 285 && ball.y > aiY && ball.y < aiY+30) ball.dx *= -1.1;
 
        aiY += (ball.y - (aiY + 15)) * 0.08;
@@ -112,7 +112,6 @@ export default function App() {
   const t = (key) => dict[lang][key] || key;
   const [theme, setTheme] = useState('dark');
   
-  // Personnalisation des couleurs
   const [primaryColor, setPrimaryColor] = useState(localStorage.getItem('customPrimary') || '#2563eb');
   const [secondaryColor, setSecondaryColor] = useState(localStorage.getItem('customSecondary') || '#3b82f6');
   
@@ -133,7 +132,6 @@ export default function App() {
   const [profileName, setProfileName] = useState('');
   const [emailNotifs, setEmailNotifs] = useState(false);
   const [browserNotifs, setBrowserNotifs] = useState(false);
-  const [deleteConfirmText, setDeleteConfirmText] = useState('');
 
   const [workspace, setWorkspace] = useState(null);
   const [userPermissions, setUserPermissions] = useState({ canEdit: false, canAssign: false, role: 'Guest' });
@@ -213,7 +211,6 @@ export default function App() {
   const [newPmMsg, setNewPmMsg] = useState('');
   const [showPingPong, setShowPingPong] = useState(false);
 
-  // Profil Modal state
   const [viewProfileId, setViewProfileId] = useState(null);
   const [profileModalData, setProfileModalData] = useState(null);
 
@@ -344,22 +341,31 @@ export default function App() {
   const getAssignees = (item, step) => Array.isArray(item.assignedTo?.[step]) ? item.assignedTo[step] : (item.assignedTo?.[step] ? [item.assignedTo[step]] : []);
   const pendingReviews = shots.filter(s => workspace?.pipeline?.some(step => s.status?.[step] === 'review' && getAssignees(s, step).includes(user?.uid)));
   
+  const myAssignedShots = shots.filter(s => workspace?.pipeline?.some(step => getAssignees(s, step).includes(user?.uid)));
+  const myAssignedAssets = assets.filter(a => getAssignees(a, 'Global').includes(user?.uid));
+
+  const myStats = React.useMemo(() => {
+    let todo = 0, wip = 0, review = 0, done = 0;
+    shots.forEach(s => {
+      workspace?.pipeline?.forEach(step => {
+        if (getAssignees(s, step).includes(user?.uid)) {
+          const st = s.status?.[step] || 'todo';
+          if (st === 'todo') todo++;
+          else if (st === 'wip') wip++;
+          else if (st === 'review') review++;
+          else if (st === 'done') done++;
+        }
+      });
+    });
+    return { todo, wip, review, done };
+  }, [shots, workspace, user]);
+
   useEffect(() => {
     if (browserNotifs && pendingReviews.length > prevPendingReviews.current) {
       if (Notification.permission === 'granted') new Notification('Fabrica Tracker', { body: 'Vous avez de nouvelles validations en attente !' });
     }
     prevPendingReviews.current = pendingReviews.length;
   }, [pendingReviews.length, browserNotifs]);
-
-  const requestBrowserNotifs = async (checked) => {
-    if (checked) {
-      const perm = await Notification.requestPermission();
-      if (perm === 'granted') {
-        setBrowserNotifs(true); await updateDoc(doc(db, 'users', user.uid), { browserNotifs: true });
-        new Notification('Fabrica Tracker', { body: 'Notifications push activées avec succès !' });
-      } else { openModal("Refusé", "Vous devez autoriser les notifications dans les paramètres de votre navigateur."); }
-    } else { setBrowserNotifs(false); await updateDoc(doc(db, 'users', user.uid), { browserNotifs: false }); }
-  };
 
   const toggleVideoPlay = () => {
     if (videoRef.current) { 
@@ -486,7 +492,6 @@ export default function App() {
     } catch(err) { console.error("Cloudinary Delete:", err); }
   };
 
-  // --- AUTOMATIC SCENE & SEQUENCE RENUMBERING ---
   const recalculateSequenceShots = async (seqName) => {
     const snap = await getDocs(query(collection(db, 'shots'), where('workspaceId', '==', workspace.id), where('sequence', '==', seqName)));
     let localShots = snap.docs.map(d => ({id: d.id, ...d.data()}));
@@ -504,12 +509,14 @@ export default function App() {
     }
   };
 
-  const groupedShots = shots.filter(s => {
+  const filteredShots = shots.filter(s => {
     const matchSearch = s.name.toLowerCase().includes(searchQuery.toLowerCase()) || s.scene.toLowerCase().includes(searchQuery.toLowerCase());
     const matchStatus = filterStatus ? workspace?.pipeline?.some(step => s.status?.[step] === filterStatus) : true;
     const matchAssignee = filterAssignee ? workspace?.pipeline?.some(step => getAssignees(s, step).includes(filterAssignee)) : true;
     return matchSearch && matchStatus && matchAssignee;
-  }).reduce((acc, s) => { (acc[s.sequence] = acc[s.sequence] || []).push(s); return acc; }, {});
+  });
+
+  const groupedShots = filteredShots.reduce((acc, s) => { (acc[s.sequence] = acc[s.sequence] || []).push(s); return acc; }, {});
   const sortedSeqs = Object.keys(groupedShots).sort();
 
   const addNewSequence = async () => {
@@ -545,9 +552,7 @@ export default function App() {
     await addDoc(collection(db, 'shots'), { sequence: seqName, scene: 'TEMP', name: 'TEMP', order: newOrder, workspaceId: workspace.id, status: {}, assignedTo: {}, previews: {}, priority: 'Normal', tags: [] });
     setTimeout(() => recalculateSequenceShots(seqName), 500);
   };
-  // ---------------------------------------------
 
-  // --- CSV / EXCEL EXPORT ---
   const exportCSV = () => {
     let csv = "Sequence,Scene,Nom,Statut,Priorite\n";
     shots.forEach(s => {
@@ -600,9 +605,173 @@ export default function App() {
     setBatchSelection([]); openModal(t('batchAction'), "Appliquée.");
   };
 
+  const addAssignee = async (coll, id, step, uid) => {
+    const item = coll === 'shots' ? shots.find(s => s.id === id) : assets.find(a => a.id === id);
+    if (!item) return;
+    const current = getAssignees(item, step);
+    if (!current.includes(uid)) {
+      const updated = [...current, uid];
+      await updateDoc(doc(db, coll, id), { [`assignedTo.${step}`]: updated });
+    }
+  };
+
+  const removeAssignee = async (coll, id, step, uid) => {
+    const item = coll === 'shots' ? shots.find(s => s.id === id) : assets.find(a => a.id === id);
+    if (!item) return;
+    const current = getAssignees(item, step);
+    const updated = current.filter(u => u !== uid);
+    await updateDoc(doc(db, coll, id), { [`assignedTo.${step}`]: updated });
+  };
+
+  const uploadShotPreview = async (shotId, step, file, existingVersions) => {
+    if (!file) return;
+    setUploadingMedia(true);
+    try {
+      const res = await uploadMediaToCloud(file);
+      if (res) {
+        const newVersionNum = existingVersions.length + 1;
+        const newPreview = { version: newVersionNum, url: res.url, type: res.type, date: Date.now() };
+        const updated = [...existingVersions, newPreview];
+        await updateDoc(doc(db, 'shots', shotId), { [`previews.${step}`]: updated });
+        logAudit(shotId, 'shots', `Nouvelle version V${newVersionNum} uploadée pour ${step}`);
+      }
+    } catch(err) { openModal("Erreur", err.message); }
+    setUploadingMedia(false);
+  };
+
+  const uploadAssetPreviews = async (assetId, files, existingVersions) => {
+    if (!files || files.length === 0) return;
+    setUploadingMedia(true);
+    try {
+      let fileObjs = [];
+      for (let i = 0; i < files.length; i++) {
+        const res = await uploadMediaToCloud(files[i]);
+        if (res) fileObjs.push({ url: res.url, type: res.type });
+      }
+      if (fileObjs.length > 0) {
+        const newVersionNum = existingVersions.length + 1;
+        const newPreview = { version: newVersionNum, files: fileObjs, date: Date.now() };
+        const updated = [...existingVersions, newPreview];
+        await updateDoc(doc(db, 'assets', assetId), { previews: updated });
+        logAudit(assetId, 'assets', `Nouvelle version V${newVersionNum} uploadée pour l'Asset`);
+      }
+    } catch(err) { openModal("Erreur", err.message); }
+    setUploadingMedia(false);
+  };
+
+  const confirmDeletePreview = async (id, step, index, versions, coll = 'shots') => {
+    openModal("Supprimer Version", "Voulez-vous supprimer cette version ?", async () => {
+      const target = versions[index];
+      if (target.url) await deleteMediaFromCloudinary(target.url);
+      if (target.files) { for(let f of target.files) await deleteMediaFromCloudinary(f.url); }
+      const updated = versions.filter((_, i) => i !== index);
+      if (coll === 'shots') {
+        await updateDoc(doc(db, 'shots', id), { [`previews.${step}`]: updated });
+      } else {
+        await updateDoc(doc(db, 'assets', id), { previews: updated });
+      }
+      closeModal();
+    });
+  };
+
+  const handleAddAsset = async (e) => {
+    e.preventDefault();
+    if (!addAssetName) return;
+    await addDoc(collection(db, 'assets'), { name: addAssetName, category: addAssetCategory, workspaceId: workspace.id, previews: [], assignedTo: {}, priority: 'Normal', tags: [] });
+    setAddAssetName(''); setShowAddAsset(false);
+  };
+
+  const getThumbnail = (previewObj) => {
+    if (!previewObj || !previewObj.url) return '';
+    return previewObj.url.replace('/upload/', '/upload/w_400,c_scale,q_auto,f_auto/');
+  };
+
+  const getAnnotationKey = () => {
+    if (reviewType === 'shots') return 'general';
+    return `image_${reviewPreview.fileIndex}`;
+  };
+
   const openReview = (item, step, version, previewObj, type = 'shots') => {
     setReviewItem(item); setReviewType(type); setReviewStep(step); setReviewVersion(version); setReviewPreview(previewObj);
     setCompareMode(false); setCompareVersion(''); setStrokes([]); setCurrentStroke(null); setDrawMode('pen'); setReviewTab('chat');
+    
+    // Charger les annotations existantes s'il y en a
+    const annotKey = type === 'shots' ? 'general' : `image_${previewObj.fileIndex}`;
+    const saved = item.annotations?.[step]?.[`v${version}`]?.[annotKey];
+    if (saved && Array.isArray(saved)) {
+      setStrokes(saved);
+    }
+  };
+
+  const startDraw = (e) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX || e.touches?.[0]?.clientX) - rect.left;
+    const y = (e.clientY || e.touches?.[0]?.clientY) - rect.top;
+    const normX = x / canvas.width;
+    const normY = y / canvas.height;
+
+    if (drawMode === 'text') {
+      setTextInputPos({ px: x, py: y, x: normX, y: normY });
+      setTextInputValue('');
+      return;
+    }
+
+    setCurrentStroke({ type: 'pen', size: brushSize, points: [{ x: normX, y: normY }] });
+  };
+
+  const onDraw = (e) => {
+    if (!currentStroke || drawMode === 'text') return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX || e.touches?.[0]?.clientX) - rect.left;
+    const y = (e.clientY || e.touches?.[0]?.clientY) - rect.top;
+    const normX = x / canvas.width;
+    const normY = y / canvas.height;
+
+    setCurrentStroke({
+      ...currentStroke,
+      points: [...currentStroke.points, { x: normX, y: normY }]
+    });
+  };
+
+  const endDraw = () => {
+    if (currentStroke) {
+      setStrokes([...strokes, currentStroke]);
+      setCurrentStroke(null);
+    }
+  };
+
+  const commitTextAnnotation = () => {
+    if (textInputValue.trim() && textInputPos) {
+      const newStroke = { type: 'text', content: textInputValue, size: brushSize, x: textInputPos.x, y: textInputPos.y };
+      setStrokes([...strokes, newStroke]);
+    }
+    setTextInputPos(null);
+    setTextInputValue('');
+  };
+
+  const saveAnnotations = async () => {
+    if (!reviewItem) return;
+    const annotKey = getAnnotationKey();
+    const updatedAnnotations = {
+      ...(reviewItem.annotations || {}),
+      [reviewStep]: {
+        ...(reviewItem.annotations?.[reviewStep] || {}),
+        [`v${reviewVersion}`]: {
+          ...(reviewItem.annotations?.[reviewStep]?.[`v${reviewVersion}`] || {}),
+          [annotKey]: strokes
+        }
+      }
+    };
+    await updateDoc(doc(db, reviewType, reviewItem.id), { annotations: updatedAnnotations });
+    openModal("Succès", "Annotations enregistrées !");
+  };
+
+  const deleteRetakeFromDB = async () => {
+    setStrokes([]);
   };
 
   const drawOnCanvas = () => {
@@ -624,6 +793,43 @@ export default function App() {
   };
   useEffect(() => { drawOnCanvas(); }, [strokes, currentStroke]);
 
+  const postComment = async (e) => {
+    e.preventDefault();
+    if (!newChatMsg.trim() || !reviewItem || !reviewStep) return;
+    await addDoc(collection(db, `${reviewType}/${reviewItem.id}/comments`), {
+      type: 'chat', text: newChatMsg, date: serverTimestamp(), author: userData.displayName
+    });
+    setNewChatMsg('');
+  };
+
+  const handleStopTimer = async () => {
+    setIsTimerActive(false);
+    if (!selectedTask || !selectedStep) { setTimer(0); return; }
+    await addDoc(collection(db, 'timeLogs'), {
+      workspaceId: workspace.id, taskId: selectedTask, taskName: [...shots, ...assets].find(t=>t.id===selectedTask)?.name || 'Inconnu',
+      step: selectedStep, durationSeconds: timer, userId: user.uid, userName: userData.displayName, date: serverTimestamp()
+    });
+    setTimer(0);
+    openModal("Chrono", "Temps enregistré avec succès !");
+  };
+
+  const handleAddManualTime = async (e) => {
+    e.preventDefault();
+    if (!selectedTask || !selectedStep) return openModal("Erreur", "Sélectionnez une tâche et une étape.");
+    const totalSec = (parseInt(manualTime.h || 0) * 3600) + (parseInt(manualTime.m || 0) * 60);
+    if (totalSec <= 0) return;
+    await addDoc(collection(db, 'timeLogs'), {
+      workspaceId: workspace.id, taskId: selectedTask, taskName: [...shots, ...assets].find(t=>t.id===selectedTask)?.name || 'Inconnu',
+      step: selectedStep, durationSeconds: totalSec, userId: user.uid, userName: userData.displayName, date: serverTimestamp()
+    });
+    setManualTime({ h: 0, m: 0 });
+    openModal("Chrono", "Saisie manuelle ajoutée !");
+  };
+
+  const exportPDFReport = () => {
+    window.print();
+  };
+
   const getPriorityIcon = (priority) => {
     switch(priority) {
       case 'Urgent': return <span className="text-red-500 font-bold" title="Urgent">🔴 Urgent</span>;
@@ -644,7 +850,6 @@ export default function App() {
   const groupedAssets = assets.reduce((acc, a) => { (acc[a.category] = acc[a.category] || []).push(a); return acc; }, {});
   const sortedCats = Object.keys(groupedAssets).sort();
 
-  // --- VARIABLES CSS POUR THÈMES SUR MESURE ---
   const pixelateStyle = `
     @keyframes pixelateAnim { 0% { filter: blur(0px) contrast(1); transform: scale(1); } 50% { filter: blur(3px) contrast(5); transform: scale(1.05); } 100% { filter: blur(0px) contrast(1); transform: scale(1); } }
     :root {
@@ -659,7 +864,7 @@ export default function App() {
     .to-indigo-500 { --tw-gradient-to: var(--secondary) !important; }
     .from-blue-500 { --tw-gradient-from: var(--primary) !important; }
   `;
-  const lightWrapperClass = "bg-[#f4f7fb] text-slate-800"; // Light mode très doux
+  const lightWrapperClass = "bg-[#f4f7fb] text-slate-800";
   const lightCardClass = "bg-white border-slate-200 shadow-sm"; 
 
   if (loading) return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white">Chargement...</div>;
@@ -669,7 +874,6 @@ export default function App() {
       <div className={`min-h-screen flex flex-col items-center justify-center p-4 relative ${theme === 'dark' ? 'bg-slate-950 text-white' : lightWrapperClass}`}>
         <style>{pixelateStyle}</style>
         <div className="absolute top-4 right-4 flex space-x-2">
-          {/* CORRECTIF VISIBILITÉ TEXTE BOUTONS */}
           <button onClick={()=>setLang(lang==='fr'?'en':'fr')} className="px-3 py-1 rounded font-bold text-sm bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100 uppercase">{lang}</button>
           <button onClick={()=>setTheme(theme==='dark'?'light':'dark')} className="p-2 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100">{theme==='dark' ? <Sun size={20}/> : <Moon size={20}/>}</button>
         </div>
@@ -697,7 +901,6 @@ export default function App() {
     );
   }
 
-  // --- Page Profil (avec Personnalisation UI) ---
   if (currentView === 'profile') {
     return (
       <div className={`min-h-screen p-6 flex flex-col items-center justify-center relative ${theme==='dark'?'bg-slate-950 text-white':lightWrapperClass}`}>
@@ -807,7 +1010,6 @@ export default function App() {
         <style>{pixelateStyle}</style>
         {renderChatWidget()}
         
-        {/* Ping Pong Button */}
         <button onClick={() => setShowPingPong(!showPingPong)} className="fixed bottom-6 left-6 w-14 h-14 bg-slate-800 text-white rounded-full flex items-center justify-center shadow-2xl hover:scale-105 transition z-50"><Gamepad2 size={24}/></button>
         {showPingPong && <PingPongGame onClose={() => setShowPingPong(false)} />}
         
@@ -826,7 +1028,6 @@ export default function App() {
           </div>
         </header>
 
-        {/* Modal Profils Cliquables */}
         {viewProfileId && profileModalData && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[200] p-4 backdrop-blur-sm no-print">
             <div className={`p-6 rounded-xl border w-full max-w-sm space-y-6 shadow-2xl ${theme==='dark'?'bg-slate-900 border-slate-800 text-white':lightCardClass}`}>
@@ -957,7 +1158,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Profil Modal In-Project */}
       {viewProfileId && profileModalData && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[200] p-4 backdrop-blur-sm no-print">
             <div className={`p-6 rounded-xl border w-full max-w-sm space-y-6 shadow-2xl ${theme==='dark'?'bg-slate-900 border-slate-800 text-white':lightCardClass}`}>
@@ -1019,7 +1219,6 @@ export default function App() {
           </nav>
         </div>
         <div className="p-4 flex items-center space-x-2">
-          {/* CORRECTIF VISIBILITÉ TEXTE BOUTONS DANS PROJET */}
           <button onClick={()=>setLang(lang==='fr'?'en':'fr')} className="flex-1 p-2 rounded border dark:border-slate-800 border-slate-300 bg-slate-100 dark:bg-slate-900 transition text-xs text-slate-900 dark:text-slate-100 font-bold uppercase shadow-sm">{lang}</button>
           <button onClick={()=>setTheme(theme==='dark'?'light':'dark')} className="p-2 rounded border dark:border-slate-800 border-slate-300 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm">{theme==='dark' ? <Sun size={16}/> : <Moon size={16}/>}</button>
         </div>
@@ -1217,7 +1416,6 @@ export default function App() {
                                 );
                               })}
                             </tr>
-                            {/* BOUTON D'INSERTION ENTRE LES PLANS */}
                             {userPermissions.canAssign && (
                               <tr className="h-0 opacity-0 group-hover:opacity-100 transition-opacity no-print relative">
                                 <td colSpan={workspace?.pipeline?.length + 1} className="p-0 text-center relative border-none">
