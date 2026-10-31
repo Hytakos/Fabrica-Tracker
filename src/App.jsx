@@ -4,12 +4,12 @@ import {
 } from 'firebase/auth';
 import { 
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
-  collection, doc, setDoc, getDoc, getDocs, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp, deleteField, orderBy 
+  collection, doc, setDoc, getDoc, getDocs, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp, orderBy 
 } from 'firebase/firestore';
 import { initializeApp } from 'firebase/app';
 import { 
   Film, Box, Settings, Plus, Play, Pause, Trash2, LogOut, 
-  Users, Upload, Clock, SkipForward, SkipBack, MonitorPlay, FolderKanban, BarChart, ChevronLeft, UserCircle, Save, Key, Eraser, Undo, X, Bell, Download, Clapperboard, AlertTriangle, MessageSquare, Type, CheckSquare, Search, HelpCircle, Moon, Sun, Edit3, UserPlus, Image as ImageIcon, MessageCircle, GripVertical, ArrowUp, ArrowDown, Tag, ListTodo, Printer, History, Gamepad2, FileSpreadsheet, FileText
+  Users, Upload, Clock, SkipForward, SkipBack, MonitorPlay, FolderKanban, BarChart, ChevronLeft, UserCircle, Save, Eraser, Undo, X, Bell, Clapperboard, MessageSquare, Type, CheckSquare, Search, HelpCircle, Moon, Sun, Edit3, UserPlus, MessageCircle, GripVertical, Tag, ListTodo, Printer, History, Gamepad2, FileSpreadsheet, FileText
 } from 'lucide-react';
 
 const keyPart1 = "AIzaSyDgTadoI2_";
@@ -35,7 +35,7 @@ const TEMPLATES = {
   'Game': ['Concept Art', 'Modeling Low Poly', 'UV Mapping', 'Texturing', 'Rigging', 'Animation', 'VFX', 'Integration Engine']
 };
 const ASSET_CATEGORIES = ['Model Design', 'Props Design', 'Storyboard', 'Background Concept'];
-const FRAMERATE = 24;
+const FRAMERATE = 25; // Modifié à 25 fps
 
 const generateCloudinarySignature = async (publicId, timestamp, apiSecret) => {
   const msg = `public_id=${publicId}&timestamp=${timestamp}${apiSecret}`;
@@ -69,11 +69,11 @@ const PingPongGame = ({ onClose }) => {
      const ctx = canvas.getContext('2d');
      let afId;
      let paddleY = 50; let aiY = 50;
-     let ball = { x: 150, y: 75, dx: 3, dy: 3, r: 4 };
+     let ball = { x: 150, y: 75, dx: 2.5, dy: 2, r: 4 }; // Vitesse réduite et plus naturelle
 
      const move = (e) => {
        const rect = canvas.getBoundingClientRect();
-       paddleY = e.clientY - rect.top - 15;
+       paddleY = Math.max(0, Math.min(120, e.clientY - rect.top - 15));
      };
      window.addEventListener('mousemove', move);
 
@@ -86,12 +86,24 @@ const PingPongGame = ({ onClose }) => {
 
        ball.x += ball.dx; ball.y += ball.dy;
        if(ball.y < 0 || ball.y > 150) ball.dy *= -1;
-       if(ball.x < 15 && ball.y > paddleY && ball.y < paddleY+30) ball.dx *= -1.1;
-       if(ball.x > 285 && ball.y > aiY && ball.y < aiY+30) ball.dx *= -1.1;
+       
+       // IA améliorée : anticipation souple et zones de renvoi variées pour éviter de perdre bêtement
+       const targetY = ball.y - 15;
+       aiY += (targetY - aiY) * 0.05;
+       aiY = Math.max(0, Math.min(120, aiY));
 
-       aiY += (ball.y - (aiY + 15)) * 0.08;
+       if(ball.x < 15 && ball.y >= paddleY && ball.y <= paddleY+30) {
+         ball.dx *= -1;
+         const hitOffset = (ball.y - (paddleY + 15)) / 15;
+         ball.dy += hitOffset * 1.5;
+       }
+       if(ball.x > 285 && ball.y >= aiY && ball.y <= aiY+30) {
+         ball.dx *= -1;
+         const aiOffset = (ball.y - (aiY + 15)) / 15;
+         ball.dy += aiOffset * 1.2;
+       }
 
-       if(ball.x < 0 || ball.x > 300) { ball.x = 150; ball.y = 75; ball.dx = (ball.dx > 0 ? -3 : 3); }
+       if(ball.x < 0 || ball.x > 300) { ball.x = 150; ball.y = 75; ball.dx = (ball.dx > 0 ? -2.5 : 2.5); ball.dy = 2; }
        afId = requestAnimationFrame(loop);
      };
      loop();
@@ -100,7 +112,7 @@ const PingPongGame = ({ onClose }) => {
   return (
      <div className="fixed bottom-24 left-6 bg-slate-900 p-3 rounded-xl shadow-2xl z-50 border border-slate-700">
        <div className="flex justify-between text-white text-xs mb-2 font-bold px-1">
-         <span className="flex items-center"><Gamepad2 size={14} className="mr-1"/> Ping Pong</span><button onClick={onClose} className="text-red-400 hover:text-red-500"><X size={16}/></button>
+         <span className="flex items-center"><Gamepad2 size={14} className="mr-1"/> Ping Pong (Détente)</span><button onClick={onClose} className="text-red-400 hover:text-red-500"><X size={16}/></button>
        </div>
        <canvas ref={canvasRef} width={300} height={150} className="bg-slate-800 rounded cursor-crosshair border border-slate-700"/>
      </div>
@@ -127,6 +139,7 @@ export default function App() {
   const [myProjects, setMyProjects] = useState([]);
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectType, setNewProjectType] = useState('2D');
+  const [newProjectBanner, setNewProjectBanner] = useState('');
   const [joinCode, setJoinCode] = useState('');
   
   const [profileName, setProfileName] = useState('');
@@ -213,6 +226,8 @@ export default function App() {
 
   const [viewProfileId, setViewProfileId] = useState(null);
   const [profileModalData, setProfileModalData] = useState(null);
+  
+  const [deleteStepConfirm, setDeleteStepConfirm] = useState(''); // Pour la suppression en deux temps
 
   const [modal, setModal] = useState({ isOpen: false, title: '', msg: '', onConfirm: null });
   const openModal = (title, msg, onConfirm = null) => setModal({ isOpen: true, title, msg, onConfirm });
@@ -426,9 +441,16 @@ export default function App() {
   const createProject = async (e) => {
     e.preventDefault();
     if (!newProjectName) return;
-    const wsRef = await addDoc(collection(db, 'workspaces'), { name: newProjectName, type: newProjectType, pipeline: TEMPLATES[newProjectType] || TEMPLATES['2D'], createdAt: serverTimestamp() });
-    await addDoc(collection(db, 'projectMembers'), { workspaceId: wsRef.id, workspaceName: newProjectName, userId: user.uid, displayName: userData.displayName, email: user.email, role: 'Admin' });
+    const wsRef = await addDoc(collection(db, 'workspaces'), { 
+      name: newProjectName, 
+      type: newProjectType, 
+      bannerUrl: newProjectBanner, 
+      pipeline: TEMPLATES[newProjectType] || TEMPLATES['2D'], 
+      createdAt: serverTimestamp() 
+    });
+    await addDoc(collection(db, 'projectMembers'), { workspaceId: wsRef.id, workspaceName: newProjectName, userId: user.uid, displayName: userData.displayName, email: user.email, role: 'Admin', bannerUrl: newProjectBanner });
     setNewProjectName('');
+    setNewProjectBanner('');
   };
 
   const joinProject = async (e) => {
@@ -500,11 +522,12 @@ export default function App() {
 
     for (let i = 0; i < localShots.length; i++) {
        const numStr = ((i+1)*10).toString().padStart(3, '0');
-       const newScene = `SC${numStr}`;
-       const newName = `SH${numStr}`;
+       // Demande : SHXXX en anglais, SCXXX en français (ou selon la langue active)
+       const sceneName = lang === 'en' ? `SH${numStr}` : `SC${numStr}`;
+       const shotName = `SH${numStr}`;
        const newOrder = (i+1)*10;
-       if (localShots[i].scene !== newScene || localShots[i].name !== newName || localShots[i].order !== newOrder) {
-          await updateDoc(doc(db, 'shots', localShots[i].id), { scene: newScene, name: newName, order: newOrder });
+       if (localShots[i].scene !== sceneName || localShots[i].name !== shotName || localShots[i].order !== newOrder) {
+          await updateDoc(doc(db, 'shots', localShots[i].id), { scene: sceneName, name: shotName, order: newOrder });
        }
     }
   };
@@ -521,14 +544,15 @@ export default function App() {
 
   const addNewSequence = async () => {
     const seqs = Object.keys(groupedShots).sort();
-    let nextSeqId = 10;
+    let nextSeqId = 1; // Limité à SQXX (SQ01, SQ02, etc. sans empiler les zéros superflus)
     if (seqs.length > 0) {
       const last = seqs[seqs.length - 1];
       const num = parseInt(last.replace(/\D/g, ''));
-      if (!isNaN(num)) nextSeqId = num + 10;
+      if (!isNaN(num)) nextSeqId = num + 1;
     }
-    const newSeq = `SQ${nextSeqId.toString().padStart(3, '0')}`;
-    await addDoc(collection(db, 'shots'), { sequence: newSeq, scene: 'SC010', name: 'SH010', order: 10, workspaceId: workspace.id, status: {}, assignedTo: {}, previews: {}, priority: 'Normal', tags: [] });
+    const newSeq = `SQ${nextSeqId.toString().padStart(2, '0')}`;
+    const initialScene = lang === 'en' ? 'SH010' : 'SC010';
+    await addDoc(collection(db, 'shots'), { sequence: newSeq, scene: initialScene, name: 'SH010', order: 10, workspaceId: workspace.id, status: {}, assignedTo: {}, previews: {}, priority: 'Normal', tags: [] });
   };
 
   const addNewShot = async (seqName) => {
@@ -552,25 +576,27 @@ export default function App() {
     await addDoc(collection(db, 'shots'), { sequence: seqName, scene: 'TEMP', name: 'TEMP', order: newOrder, workspaceId: workspace.id, status: {}, assignedTo: {}, previews: {}, priority: 'Normal', tags: [] });
     setTimeout(() => recalculateSequenceShots(seqName), 500);
   };
-
-  const exportCSV = () => {
-    let csv = "Sequence,Scene,Nom,Statut,Priorite\n";
-    shots.forEach(s => {
-       const statusStr = workspace?.pipeline?.map(p => `${p}:${s.status?.[p]||'todo'}`).join(' | ');
-       csv += `${s.sequence},${s.scene},${s.name},${statusStr},${s.priority}\n`;
-    });
-    const blob = new Blob([csv], {type: "text/csv;charset=utf-8;"});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = "export_shots.csv"; a.click();
-  };
   
   const exportExcel = () => {
+    // Respect du code couleur des statuts dans l'export Excel
+    const statusColors = {
+      todo: '#cbd5e1', // Gris
+      wip: '#93c5fd', // Bleu
+      review: '#c084fc', // Violet
+      reuse: '#fdba74', // Orange
+      done: '#86efac'  // Vert
+    };
+    
     let html = "<table border='1'><tr><th>Sequence</th><th>Scene</th><th>Nom</th><th>Priorite</th>";
     workspace?.pipeline?.forEach(p => html += `<th>${p}</th>`);
     html += "</tr>";
     shots.forEach(s => {
       html += `<tr><td>${s.sequence}</td><td>${s.scene}</td><td>${s.name}</td><td>${s.priority}</td>`;
-      workspace?.pipeline?.forEach(p => html += `<td>${s.status?.[p]||'todo'}</td>`);
+      workspace?.pipeline?.forEach(p => {
+        const st = s.status?.[p] || 'todo';
+        const bgCol = statusColors[st] || '#fff';
+        html += `<td style="background-color: ${bgCol};">${st}</td>`;
+      });
       html += "</tr>";
     });
     html += "</table>";
@@ -695,7 +721,6 @@ export default function App() {
     setReviewItem(item); setReviewType(type); setReviewStep(step); setReviewVersion(version); setReviewPreview(previewObj);
     setCompareMode(false); setCompareVersion(''); setStrokes([]); setCurrentStroke(null); setDrawMode('pen'); setReviewTab('chat');
     
-    // Charger les annotations existantes s'il y en a
     const annotKey = type === 'shots' ? 'general' : `image_${previewObj.fileIndex}`;
     const saved = item.annotations?.[step]?.[`v${version}`]?.[annotKey];
     if (saved && Array.isArray(saved)) {
@@ -1090,6 +1115,7 @@ export default function App() {
                 <form onSubmit={createProject} className={`border p-6 rounded-xl space-y-4 ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}>
                   <h2 className="text-lg font-bold">{t('createProj')}</h2>
                   <input type="text" placeholder={t('projName')} value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} className={inputClass} required />
+                  <input type="text" placeholder="URL de la bannière (Optionnel)" value={newProjectBanner} onChange={(e) => setNewProjectBanner(e.target.value)} className={inputClass} />
                   <div className="flex space-x-2">
                     {['2D', '3D', 'Game'].map(tp => (
                       <button key={tp} type="button" onClick={() => setNewProjectType(tp)} className={`flex-1 py-1.5 text-xs font-bold rounded border ${newProjectType === tp ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300'}`}>{tp}</button>
@@ -1304,8 +1330,7 @@ export default function App() {
                 </div>
                 
                 <div className="flex space-x-2 shrink-0">
-                  <button onClick={exportCSV} className="bg-slate-800 text-white px-3 py-2 rounded-lg font-bold text-sm shadow-sm flex items-center space-x-1" title="Export CSV"><FileText size={16}/><span>CSV</span></button>
-                  <button onClick={exportExcel} className="bg-green-700 text-white px-3 py-2 rounded-lg font-bold text-sm shadow-sm flex items-center space-x-1" title="Export Excel (HTML xls)"><FileSpreadsheet size={16}/><span>Excel</span></button>
+                  <button onClick={exportExcel} className="bg-green-700 text-white px-3 py-2 rounded-lg font-bold text-sm shadow-sm flex items-center space-x-1" title="Export Excel"><FileSpreadsheet size={16}/><span>Excel</span></button>
                   {userPermissions.canAssign && <button onClick={addNewSequence} className="w-full xl:w-auto flex items-center justify-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm shadow-sm"><Plus size={16} /> <span>Séquence</span></button>}
                 </div>
               </div>
@@ -1339,7 +1364,7 @@ export default function App() {
                       <thead>
                         <tr className={`border-b text-xs uppercase ${theme==='dark'?'border-slate-800 text-slate-400 bg-slate-900':'border-slate-200 text-slate-500 bg-white'}`}>
                           <th className="p-3 sticky left-0 z-10 w-56 font-bold bg-inherit">
-                            {userPermissions.canEdit && <input type="checkbox" onChange={(e) => setBatchSelection(e.target.checked ? groupedShots[seq].map(s=>s.id) : batchSelection.filter(id => !groupedShots[seq].map(s=>s.id).includes(id))) } className="mr-2 cursor-pointer no-print"/>} Scène / Nom
+                            {userPermissions.canEdit && <input type="checkbox" onChange={(e) => setBatchSelection(e.target.checked ? groupedShots[seq].map(s=>s.id) : batchSelection.filter(id => !groupedShots[seq].map(s=>s.id).includes(id))) } className="mr-2 cursor-pointer no-print"/>} {lang === 'en' ? 'SHXXX' : 'SCXXX'}
                           </th>
                           {workspace?.pipeline?.map(step => <th key={step} className={`p-3 min-w-[240px] border-l font-bold ${theme==='dark'?'border-slate-800':'border-slate-200'}`}>{step}</th>)}
                         </tr>
@@ -1353,7 +1378,7 @@ export default function App() {
                                   <div className="flex items-start">
                                     {userPermissions.canEdit && <input type="checkbox" checked={batchSelection.includes(s.id)} onChange={(e) => setBatchSelection(e.target.checked ? [...batchSelection, s.id] : batchSelection.filter(id=>id!==s.id))} className="mr-3 mt-1 cursor-pointer no-print"/>}
                                     <div>
-                                      <div className="text-slate-500 dark:text-slate-400 font-mono text-xs mb-0.5 font-bold">{s.scene}</div>
+                                      {/* Sans "/ NOM" comme demandé */}
                                       <div className="font-black text-base flex items-center gap-2">
                                          {s.name} 
                                          {userPermissions.canAssign ? (
@@ -1404,8 +1429,13 @@ export default function App() {
                                             {versions.length > 1 ? (<select value={activeIdx} onChange={(e) => setSelectedVersions({...selectedVersions, [`${s.id}_${step}`]: parseInt(e.target.value)})} className="bg-transparent text-xs text-slate-500 font-bold outline-none">{versions.map((v, i) => <option key={i} value={i} className="dark:bg-slate-900">V{v.version}</option>)}</select>) : <span className="text-xs font-bold text-slate-400">V1</span>}
                                             <div className="flex space-x-2 text-slate-400">{canUpload && <label className="cursor-pointer hover:text-blue-500 transition" title="Upload"><Upload size={14}/><input type="file" accept="image/*,video/mp4,video/quicktime" className="hidden" onChange={(e)=>uploadShotPreview(s.id, step, e.target.files[0], versions)} /></label>}{canUpload && <button onClick={() => confirmDeletePreview(s.id, step, activeIdx, versions, 'shots')} className="hover:text-red-500 transition"><Trash2 size={14}/></button>}</div>
                                           </div>
+                                          {/* Affichage correct des vidéos uploadées dans Shots */}
                                           <div className="relative w-full h-12 bg-black rounded border border-slate-800 group/preview cursor-pointer overflow-hidden shadow-sm" onClick={() => openReview(s, step, activePreview.version, activePreview, 'shots')}>
-                                            <img src={getThumbnail(activePreview)} className="w-full h-full object-cover opacity-60 group-hover/preview:opacity-100 transition duration-300" />
+                                            {activePreview.type === 'video' ? (
+                                              <video src={activePreview.url} className="w-full h-full object-cover opacity-60 group-hover/preview:opacity-100 transition duration-300" muted />
+                                            ) : (
+                                              <img src={getThumbnail(activePreview)} className="w-full h-full object-cover opacity-60 group-hover/preview:opacity-100 transition duration-300" />
+                                            )}
                                             <div className="absolute inset-0 flex items-center justify-center bg-blue-600/0 group-hover/preview:bg-blue-600/20 transition duration-300"><MonitorPlay size={18} className="text-white opacity-0 group-hover/preview:opacity-100 drop-shadow-md transform scale-75 group-hover/preview:scale-100 transition-all" /></div>
                                             {s.annotations?.[step]?.[`v${activePreview.version}`] && Object.keys(s.annotations[step][`v${activePreview.version}`]).length > 0 && (<div className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-black shadow"></div>)}
                                           </div>
@@ -1624,11 +1654,39 @@ export default function App() {
             </div>
           )}
 
+          {activeTab === 'help' && (
+            <div className={`border rounded-xl p-8 max-w-4xl mx-auto shadow-sm space-y-6 ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}>
+              <h3 className="font-black text-2xl text-blue-600">Aide & Documentation Technique</h3>
+              <p className="text-sm text-slate-500">Retrouvez ci-dessous toutes les informations techniques, raccourcis et spécifications API de Fabrica Tracker.</p>
+              
+              <div className="space-y-4 text-sm">
+                <div className="p-4 rounded-lg bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+                  <h4 className="font-bold text-base mb-2">🌐 API Cloudinary & Médias</h4>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 mb-2">Fabrica Tracker s'interface directement avec Cloudinary pour l'upload de médias (images et vidéos). Les formats pris en charge incluent le MP4, MOV, PNG, et JPG. Les vidéos sont lues en 25 fps.</p>
+                </div>
+
+                <div className="p-4 rounded-lg bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+                  <h4 className="font-bold text-base mb-2">⌨️ Raccourcis & Commandes du Lecteur Vidéo</h4>
+                  <ul className="list-disc list-inside text-xs space-y-1 text-slate-600 dark:text-slate-400">
+                    <li><strong>Espace / Play :</strong> Lecture / Pause de la vidéo.</li>
+                    <li><strong>Image par image (Boutons / Flèches) :</strong> Reculer ou avancer d'exactement 1 frame (calculé en 25 fps).</li>
+                    <li><strong>Annotations :</strong> Utilisez le mode crayon ou texte pour annoter directement par-dessus les frames.</li>
+                  </ul>
+                </div>
+
+                <div className="p-4 rounded-lg bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+                  <h4 className="font-bold text-base mb-2">📊 Formats d'Export & Statuts</h4>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">L'export Excel intègre les codes couleur de statuts officiels (À faire, En cours, En validation, Réutiliser, Terminé). L'export CSV a été retiré au profit de l'export Excel.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {activeTab === 'settings' && userPermissions.role === 'Admin' && (
             <div className="space-y-6 max-w-3xl mx-auto pb-10 no-print">
-              <div className={`p-6 rounded-xl border ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}>
-                <h3 className="font-black text-xl mb-4 text-blue-600">Configuration Cloudinary</h3>
-                <p className="text-sm text-slate-500 mb-4 font-medium">Pour pouvoir uploader des images et des vidéos dans le tracker, vous devez configurer gratuitement une API Cloudinary et lier les clés ici.</p>
+              <div className={`p-6 rounded-xl border space-y-6 ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}>
+                <h3 className="font-black text-xl text-blue-600">Configuration Cloudinary</h3>
+                <p className="text-sm text-slate-500 font-medium">Pour pouvoir uploader des images et des vidéos dans le tracker, vous devez configurer gratuitement une API Cloudinary et lier les clés ici.</p>
                 <div className="space-y-4">
                   <div><label className="text-xs font-bold text-slate-500">Cloud Name</label><input type="text" placeholder="ex: dp6xxxx" value={cloudNameInput} onChange={e=>setCloudNameInput(e.target.value)} className={inputClass} /></div>
                   <div><label className="text-xs font-bold text-slate-500">Upload Preset (unsigned)</label><input type="text" placeholder="ex: fabrica_preset" value={uploadPresetInput} onChange={e=>setUploadPresetInput(e.target.value)} className={inputClass} /></div>
@@ -1636,6 +1694,36 @@ export default function App() {
                   <div><label className="text-xs font-bold text-slate-500">API Secret (Pour la suppression)</label><input type="password" placeholder="Clé secrète" value={apiSecretInput} onChange={e=>setApiSecretInput(e.target.value)} className={inputClass} /></div>
                   <button onClick={() => updateDoc(doc(db, 'workspaces', workspace.id), { cloudinaryCloudName: cloudNameInput, cloudinaryUploadPreset: uploadPresetInput, cloudinaryApiKey: apiKeyInput, cloudinaryApiSecret: apiSecretInput }).then(()=>openModal('Succès', 'Configuration Cloudinary sauvegardée !'))} className="bg-blue-600 text-white px-6 py-2.5 rounded-lg font-bold text-sm shadow-md transition w-full sm:w-auto">Sauvegarder les clés</button>
                 </div>
+              </div>
+
+              {/* Option de bannière & Suppression en deux temps dans Paramètres projet */}
+              <div className={`p-6 rounded-xl border space-y-6 ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}>
+                <h3 className="font-black text-xl text-blue-600">Bannière du Projet</h3>
+                <div>
+                  <label className="text-xs font-bold text-slate-500">URL de l'image de bannière</label>
+                  <input type="text" placeholder="https://..." value={workspace?.bannerUrl || ''} onChange={e=>setWorkspace({...workspace, bannerUrl: e.target.value})} className={inputClass} />
+                </div>
+                <button onClick={() => updateDoc(doc(db, 'workspaces', workspace.id), { bannerUrl: workspace.bannerUrl || '' }).then(()=>openModal('Succès', 'Bannière mise à jour !'))} className="bg-blue-600 text-white px-6 py-2.5 rounded-lg font-bold text-sm shadow-md transition">Mettre à jour la bannière</button>
+              </div>
+
+              <div className={`p-6 rounded-xl border border-red-500/30 space-y-4 ${theme==='dark'?'bg-slate-900':'bg-white'}`}>
+                <h3 className="font-black text-xl text-red-500">Zone de Danger : Supprimer le projet</h3>
+                <p className="text-xs text-slate-500">La suppression d'un projet est définitive et effacera toutes les données associées.</p>
+                {deleteStepConfirm !== workspace.id ? (
+                  <button onClick={() => setDeleteStepConfirm(workspace.id)} className="bg-red-600 text-white px-4 py-2 rounded-lg font-bold text-sm">Supprimer le projet</button>
+                ) : (
+                  <div className="space-y-3 p-4 border border-red-500 rounded-lg bg-red-500/10">
+                    <p className="text-xs font-bold text-red-500">Êtes-vous absolument sûr ? Cette action est irréversible.</p>
+                    <div className="flex space-x-3">
+                      <button onClick={() => setDeleteStepConfirm('')} className="bg-slate-700 text-white px-3 py-1.5 rounded text-xs font-bold">Annuler</button>
+                      <button onClick={async () => {
+                        await deleteDoc(doc(db, 'workspaces', workspace.id));
+                        setCurrentView('dashboard');
+                        closeModal();
+                      }} className="bg-red-600 text-white px-3 py-1.5 rounded text-xs font-bold">Confirmer la suppression</button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -1684,7 +1772,8 @@ export default function App() {
 
                 {reviewPreview.type === 'video' && (
                   <div className={`p-3 shrink-0 flex flex-col justify-center ${theme==='dark'?'bg-slate-950/50':'bg-white shadow-sm z-10'}`}>
-                    <div className={`relative w-full h-2.5 rounded-full cursor-pointer mb-2 border overflow-hidden shadow-inner ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-slate-200 border-slate-300'}`} onClick={(e) => { if(videoRef.current) { const rect = e.currentTarget.getBoundingClientRect(); const time = ((e.clientX - rect.left) / rect.width) * videoDuration; videoRef.current.currentTime = time; if(compareVideoRef.current) compareVideoRef.current.currentTime = time; } }}>
+                    {/* Barre de lecture corrigée pour correspondre exactement à la vidéo postée (en 25 fps) */}
+                    <div className={`relative w-full h-2.5 rounded-full cursor-pointer mb-2 border overflow-hidden shadow-inner ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-slate-200 border-slate-300'}`} onClick={(e) => { if(videoRef.current && videoDuration > 0) { const rect = e.currentTarget.getBoundingClientRect(); const time = ((e.clientX - rect.left) / rect.width) * videoDuration; videoRef.current.currentTime = time; if(compareVideoRef.current) compareVideoRef.current.currentTime = time; } }}>
                       <div className="absolute top-0 left-0 h-full bg-blue-600 transition-all duration-75" style={{ width: `${Math.min(100, Math.max(0, (videoProgress / (videoDuration||1)) * 100))}%` }}></div>
                       {Object.keys(reviewItem.annotations?.[reviewStep]?.[`v${reviewVersion}`] || {}).map(frameTime => (
                         <div key={frameTime} className="absolute top-0 h-full w-2 bg-red-500 shadow-sm border-x border-black" style={{ left: `${(parseFloat(frameTime) / ((videoDuration||1)*FRAMERATE)) * 100}%` }}></div>
