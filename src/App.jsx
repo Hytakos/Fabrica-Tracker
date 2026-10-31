@@ -505,7 +505,9 @@ export default function App() {
   };
 
   const groupedShots = shots.filter(s => {
-    const matchSearch = s.name.toLowerCase().includes(searchQuery.toLowerCase()) || s.scene.toLowerCase().includes(searchQuery.toLowerCase());
+    const nameStr = s.name || '';
+    const sceneStr = s.scene || '';
+    const matchSearch = nameStr.toLowerCase().includes(searchQuery.toLowerCase()) || sceneStr.toLowerCase().includes(searchQuery.toLowerCase());
     const matchStatus = filterStatus ? workspace?.pipeline?.some(step => s.status?.[step] === filterStatus) : true;
     const matchAssignee = filterAssignee ? workspace?.pipeline?.some(step => getAssignees(s, step).includes(filterAssignee)) : true;
     return matchSearch && matchStatus && matchAssignee;
