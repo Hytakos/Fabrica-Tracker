@@ -2185,4 +2185,3 @@ export default function App() {
     </div>
   );
 }
-```eof
