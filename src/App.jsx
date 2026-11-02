@@ -1601,13 +1601,9 @@ useEffect(() => {
                  <div ref={pmEndRef} />
                </div>
                <form onSubmit={postPm} className={`p-2 border-t flex space-x-2 ${theme==='dark'?'border-slate-800 bg-slate-900':'border-slate-300 bg-slate-50'}`}>
-			  </div>
-                    <div key={msg.id} className={`p-2.5 rounded-xl text-xs max-w-[85%] shadow-sm ${msg.authorId === user.uid ? 'bg-blue-600 text-white ml-auto rounded-br-none' : (theme==='dark'?'bg-slate-800 text-slate-200 mr-auto rounded-bl-none':'bg-white border border-slate-200 text-slate-700 mr-auto rounded-bl-none')}`}>
-                      <p className="whitespace-pre-wrap">{msg.text}</p>
-                    </div>
-                 ))}
-               </div>
-               <form onSubmit={postPm} className={`p-2 border-t flex space-x-2 ${theme==='dark'?'border-slate-800 bg-slate-900':'border-slate-300 bg-slate-50'}`}>
+                  <input type="text" value={newPmMsg} onChange={e=>setNewPmMsg(e.target.value)} placeholder="Message..." className={`flex-1 p-2 rounded-lg outline-none text-sm transition ${theme==='dark'?'bg-slate-950 border-slate-700 border':'bg-white border-slate-300 border focus:border-blue-500'}`} />
+                  <button type="submit" className="bg-blue-600 text-white p-2 rounded-lg transition hover:bg-blue-500"><Plus size={18}/></button>
+               </form>
                   <input type="text" value={newPmMsg} onChange={e=>setNewPmMsg(e.target.value)} placeholder="Message..." className={`flex-1 p-2 rounded-lg outline-none text-sm transition ${theme==='dark'?'bg-slate-950 border-slate-700 border':'bg-white border-slate-300 border focus:border-blue-500'}`} />
                   <button type="submit" className="bg-blue-600 text-white p-2 rounded-lg transition hover:bg-blue-500"><Plus size={18}/></button>
                </form>
