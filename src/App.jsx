@@ -402,11 +402,17 @@ export default function App() {
     if (!user) return;
     const updatePresence = async () => { try { await updateDoc(doc(db, 'users', user.uid), { lastOnline: serverTimestamp() }); } catch(e){} };
     updatePresence();
-    const interval = setInterval(updatePresence, 60000); 
     const pmEndRef = useRef(null);
-useEffect(() => {
-  pmEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-}, [pmMessages]);
+
+  useEffect(() => {
+    pmEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [pmMessages]);
+
+  useEffect(() => {
+    if (!user) return;
+    const updatePresence = async () => { try { await updateDoc(doc(db, 'users', user.uid), { lastOnline: serverTimestamp() }); } catch(e){} };
+    updatePresence();
+    const interval = setInterval(updatePresence, 60000); 
     const unsubOnline = onSnapshot(collection(db, 'users'), (snap) => {
       const now = Date.now();
       const onlineStatus = {};
@@ -799,7 +805,8 @@ useEffect(() => {
   };
 
   const filteredShots = shots.filter(s => {
-    const matchSearch = s.name.toLowerCase().includes(searchQuery.toLowerCase()) || s.scene.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchSearch = (s.name || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
+                        (s.scene || '').toLowerCase().includes(searchQuery.toLowerCase());
     const matchStatus = filterStatus ? workspace?.pipeline?.some(step => s.status?.[step] === filterStatus) : true;
     const matchAssignee = filterAssignee ? workspace?.pipeline?.some(step => getAssignees(s, step).includes(filterAssignee)) : true;
     const matchTag = filterTag ? (s.tags || []).includes(filterTag) : true;
