@@ -213,11 +213,9 @@ export default function App() {
   const [shots, setShots] = useState([]);
   const [assets, setAssets] = useState([]);
   const [scheduleItems, setScheduleItems] = useState([]);
-  const [currentScheduleDate, setCurrentScheduleDate] = useState(new Date());
   const [members, setMembers] = useState([]);
   const [timeLogs, setTimeLogs] = useState([]);
   const [breakdownItems, setBreakdownItems] = useState([]);
-  const [breakdownFilter, setBreakdownFilter] = useState('');
   const [globalHistory, setGlobalHistory] = useState([]);
   
   const [cloudNameInput, setCloudNameInput] = useState('');
@@ -1013,17 +1011,6 @@ export default function App() {
   const sortedCats = Object.keys(groupedAssets).sort();
 
   const renderSchedule = () => {
-    const year = currentScheduleDate.getFullYear();
-    const month = currentScheduleDate.getMonth();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const firstDay = new Date(year, month, 1).getDay();
-    const offset = (firstDay + 6) % 7; 
-    
-    const days = [];
-    for (let i = 0; i < offset; i++) days.push(null);
-    for (let i = 1; i <= daysInMonth; i++) days.push(i);
-    while (days.length % 7 !== 0) days.push(null);
-
     const handleAddScheduleItem = async (e) => {
       e.preventDefault();
       const form = e.target;
@@ -1031,26 +1018,50 @@ export default function App() {
       const startDate = form.startDate.value;
       const endDate = form.endDate.value;
       const color = form.color.value || 'bg-blue-500';
-      if(!name) return;
+      if(!name || !startDate || !endDate) return;
       await addDoc(collection(db, 'schedule'), { workspaceId: workspace.id, name, startDate, endDate, color });
       form.reset();
     };
 
-    const nextMonth = () => setCurrentScheduleDate(new Date(year, month + 1, 1));
-    const prevMonth = () => setCurrentScheduleDate(new Date(year, month - 1, 1));
-    const monthName = currentScheduleDate.toLocaleString(lang, { month: 'long', year: 'numeric' });
+    // Calcul des bornes temporelles dynamiques (auto-extensible)
+    let minDate = new Date();
+    let maxDate = new Date();
+    maxDate.setDate(maxDate.getDate() + 28); // 4 semaines par défaut si vide
+
+    if (scheduleItems.length > 0) {
+      const startTimes = scheduleItems.map(i => new Date(i.startDate).getTime()).filter(t => !isNaN(t));
+      const endTimes = scheduleItems.map(i => new Date(i.endDate).getTime()).filter(t => !isNaN(t));
+      if (startTimes.length > 0 && endTimes.length > 0) {
+        minDate = new Date(Math.min(...startTimes));
+        maxDate = new Date(Math.max(...endTimes));
+      }
+    }
+
+    // Ajout d'une petite marge avant / après
+    const startDate = new Date(minDate);
+    startDate.setDate(startDate.getDate() - 3);
+    startDate.setHours(0,0,0,0);
+
+    const endDate = new Date(maxDate);
+    endDate.setDate(endDate.getDate() + 3);
+    endDate.setHours(23,59,59,999);
+
+    const totalMs = endDate.getTime() - startDate.getTime();
+
+    // Génération de la liste quotidienne
+    const dayList = [];
+    let cur = new Date(startDate);
+    while (cur <= endDate) {
+      dayList.push(new Date(cur));
+      cur.setDate(cur.getDate() + 1);
+    }
 
     return (
       <div className={`border rounded-xl p-6 ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}>
-        <div className="flex flex-col sm:flex-row sm:justify-between items-start sm:items-center mb-6 space-y-4 sm:space-y-0">
-          <h3 className="font-black text-xl text-blue-600 flex items-center"><Calendar className="mr-3"/> {t('schedule')}</h3>
-          <div className="flex space-x-2 items-center bg-slate-200 dark:bg-slate-950 p-1.5 rounded-lg border border-slate-300 dark:border-slate-800 shadow-sm">
-             <button onClick={prevMonth} className="p-2 rounded hover:bg-white dark:hover:bg-slate-800 transition"><ChevronLeft size={18}/></button>
-             <span className="font-black text-sm capitalize w-36 text-center">{monthName}</span>
-             <button onClick={nextMonth} className="p-2 rounded hover:bg-white dark:hover:bg-slate-800 transition"><ChevronRight size={18}/></button>
-          </div>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+          <h3 className="font-black text-xl text-blue-600 flex items-center"><Calendar className="mr-3"/> {t('schedule')} (Vue Gantt Auto-extensible)</h3>
         </div>
-        
+
         <form onSubmit={handleAddScheduleItem} className={`mb-6 p-4 rounded-xl border flex flex-wrap gap-4 items-center shadow-sm ${theme==='dark'?'bg-slate-950 border-slate-800':'bg-slate-200/50 border-slate-300'}`}>
            <span className="font-bold text-sm text-slate-500 uppercase">Nouvel Événement :</span>
            <input name="taskName" placeholder="Nom de la tâche..." className={`${inputClass} flex-1 min-w-[150px]`} required />
@@ -1066,30 +1077,74 @@ export default function App() {
            <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-5 py-2.5 rounded-lg transition-colors shadow-sm text-sm">Ajouter</button>
         </form>
 
-        <div className={`grid grid-cols-7 gap-px rounded-xl overflow-hidden border shadow-sm ${theme==='dark'?'bg-slate-800 border-slate-800':'bg-slate-300 border-slate-300'}`}>
-          {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map(d => (
-            <div key={d} className={`text-center py-2.5 text-xs font-black uppercase tracking-wider ${theme==='dark'?'bg-slate-950 text-slate-400':'bg-slate-100 text-slate-600'}`}>{d}</div>
-          ))}
-          {days.map((day, idx) => {
-            if (!day) return <div key={idx} className={`min-h-[120px] ${theme==='dark'?'bg-slate-950/40':'bg-slate-50/50'}`}></div>;
-            
-            const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-            const dayItems = scheduleItems.filter(item => dateStr >= item.startDate && dateStr <= item.endDate);
-
-            return (
-              <div key={idx} className={`min-h-[120px] p-1.5 border-t relative group transition-colors ${theme==='dark'?'bg-slate-900 border-slate-800 hover:bg-slate-800/80':'bg-white border-slate-300 hover:bg-slate-50'}`}>
-                 <div className={`text-right text-xs font-black mb-1.5 pr-1 ${theme==='dark'?'text-slate-500':'text-slate-400'}`}>{day}</div>
-                 <div className="space-y-1 overflow-y-auto max-h-[85px] pr-1 scrollbar-hide">
-                   {dayItems.map(item => (
-                      <div key={item.id} className={`${item.color} text-white text-[10px] font-bold px-1.5 py-1 rounded truncate shadow-sm cursor-pointer hover:opacity-80 flex justify-between items-center group/item`} title={item.name}>
-                        <span className="truncate">{item.name}</span>
-                        <button onClick={() => deleteDoc(doc(db, 'schedule', item.id))} className="opacity-0 group-hover/item:opacity-100 hover:text-black transition-opacity ml-1 p-0.5"><Trash2 size={10}/></button>
-                      </div>
-                   ))}
-                 </div>
+        {/* Vue Gantt Dynamic Timeline */}
+        <div className="overflow-x-auto border rounded-xl border-slate-300 dark:border-slate-800 shadow-sm">
+          <div className="min-w-[800px]">
+            {/* Header Dates / Semaines */}
+            <div className="flex border-b border-slate-300 dark:border-slate-800 bg-slate-100 dark:bg-slate-950 text-xs font-bold text-slate-500">
+              <div className="w-56 p-3 shrink-0 border-r border-slate-300 dark:border-slate-800 uppercase tracking-wider">Tâche & Dates</div>
+              <div className="flex-1 flex overflow-hidden">
+                {dayList.map((d, i) => {
+                  const isMonday = d.getDay() === 1;
+                  return (
+                    <div key={i} className={`flex-1 text-center py-2 border-r border-slate-200 dark:border-slate-800/60 min-w-[32px] ${isMonday ? 'bg-blue-500/10 font-black text-blue-600' : ''}`} title={d.toLocaleDateString()}>
+                      <div className="text-[9px] uppercase">{d.toLocaleDateString(lang, { weekday: 'narrow' })}</div>
+                      <div className="text-[10px]">{d.getDate()}/{d.getMonth()+1}</div>
+                    </div>
+                  );
+                })}
               </div>
-            )
-          })}
+            </div>
+
+            {/* Lignes d'événements */}
+            <div className="divide-y divide-slate-200 dark:divide-slate-800">
+              {scheduleItems.length === 0 ? (
+                <div className="p-8 text-center text-slate-500 italic text-sm">Aucun événement dans l'agenda. Utilisez le formulaire ci-dessus pour ajouter des tâches.</div>
+              ) : (
+                scheduleItems.map(item => {
+                  const itemStart = new Date(item.startDate);
+                  itemStart.setHours(0,0,0,0);
+                  const itemEnd = new Date(item.endDate);
+                  itemEnd.setHours(23,59,59,999);
+
+                  const startOffsetMs = Math.max(0, itemStart.getTime() - startDate.getTime());
+                  const leftPct = (startOffsetMs / totalMs) * 100;
+                  
+                  const durationMs = itemEnd.getTime() - itemStart.getTime();
+                  const widthPct = Math.min(100 - leftPct, (durationMs / totalMs) * 100);
+
+                  return (
+                    <div key={item.id} className="flex items-center hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                      <div className="w-56 p-3 shrink-0 border-r border-slate-300 dark:border-slate-800 flex justify-between items-center pr-2">
+                        <div className="truncate">
+                          <div className="font-bold text-sm truncate">{item.name}</div>
+                          <div className="text-[10px] text-slate-500">{item.startDate} ➔ {item.endDate}</div>
+                        </div>
+                        <button onClick={() => deleteDoc(doc(db, 'schedule', item.id))} className="text-slate-400 hover:text-red-500 p-1 transition"><Trash2 size={14}/></button>
+                      </div>
+                      <div className="flex-1 relative h-12 flex items-center px-1">
+                        {/* Lignes arrières du quadrillage */}
+                        <div className="absolute inset-0 flex pointer-events-none">
+                          {dayList.map((d, idx) => (
+                            <div key={idx} className={`flex-1 border-r ${d.getDay()===1 ? 'border-blue-500/20 bg-blue-500/5' : 'border-slate-200/50 dark:border-slate-800/40'}`}></div>
+                          ))}
+                        </div>
+
+                        {/* Barre Gantt */}
+                        <div
+                          className={`absolute h-7 ${item.color} text-white rounded-lg px-3 flex items-center text-xs font-bold shadow-md truncate transition-all cursor-pointer hover:opacity-90`}
+                          style={{ left: `${leftPct}%`, width: `${Math.max(1.5, widthPct)}%` }}
+                          title={`${item.name} (${item.startDate} au ${item.endDate})`}
+                        >
+                          <span className="truncate">{item.name}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -1192,7 +1247,6 @@ export default function App() {
             <h3 className="font-black text-xl text-blue-600">{t('breakdown')}</h3>
          </div>
 
-         {/* Panneau de statistiques sous forme de liste */}
          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
             {renderStatCategory('Characters', 'characters', 'text-blue-600 border-blue-500/20')}
             {renderStatCategory('Props', 'props', 'text-green-600 border-green-500/20')}
@@ -1200,7 +1254,6 @@ export default function App() {
             {renderStatCategory('FX', 'fx', 'text-orange-500 border-orange-500/20')}
          </div>
 
-         {/* Formulaire de création ultra simplifié */}
          <form onSubmit={addBreakdownItem} className={`flex flex-wrap gap-4 mb-8 p-4 rounded-xl border items-center shadow-sm ${theme==='dark'?'bg-slate-950 border-slate-800':'bg-slate-100 border-slate-200'}`}>
            <span className="font-bold text-sm text-slate-500 uppercase mr-2">Nouvelle Entrée :</span>
            <input name="sequence" placeholder="Séquence (ex: SQ01)" className={`${inputClass} flex-1 min-w-[120px] max-w-[200px] font-bold`} defaultValue="SQ01" required/>
@@ -1208,7 +1261,6 @@ export default function App() {
            <button type="submit" className="bg-blue-600 text-white font-bold px-6 py-2.5 rounded-lg hover:bg-blue-500 transition-colors shadow-sm">Créer</button>
          </form>
 
-         {/* Tableau avec édition à la volée (Inline Editing) */}
          <div className="overflow-x-auto">
            <table className="w-full text-left text-sm whitespace-nowrap">
              <thead>
@@ -1931,7 +1983,7 @@ export default function App() {
 
                       return (
                       <div key={a.id} className={`border rounded-xl overflow-hidden flex flex-col relative shadow-sm transition group/asset ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}>
-                        {userPermissions.canAssign && <button onClick={() => openModal("Supprimer", "Détruire cet asset ?", async()=>{await deleteDoc(doc(db, 'assets', a.id)); closeModal()})} className="absolute top-2 right-2 bg-black/60 p-1.5 rounded text-white hover:text-red-500 z-10 opacity-0 group-hover/asset:opacity-100 transition no-print"><Trash2 size={14}/></button>}
+                        {userPermissions.canAssign && <button onClick={() => openModal("Supprimer", "Détruire cet asset ?", async me=>{await deleteDoc(doc(db, 'assets', a.id)); closeModal()})} className="absolute top-2 right-2 bg-black/60 p-1.5 rounded text-white hover:text-red-500 z-10 opacity-0 group-hover/asset:opacity-100 transition no-print"><Trash2 size={14}/></button>}
                         {activePreview && activePreview.files?.length > 0 ? (
                           <div className="relative w-full h-40 bg-black overflow-hidden flex overflow-x-auto snap-x no-print">
                             {activePreview.files.map((file, i) => (
@@ -2272,7 +2324,14 @@ export default function App() {
                     <div className="flex space-x-3">
                       <button onClick={() => setDeleteStepConfirm('')} className="bg-slate-700 text-white px-3 py-1.5 rounded text-xs font-bold transition hover:bg-slate-600">Annuler</button>
                       <button onClick={async () => {
-                        await deleteDoc(doc(db, 'workspaces', workspace.id));
+                        const wsId = workspace.id;
+                        // Suppression du projet
+                        await deleteDoc(doc(db, 'workspaces', wsId));
+                        // Nettoyage de la liste de membres liée pour la faire disparaître du Dashboard
+                        const snapMembers = await getDocs(query(collection(db, 'projectMembers'), where('workspaceId', '==', wsId)));
+                        for (const mDoc of snapMembers.docs) {
+                          await deleteDoc(mDoc.ref);
+                        }
                         setCurrentView('dashboard');
                         closeModal();
                       }} className="bg-red-600 text-white px-3 py-1.5 rounded text-xs font-bold transition hover:bg-red-500">Confirmer la suppression</button>
