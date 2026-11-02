@@ -53,7 +53,7 @@ const dict = {
     addAsset: "Ajouter Asset", assetName: "Nom de l'asset", category: "Catégorie", priority: "Priorité", tags: "Tags", history: "Historique", report: "Rapport PDF", desc: "Description", duration: "Durée",
     todo: "À faire", wip: "En cours", reviewStatus: "En validation", reuse: "Réutiliser", retake: "Retake", done: "Terminé", upload: "Upload", wait: "En attente",
     createAsset: "Créer Asset", exportCSV: "Export CSV", save: "Valider", startDate: "Début", endDate: "Fin",
-    leads: "Leads", friendReqs: "Demandes d'ami", accept: "Accepter", reject: "Refuser", removeFriend: "Supprimer l'ami", online: "En ligne", offline: "Hors ligne", close: "Fermer",
+    leads: "Leads", friendReqs: "Demandes d'ami", sendMessage: "Envoyer un message", accept: "Accepter", reject: "Refuser", removeFriend: "Supprimer l'ami", online: "En ligne", offline: "Hors ligne", close: "Fermer",
     addFriendTitle: "Ajouter en ami", noFriends: "Aucun ami ajouté.", noProjects: "Aucun projet. Créez-en un à droite.", copied: "Code copié !", error: "Erreur", success: "Succès",
     cloudGuideTitle: "Tutoriel complet : Configurer Cloudinary (Gratuit)",
     cloudGuide1: "1. Créez un compte gratuit sur Cloudinary.com",
@@ -61,6 +61,30 @@ const dict = {
     cloudGuide3: "3. Allez dans Settings > Upload. Créez un 'Upload preset' en mode 'Unsigned'. Copiez son nom.",
     cloudGuide4: "4. Allez dans Settings > API Keys. Générez ou copiez 'API Key' et 'API Secret'.",
     cloudGuide5: "5. Collez toutes ces infos dans l'onglet Paramètres du Tracker pour activer l'upload de médias."
+	helpDesc: "Retrouvez ci-dessous toutes les informations techniques...",
+	helpRolesTitle: "Rôles, Leads & Permissions",
+	helpRoles1: "Admin & Supervisor : Accès total (création, assignation, suppression). Les Admins peuvent gérer les paramètres Cloudinary et la suppression du projet.",
+	helpRoles2: "Leads : Un rôle hybride applicable à n'importe quel membre via l'onglet Équipe. Si un membre est coché comme Lead sur l'étape Compositing, il verra les plans en Review remonter tout en haut de Mes Tâches.",
+	helpRoles3: "Artist : Peut s'assigner des tâches, changer son statut, et uploader des fichiers.",
+	helpTitle: "Aide & Documentation Technique",
+    helpSubTitle: "Retrouvez ci-dessous toutes les informations techniques, raccourcis et spécifications de l'écosystème Fabrica Tracker.",
+    cloudWarning: "Sans cette configuration, vous ne pourrez pas uploader d'images ou de vidéos.",
+    
+    rolesTitle: "Rôles, Leads & Permissions",
+    rolesAdmin: "Admin & Supervisor : Accès total (création, assignation, suppression). Les Admins peuvent gérer les paramètres Cloudinary et la suppression du projet.",
+    rolesLeads: "Leads : Un rôle hybride applicable à n'importe quel membre via l'onglet Équipe. Si un membre est coché comme Lead sur l'étape Compositing, il verra les plans en Review remonter tout en haut de Mes Tâches.",
+    rolesArtist: "Artist : Peut s'assigner des tâches, changer son statut, et uploader des fichiers.",
+
+    shortcutsTitle: "Raccourcis & Commandes du Lecteur Vidéo",
+    shortcutPlay: "Espace / Play : Lecture / Pause de la vidéo.",
+    shortcutFrame: "Image par image : Cliquez sur les boutons pour reculer ou avancer d'exactement 1 frame (calculé en 25 fps).",
+    shortcutRetake: "Outils Retake :",
+    shortcutPen: "Pinceau : Dessinez par-dessus. Slider pour régler la taille.",
+    shortcutEraser: "Gomme : Permet d'effacer précisément ce que vous venez de dessiner au pinceau, fonctionne avec le même slider de taille.",
+    shortcutText: "Texte : Cliquez pour écrire, 'Entrée' pour valider.",
+
+    absenceTitle: "Absence",
+    absenceDesc: "Pour notifier l'équipe de vos congés ou de votre absence, rendez-vous sur votre profil (en cliquant sur votre nom en haut à droite) et activez le mode Absence. L'icône 🏖️ sera affichée partout."
   },
   en: {
     projects: "My Projects", friends: "My Friends", myTasks: "My Tasks", assets: "Assets", shots: "Shots", time: "Tracker", stats: "Stats", team: "Team", settings: "Settings", help: "Help",
@@ -70,7 +94,7 @@ const dict = {
     addAsset: "Add Asset", assetName: "Asset Name", category: "Category", priority: "Priority", tags: "Tags", history: "History", report: "PDF Report", desc: "Description", duration: "Duration",
     todo: "To Do", wip: "WIP", reviewStatus: "Review", reuse: "Reuse", retake: "Retake", done: "Done", upload: "Upload", wait: "Waiting",
     createAsset: "Create Asset", exportCSV: "Export CSV", save: "Save", startDate: "Start", endDate: "End",
-    leads: "Leads", friendReqs: "Friend Requests", accept: "Accept", reject: "Reject", removeFriend: "Remove Friend", online: "Online", offline: "Offline", close: "Close",
+    leads: "Leads", friendReqs: "Friend Requests", sendMessage: "Send a Message", accept: "Accept", reject: "Reject", removeFriend: "Remove Friend", online: "Online", offline: "Offline", close: "Close",
     addFriendTitle: "Add Friend", noFriends: "No friends added.", noProjects: "No projects. Create one on the right.", copied: "Code copied!", error: "Error", success: "Success",
     cloudGuideTitle: "Complete Tutorial: Setup Cloudinary (Free)",
     cloudGuide1: "1. Create a free account on Cloudinary.com",
@@ -78,6 +102,30 @@ const dict = {
     cloudGuide3: "3. Go to Settings > Upload. Create an 'Upload preset' and set it to 'Unsigned'. Copy its name.",
     cloudGuide4: "4. Go to Settings > API Keys. Generate or copy 'API Key' and 'API Secret'.",
     cloudGuide5: "5. Paste all these details in the Settings tab of the Tracker to enable media upload."
+	helpDesc: "Find below all the technical information...",
+	helpRolesTitle: "Roles, Leads & Permissions",
+	helpRoles1: "Admin & Supervisor: Full access (creation, assignment, deletion). Admins can manage Cloudinary settings and project deletion.",
+	helpRoles2: "Leads: A hybrid role applicable to any member via the Team tab. If a member is checked as Lead for the Compositing stage, shots in Review will be bumped to the very top of My Tasks.",
+	helpRoles3: "Artist: Can self-assign tasks, change their status, and upload files.",
+	helpTitle: "Help & Technical Documentation",
+    helpSubTitle: "Find all technical details, shortcuts, and specifications for the Fabrica Tracker ecosystem below.",
+    cloudWarning: "Without this setup, you won't be able to upload images or videos.",
+
+    rolesTitle: "Roles, Leads & Permissions",
+    rolesAdmin: "Admin & Supervisor: Full access (create, assign, delete). Admins can manage Cloudinary settings and delete projects.",
+    rolesLeads: "Leads: A hybrid role for any team member in the Team tab. If checked as Lead for Compositing, shots in Review show at the top of My Tasks.",
+    rolesArtist: "Artist: Can self-assign tasks, change statuses, and upload files.",
+
+    shortcutsTitle: "Video Player Shortcuts & Controls",
+    shortcutPlay: "Space / Play: Toggle play/pause.",
+    shortcutFrame: "Frame by frame: Click buttons to step back or forward by exactly 1 frame (25 fps).",
+    shortcutRetake: "Retake Tools :",
+    shortcutPen: "Pen: Draw directly on media. Slider adjusts brush size.",
+    shortcutEraser: "Eraser: Erase brush strokes accurately with the same size slider.",
+    shortcutText: "Text: Click to write, press 'Enter' to confirm.",
+
+    absenceTitle: "Absence",
+    absenceDesc: "To inform the team about time off, go to your profile (click your name top-right) and toggle Absence mode. The 🏖️ icon will display everywhere."
   }
 };
 
@@ -355,7 +403,10 @@ export default function App() {
     const updatePresence = async () => { try { await updateDoc(doc(db, 'users', user.uid), { lastOnline: serverTimestamp() }); } catch(e){} };
     updatePresence();
     const interval = setInterval(updatePresence, 60000); 
-    
+    const pmEndRef = useRef(null);
+useEffect(() => {
+  pmEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+}, [pmMessages]);
     const unsubOnline = onSnapshot(collection(db, 'users'), (snap) => {
       const now = Date.now();
       const onlineStatus = {};
@@ -669,10 +720,15 @@ export default function App() {
   };
 
   const acceptFriendRequest = async (req) => {
-    await addDoc(collection(db, 'friendships'), {
-      users: [req.from, req.to], names: { [req.from]: req.fromName, [req.to]: req.toName }, createdAt: serverTimestamp()
-    });
-    await deleteDoc(doc(db, 'friendRequests', req.id));
+	try {
+		await addDoc(collection(db, 'friendships'), {
+		users: [req.from, req.to], names: { [req.from]: req.fromName, [req.to]: req.toName }, createdAt: serverTimestamp()
+		});
+		await deleteDoc(doc(db, 'friendRequests', req.id));
+		openModal(t('success'), "Demande d'ami acceptée !");
+	} catch(err) {
+		openModal(t('error'), err.message);
+	}
   };
 
   const rejectFriendRequest = async (reqId) => {
@@ -1135,7 +1191,7 @@ export default function App() {
     return (
       <div className={`border rounded-xl p-6 ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}>
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-          <h3 className="font-black text-xl text-blue-600 flex items-center"><Calendar className="mr-3"/> {t('schedule')} (Vue Gantt Auto-extensible)</h3>
+          <h3 className="font-black text-xl text-blue-600 flex items-center"><Calendar className="mr-3"/> {t('schedule')}</h3>
         </div>
 
         <form onSubmit={handleAddScheduleItem} className={`mb-6 p-4 rounded-xl border flex flex-wrap gap-4 items-center shadow-sm ${theme==='dark'?'bg-slate-950 border-slate-800':'bg-slate-200/50 border-slate-300'}`}>
@@ -1539,6 +1595,9 @@ export default function App() {
                <div className="flex-1 overflow-y-auto p-3 space-y-3 bg-slate-50 dark:bg-slate-950/30">
                  {pmMessages.length === 0 ? <p className="text-xs text-center text-slate-500 italic mt-10">Dites bonjour !</p> : null}
                  {pmMessages.map(msg => (
+				))}
+				<div ref={pmEndRef} />
+			  </div>
                     <div key={msg.id} className={`p-2.5 rounded-xl text-xs max-w-[85%] shadow-sm ${msg.authorId === user.uid ? 'bg-blue-600 text-white ml-auto rounded-br-none' : (theme==='dark'?'bg-slate-800 text-slate-200 mr-auto rounded-bl-none':'bg-white border border-slate-200 text-slate-700 mr-auto rounded-bl-none')}`}>
                       <p className="whitespace-pre-wrap">{msg.text}</p>
                     </div>
@@ -1552,9 +1611,17 @@ export default function App() {
           )}
         </div>
       )}
-      <button onClick={() => setIsChatWidgetOpen(!isChatWidgetOpen)} className="w-14 h-14 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-2xl transform hover:scale-105 transition">
-         {isChatWidgetOpen ? <X size={24}/> : <MessageCircle size={24}/>}
-      </button>
+      // Cherchez la balise : <button onClick={() => setIsChatWidgetOpen(!isChatWidgetOpen)}...
+// Remplacez tout le bouton par ceci :
+	  <button onClick={() => setIsChatWidgetOpen(!isChatWidgetOpen)} className="relative w-14 h-14 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-2xl transform hover:scale-105 transition">
+		 {isChatWidgetOpen ? <X size={24}/> : <MessageCircle size={24}/>}
+		 {!isChatWidgetOpen && friendRequests.length > 0 && (
+		 <span className="absolute -top-1 -right-1 flex h-4 w-4">
+		 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+		 <span className="relative inline-flex rounded-full h-4 w-4 bg-red-500 text-[10px] text-white justify-center items-center font-bold">{friendRequests.length}</span>
+		 </span>
+	    )}
+	  </button>
     </div>
   );
 
@@ -1596,9 +1663,17 @@ export default function App() {
                 </div>
               </div>
               {viewProfileId !== user.uid && !friendsList.find(f => f.id === viewProfileId) && (
-                <button onClick={() => sendFriendRequest(viewProfileId)} className="w-full bg-blue-600 hover:bg-blue-500 transition text-white py-2.5 rounded-lg font-bold">{t('addFriendTitle')}</button>
-              )}
-              <button onClick={() => setViewProfileId(null)} className="w-full py-2 bg-slate-300 hover:bg-slate-400 dark:bg-slate-800 dark:hover:bg-slate-700 transition rounded-lg font-bold text-slate-800 dark:text-white">{t('close')}</button>
+			  <button onClick={() => sendFriendRequest(viewProfileId)} className="w-full bg-blue-600 hover:bg-blue-500 transition text-white py-2.5 rounded-lg font-bold">{t('addFriendTitle')}</button>
+			  )}
+			  {viewProfileId !== user.uid && friendsList.find(f => f.id === viewProfileId) && (
+			  <button onClick={() => {
+				setActiveFriend(friendsList.find(f => f.id === viewProfileId));
+				setIsChatWidgetOpen(true);
+				setViewProfileId(null);
+			  }} className="w-full bg-green-600 hover:bg-green-500 transition text-white py-2.5 rounded-lg font-bold flex justify-center items-center space-x-2">
+				<MessageSquare size={18}/> <span>{t('sendMessage')}</span>
+			  </button>
+				)}
             </div>
           </div>
         )}
@@ -2382,14 +2457,14 @@ export default function App() {
 
           {activeTab === 'help' && (
             <div className={`border rounded-xl p-8 max-w-4xl mx-auto shadow-sm space-y-6 ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}>
-              <h3 className="font-black text-2xl text-blue-600">Aide & Documentation Technique</h3>
-              <p className="text-sm text-slate-600 dark:text-slate-500">Retrouvez ci-dessous toutes les informations techniques, raccourcis et spécifications de l'écosystème Fabrica Tracker.</p>
+              <h3 className="font-black text-2xl text-blue-600">{t('helpTitle')}</h3>
+              <p className="text-sm text-slate-600 dark:text-slate-500">{t('helpSubTitle')}</p>
               
               <div className="space-y-4 text-sm">
                 
                 <div className="p-4 rounded-lg bg-slate-200/50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800">
                   <h4 className="font-bold text-base mb-2 flex items-center text-blue-600"><Upload size={16} className="mr-2"/> {t('cloudGuideTitle')}</h4>
-                  <p className="text-xs text-slate-700 dark:text-slate-400 mb-2 font-bold">Sans cette configuration, vous ne pourrez pas uploader d'images ou de vidéos.</p>
+                  <p className="text-xs text-slate-700 dark:text-slate-400 mb-2 font-bold">{t('cloudWarning')}</p>
                   <ul className="list-decimal list-inside space-y-2 text-xs text-slate-700 dark:text-slate-400 bg-white dark:bg-slate-900 p-4 rounded-lg border border-slate-300 dark:border-slate-700 shadow-sm">
                     <li>{t('cloudGuide1')}</li>
                     <li>{t('cloudGuide2')}</li>
@@ -2400,32 +2475,32 @@ export default function App() {
                 </div>
 
                 <div className="p-4 rounded-lg bg-slate-200/50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800">
-                  <h4 className="font-bold text-base mb-2 flex items-center text-slate-800 dark:text-white"><ShieldAlert size={16} className="mr-2"/> Rôles, Leads & Permissions</h4>
+                  <h4 className="font-bold text-base mb-2 flex items-center text-slate-800 dark:text-white"><ShieldAlert size={16} className="mr-2"/> {t('rolesTitle')}</h4>
                   <ul className="list-disc list-inside space-y-2 text-xs text-slate-700 dark:text-slate-400">
-                    <li><strong>Admin & Supervisor :</strong> Accès total (création, assignation, suppression). Les Admins peuvent gérer les paramètres Cloudinary et la suppression du projet.</li>
-                    <li><strong>Leads :</strong> Un rôle hybride applicable à n'importe quel membre via l'onglet <em>Équipe</em>. Si un membre est coché comme Lead sur l'étape <em>Compositing</em>, il verra les plans en <em>Review</em> remonter tout en haut de <em>Mes Tâches</em>.</li>
-                    <li><strong>Artist :</strong> Peut s'assigner des tâches, changer son statut, et uploader des fichiers.</li>
+                    <li>{t('rolesAdmin')}</li>
+                    <li>{t('rolesLeads')}</li>
+                    <li>{t('rolesArtist')}</li>
                   </ul>
                 </div>
 
                 <div className="p-4 rounded-lg bg-slate-200/50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800">
-                  <h4 className="font-bold text-base mb-2 flex items-center text-slate-800 dark:text-white"><Edit3 size={16} className="mr-2"/> Raccourcis & Commandes du Lecteur Vidéo</h4>
+                  <h4 className="font-bold text-base mb-2 flex items-center text-slate-800 dark:text-white"><Edit3 size={16} className="mr-2"/> {t('shortcutsTitle')}</h4>
                   <ul className="list-disc list-inside text-xs space-y-2 text-slate-700 dark:text-slate-400">
-                    <li><strong>Espace / Play :</strong> Lecture / Pause de la vidéo.</li>
-                    <li><strong>Image par image :</strong> Cliquez sur les boutons pour reculer ou avancer d'exactement 1 frame (calculé en 25 fps).</li>
-                    <li><strong>Outils Retake (Annotations) :</strong> 
+                    <li>{t('shortcutPlay')}</li>
+                    <li>{t('shortcutFrame')}</li>
+                    <li>{t('shortcutRetake')}
                        <ul className="ml-6 mt-1 list-circle">
-                         <li><strong>Pinceau :</strong> Dessinez par-dessus. Slider pour régler la taille.</li>
-                         <li><strong>Gomme :</strong> Permet d'effacer précisément ce que vous venez de dessiner au pinceau, fonctionne avec le même slider de taille.</li>
-                         <li><strong>Texte :</strong> Cliquez pour écrire, `Entrée` pour valider.</li>
+                         <li>{t('shortcutPen')}</li>
+                         <li>{t('shortcutEraser')}</li>
+                         <li>{t('shortcutText')}</li>
                        </ul>
                     </li>
                   </ul>
                 </div>
 
                 <div className="p-4 rounded-lg bg-slate-200/50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800">
-                  <h4 className="font-bold text-base mb-2 flex items-center text-slate-800 dark:text-white"><UserCheck size={16} className="mr-2"/> Absence</h4>
-                  <p className="text-xs text-slate-700 dark:text-slate-400">Pour notifier l'équipe de vos congés ou de votre absence, rendez-vous sur votre profil (en cliquant sur votre nom en haut à droite) et activez le mode Absence. L'icône 🏖️ sera affichée partout.</p>
+                  <h4 className="font-bold text-base mb-2 flex items-center text-slate-800 dark:text-white"><UserCheck size={16} className="mr-2"/> {t('absenceTitle')}</h4>
+                  <p className="text-xs text-slate-700 dark:text-slate-400">{t('absenceDesc')}</p>
                 </div>
               </div>
             </div>
