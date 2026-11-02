@@ -1604,9 +1604,6 @@ useEffect(() => {
                   <input type="text" value={newPmMsg} onChange={e=>setNewPmMsg(e.target.value)} placeholder="Message..." className={`flex-1 p-2 rounded-lg outline-none text-sm transition ${theme==='dark'?'bg-slate-950 border-slate-700 border':'bg-white border-slate-300 border focus:border-blue-500'}`} />
                   <button type="submit" className="bg-blue-600 text-white p-2 rounded-lg transition hover:bg-blue-500"><Plus size={18}/></button>
                </form>
-                  <input type="text" value={newPmMsg} onChange={e=>setNewPmMsg(e.target.value)} placeholder="Message..." className={`flex-1 p-2 rounded-lg outline-none text-sm transition ${theme==='dark'?'bg-slate-950 border-slate-700 border':'bg-white border-slate-300 border focus:border-blue-500'}`} />
-                  <button type="submit" className="bg-blue-600 text-white p-2 rounded-lg transition hover:bg-blue-500"><Plus size={18}/></button>
-               </form>
              </div>
           )}
         </div>
