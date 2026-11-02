@@ -53,6 +53,8 @@ const dict = {
     addAsset: "Ajouter Asset", assetName: "Nom de l'asset", category: "Catégorie", priority: "Priorité", tags: "Tags", history: "Historique", report: "Rapport PDF", desc: "Description", duration: "Durée",
     todo: "À faire", wip: "En cours", reviewStatus: "En validation", reuse: "Réutiliser", retake: "Retake", done: "Terminé", upload: "Upload", wait: "En attente",
     createAsset: "Créer Asset", exportCSV: "Export CSV", save: "Valider", startDate: "Début", endDate: "Fin",
+    leads: "Leads", friendReqs: "Demandes d'ami", accept: "Accepter", reject: "Refuser", removeFriend: "Supprimer l'ami", online: "En ligne", offline: "Hors ligne", close: "Fermer",
+    addFriendTitle: "Ajouter en ami", noFriends: "Aucun ami ajouté.", noProjects: "Aucun projet. Créez-en un à droite.", copied: "Code copié !", error: "Erreur", success: "Succès",
     cloudGuideTitle: "Tutoriel complet : Configurer Cloudinary (Gratuit)",
     cloudGuide1: "1. Créez un compte gratuit sur Cloudinary.com",
     cloudGuide2: "2. Allez dans Dashboard, copiez votre 'Cloud Name'.",
@@ -68,6 +70,8 @@ const dict = {
     addAsset: "Add Asset", assetName: "Asset Name", category: "Category", priority: "Priority", tags: "Tags", history: "History", report: "PDF Report", desc: "Description", duration: "Duration",
     todo: "To Do", wip: "WIP", reviewStatus: "Review", reuse: "Reuse", retake: "Retake", done: "Done", upload: "Upload", wait: "Waiting",
     createAsset: "Create Asset", exportCSV: "Export CSV", save: "Save", startDate: "Start", endDate: "End",
+    leads: "Leads", friendReqs: "Friend Requests", accept: "Accept", reject: "Reject", removeFriend: "Remove Friend", online: "Online", offline: "Offline", close: "Close",
+    addFriendTitle: "Add Friend", noFriends: "No friends added.", noProjects: "No projects. Create one on the right.", copied: "Code copied!", error: "Error", success: "Success",
     cloudGuideTitle: "Complete Tutorial: Setup Cloudinary (Free)",
     cloudGuide1: "1. Create a free account on Cloudinary.com",
     cloudGuide2: "2. Go to Dashboard, copy your 'Cloud Name'.",
@@ -231,7 +235,6 @@ export default function App() {
   const [newProjectBannerFile, setNewProjectBannerFile] = useState(null);
   const [joinCode, setJoinCode] = useState('');
   
-  // Nouveaux states Cloudinary à la création
   const [newProjCloudName, setNewProjCloudName] = useState('');
   const [newProjUploadPreset, setNewProjUploadPreset] = useState('');
   const [newProjApiKey, setNewProjApiKey] = useState('');
@@ -318,6 +321,7 @@ export default function App() {
   const [logoPixelated, setLogoPixelated] = useState(false);
   
   const [isChatWidgetOpen, setIsChatWidgetOpen] = useState(false);
+  const [friendRequests, setFriendRequests] = useState([]);
   const [friendsList, setFriendsList] = useState([]);
   const [friendInput, setFriendInput] = useState('');
   const [activeFriend, setActiveFriend] = useState(null);
@@ -397,7 +401,10 @@ export default function App() {
       });
       setFriendsList(flist);
     });
-    return () => { unsubP(); unsubF(); };
+    const qReqs = query(collection(db, 'friendRequests'), where('to', '==', user.uid));
+    const unsubReqs = onSnapshot(qReqs, (snap) => setFriendRequests(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+
+    return () => { unsubP(); unsubF(); unsubReqs(); };
   }, [user]);
 
   useEffect(() => {
@@ -644,18 +651,40 @@ export default function App() {
     setJoinCode('');
   };
 
-  const addFriend = async (friendId) => {
-    if(!friendId || friendId === user.uid) return openModal("Erreur", "ID Invalide");
-    if(friendsList.find(f => f.id === friendId)) return openModal("Erreur", "Vous êtes déjà ami avec cette personne.");
+  const sendFriendRequest = async (friendId) => {
+    if(!friendId || friendId === user.uid) return openModal(t('error'), "ID Invalide");
+    if(friendsList.find(f => f.id === friendId)) return openModal(t('error'), "Vous êtes déjà ami avec cette personne.");
     try {
       const friendDoc = await getDoc(doc(db, 'users', friendId));
-      if(!friendDoc.exists()) return openModal("Erreur", "Utilisateur introuvable");
-      const friendData = friendDoc.data();
-      await addDoc(collection(db, 'friendships'), {
-        users: [user.uid, friendId], names: { [user.uid]: userData.displayName, [friendId]: friendData.displayName }, createdAt: serverTimestamp()
+      if(!friendDoc.exists()) return openModal(t('error'), "Utilisateur introuvable");
+      
+      const existQ = await getDocs(query(collection(db, 'friendRequests'), where('from', '==', user.uid), where('to', '==', friendId)));
+      if (!existQ.empty) return openModal("Info", "Requête déjà envoyée.");
+
+      await addDoc(collection(db, 'friendRequests'), {
+        from: user.uid, to: friendId, fromName: userData.displayName, toName: friendDoc.data().displayName, createdAt: serverTimestamp()
       });
-      setFriendInput(''); setViewProfileId(null); openModal("Succès", "Ami ajouté !");
-    } catch(err) { openModal("Erreur", err.message); }
+      setFriendInput(''); setViewProfileId(null); openModal(t('success'), "Demande d'ami envoyée !");
+    } catch(err) { openModal(t('error'), err.message); }
+  };
+
+  const acceptFriendRequest = async (req) => {
+    await addDoc(collection(db, 'friendships'), {
+      users: [req.from, req.to], names: { [req.from]: req.fromName, [req.to]: req.toName }, createdAt: serverTimestamp()
+    });
+    await deleteDoc(doc(db, 'friendRequests', req.id));
+  };
+
+  const rejectFriendRequest = async (reqId) => {
+    await deleteDoc(doc(db, 'friendRequests', reqId));
+  };
+
+  const removeFriend = async (friendshipId) => {
+    openModal(t('removeFriend'), "Êtes-vous sûr de vouloir supprimer cet ami ?", async () => {
+      await deleteDoc(doc(db, 'friendships', friendshipId));
+      if (activeFriend?.friendshipId === friendshipId) { setActiveFriend(null); setIsChatWidgetOpen(false); }
+      closeModal();
+    });
   };
 
   const postPm = async (e) => {
@@ -1567,9 +1596,9 @@ export default function App() {
                 </div>
               </div>
               {viewProfileId !== user.uid && !friendsList.find(f => f.id === viewProfileId) && (
-                <button onClick={() => addFriend(viewProfileId)} className="w-full bg-blue-600 hover:bg-blue-500 transition text-white py-2.5 rounded-lg font-bold">Ajouter en ami</button>
+                <button onClick={() => sendFriendRequest(viewProfileId)} className="w-full bg-blue-600 hover:bg-blue-500 transition text-white py-2.5 rounded-lg font-bold">{t('addFriendTitle')}</button>
               )}
-              <button onClick={() => setViewProfileId(null)} className="w-full py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 transition rounded-lg font-bold text-slate-800 dark:text-white">Fermer</button>
+              <button onClick={() => setViewProfileId(null)} className="w-full py-2 bg-slate-300 hover:bg-slate-400 dark:bg-slate-800 dark:hover:bg-slate-700 transition rounded-lg font-bold text-slate-800 dark:text-white">{t('close')}</button>
             </div>
           </div>
         )}
@@ -1664,25 +1693,46 @@ export default function App() {
           {dashTab === 'friends' && (
             <>
                <div className={`md:col-span-2 border p-6 rounded-xl shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}>
+                
+                {friendRequests.length > 0 && (
+                  <div className={`mb-6 border p-4 rounded-xl shadow-sm bg-orange-500/10 border-orange-500/30`}>
+                    <h2 className="text-lg font-bold mb-3 text-orange-600 dark:text-orange-400">{t('friendReqs')} ({friendRequests.length})</h2>
+                    <div className="space-y-2">
+                      {friendRequests.map(req => (
+                        <div key={req.id} className="p-3 rounded-lg flex justify-between items-center bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800">
+                          <span className="font-bold">{req.fromName}</span>
+                          <div className="flex space-x-2">
+                            <button onClick={() => acceptFriendRequest(req)} className="bg-green-600 hover:bg-green-500 text-white px-3 py-1.5 rounded text-xs font-bold transition">{t('accept')}</button>
+                            <button onClick={() => rejectFriendRequest(req.id)} className="bg-red-600 hover:bg-red-500 text-white px-3 py-1.5 rounded text-xs font-bold transition">{t('reject')}</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <h2 className="text-xl font-bold mb-4 flex items-center"><Users className="mr-2 text-blue-500" /> {t('friends')}</h2>
                 <div className="space-y-3">
-                  {friendsList.length === 0 ? <p className="text-slate-500 italic">Aucun ami ajouté.</p> : null}
+                  {friendsList.length === 0 ? <p className="text-slate-500 italic">{t('noFriends')}</p> : null}
                   {friendsList.map(f => (
                     <div key={f.id} className={`border p-4 rounded-lg flex justify-between items-center transition ${theme==='dark'?'bg-slate-950 border-slate-800 hover:border-slate-700':'bg-white border-slate-300 hover:border-slate-400'}`}>
                       <div className="flex items-center space-x-3 cursor-pointer hover:opacity-80" onClick={()=>setViewProfileId(f.id)}>
                          <UserCircle size={32} className="text-slate-400"/> 
-                         <div className="flex items-center space-x-2"><h3 className="font-bold text-lg hover:underline">{f.displayName}</h3> {onlineUsers[f.id] && <div className="w-2.5 h-2.5 bg-green-500 rounded-full shadow" title="En ligne"></div>}</div>
+                         <div className="flex items-center space-x-2"><h3 className="font-bold text-lg hover:underline">{f.displayName}</h3> {onlineUsers[f.id] && <div className="w-2.5 h-2.5 bg-green-500 rounded-full shadow" title={t('online')}></div>}</div>
                       </div>
-                      <button onClick={() => { setActiveFriend(f); setIsChatWidgetOpen(true); }} className="p-2 text-blue-500 bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 rounded-full transition"><MessageSquare size={18}/></button>
+                      <div className="flex space-x-2">
+                        <button onClick={() => { setActiveFriend(f); setIsChatWidgetOpen(true); }} className="p-2 text-blue-500 bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 rounded-full transition"><MessageSquare size={18}/></button>
+                        <button onClick={() => removeFriend(f.friendshipId)} className="p-2 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/50 rounded-full transition" title={t('removeFriend')}><Trash2 size={18}/></button>
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
               <div className="space-y-6">
-                <form onSubmit={(e)=>{e.preventDefault(); addFriend(friendInput);}} className={`border p-6 rounded-xl space-y-4 shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}>
+                <form onSubmit={(e)=>{e.preventDefault(); sendFriendRequest(friendInput);}} className={`border p-6 rounded-xl space-y-4 shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}>
                   <h2 className="text-lg font-bold flex items-center"><UserPlus className="mr-2"/> {t('addFriend')}</h2>
                   <input type="text" placeholder={t('friendId')} value={friendInput} onChange={(e) => setFriendInput(e.target.value)} className={`font-mono text-center tracking-widest ${inputClass}`} required />
-                  <button type="submit" className="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition shadow-sm">Ajouter</button>
+                  <button type="submit" className="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition shadow-sm">{t('addFriend')}</button>
                 </form>
                 <div className={`border p-6 rounded-xl text-center space-y-2 shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}>
                   <h3 className="font-bold text-sm text-slate-500">{t('myId')}</h3>
@@ -1692,9 +1742,19 @@ export default function App() {
             </>
           )}
         </div>
+        {modal.isOpen && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[200] p-4 backdrop-blur-sm no-print">
+            <div className={`p-6 rounded-xl border w-full max-w-sm space-y-4 shadow-2xl ${theme==='dark'?'bg-slate-900 border-slate-800 text-white':lightCardClass}`}>
+              <h3 className="font-bold text-lg">{modal.title}</h3><p className="text-sm opacity-80 whitespace-pre-wrap">{modal.msg}</p>
+              <div className="flex space-x-3 pt-4">
+                {modal.onConfirm && <button onClick={closeModal} className="flex-1 py-2 bg-slate-300 hover:bg-slate-400 dark:bg-slate-800 dark:hover:bg-slate-700 rounded font-bold transition">{t('cancel')}</button>}
+                <button onClick={modal.onConfirm || closeModal} className="flex-1 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold transition">{t('ok')}</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
-  }
 
   return (
     <div className={`h-screen flex overflow-hidden ${theme === 'dark' ? 'dark bg-slate-950 text-slate-100' : lightWrapperClass}`}>
@@ -1724,9 +1784,9 @@ export default function App() {
                 </div>
               </div>
               {viewProfileId !== user.uid && !friendsList.find(f => f.id === viewProfileId) && (
-                <button onClick={() => addFriend(viewProfileId)} className="w-full bg-blue-600 hover:bg-blue-500 transition text-white py-2.5 rounded-lg font-bold">Ajouter en ami</button>
+                <button onClick={() => sendFriendRequest(viewProfileId)} className="w-full bg-blue-600 hover:bg-blue-500 transition text-white py-2.5 rounded-lg font-bold">{t('addFriendTitle')}</button>
               )}
-              <button onClick={() => setViewProfileId(null)} className="w-full py-2 bg-slate-300 hover:bg-slate-400 dark:bg-slate-800 dark:hover:bg-slate-700 transition rounded-lg font-bold text-slate-800 dark:text-white">Fermer</button>
+              <button onClick={() => setViewProfileId(null)} className="w-full py-2 bg-slate-300 hover:bg-slate-400 dark:bg-slate-800 dark:hover:bg-slate-700 transition rounded-lg font-bold text-slate-800 dark:text-white">{t('close')}</button>
             </div>
           </div>
         )}
@@ -2278,7 +2338,7 @@ export default function App() {
                     {userPermissions.role === 'Admin' ? (
                       <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
                          <div className="flex flex-col space-y-1">
-                            <span className="text-[9px] uppercase font-bold text-slate-500">Leads (Étapes)</span>
+                            <span className="text-[9px] uppercase font-bold text-slate-500">{t('Leads')}</span>
                             <div className="flex flex-wrap gap-1 max-w-[200px]">
                                {workspace?.pipeline?.map(step => (
                                  <label key={step} className="flex items-center space-x-1 text-[10px] cursor-pointer text-slate-700 dark:text-slate-300">
