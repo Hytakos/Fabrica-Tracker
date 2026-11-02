@@ -2338,7 +2338,7 @@ export default function App() {
                     {userPermissions.role === 'Admin' ? (
                       <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
                          <div className="flex flex-col space-y-1">
-                            <span className="text-[9px] uppercase font-bold text-slate-500">{t('Leads')}</span>
+                            <span className="text-[9px] uppercase font-bold text-slate-500">{t('leads')}</span>
                             <div className="flex flex-wrap gap-1 max-w-[200px]">
                                {workspace?.pipeline?.map(step => (
                                  <label key={step} className="flex items-center space-x-1 text-[10px] cursor-pointer text-slate-700 dark:text-slate-300">
