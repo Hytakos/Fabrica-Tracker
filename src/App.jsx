@@ -1063,124 +1063,7 @@ export default function App() {
     );
   };
 
-  const renderBreakdown = () => {
-    const addBreakdownItem = async (e) => {
-      e.preventDefault();
-      const form = e.target;
-      const seq = form.sequence.value;
-      const scene = form.scene.value;
-      const duration = parseInt(form.duration.value) || 100;
-      const description = form.description.value;
-      const characters = form.characters.value;
-      const props = form.props.value;
-      const sets = form.sets.value;
-      const fx = form.fx.value;
-      
-      if (!scene) return;
-      await addDoc(collection(db, 'breakdown'), { 
-        workspaceId: workspace.id, sequence: seq, scene: scene, duration: duration, description: description, 
-        characters: characters, props: props, sets: sets, fx: fx 
-      });
-      form.reset();
-    };
-
-    const convertToAsset = async (item) => {
-      const categories = [
-        { key: 'characters', cat: 'Character' }, { key: 'props', cat: 'Prop' },
-        { key: 'sets', cat: 'Set' }, { key: 'fx', cat: 'FX' }
-      ];
-      
-      let count = 0;
-      for (const c of categories) {
-        if (!item[c.key]) continue;
-        const elements = item[c.key].split(',').map(s => s.trim()).filter(Boolean);
-        for (const el of elements) {
-          await addDoc(collection(db, 'assets'), {
-            name: el, category: c.cat, workspaceId: workspace.id, previews: [], assignedTo: {}, priority: 'Normal', tags: [item.scene || '']
-          });
-          count++;
-        }
-      }
-      openModal("Succès", `${count} assets ont été créés automatiquement depuis la scène ${item.scene} !`);
-    };
-
-    const convertToShots = async (item) => {
-      const seqName = item.sequence || 'SQ01';
-      const sceneName = item.scene || 'SC01';
-      
-      const snap = await getDocs(query(collection(db, 'shots'), where('workspaceId', '==', workspace.id), where('sequence', '==', seqName)));
-      let localShots = snap.docs.map(d => d.data());
-      let nextOrder = 10;
-      if (localShots.length > 0) {
-        localShots.sort((a,b) => (a.order||0) - (b.order||0));
-        nextOrder = (localShots[localShots.length - 1].order || localShots.length * 10) + 10;
-      }
-
-      await addDoc(collection(db, 'shots'), { 
-        sequence: seqName, scene: sceneName, name: `${sceneName}_SH010`, order: nextOrder, 
-        workspaceId: workspace.id, status: {}, assignedTo: {}, previews: {}, priority: 'Normal', tags: [], description: item.description || '', durationFrames: item.duration || 100 
-      });
-      openModal("Succès", `La scène ${sceneName} a été générée dans la séquence ${seqName} (Shots) !`);
-    };
-
-    const countElements = (catKey) => breakdownItems.reduce((acc, item) => acc + (item[catKey] ? item[catKey].split(',').filter(x => x.trim() !== '').length : 0), 0);
-
-    return (
-      <div className={`border rounded-xl p-6 ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}>
-         <div className="flex justify-between items-center mb-6">
-            <h3 className="font-black text-xl text-blue-600">{t('breakdown')}</h3>
-         </div>
-
-         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-            <div className={`p-4 rounded-xl text-center border shadow-sm ${theme==='dark'?'bg-slate-950 border-slate-800':'bg-slate-50 border-slate-200'}`}>
-              <div className="text-3xl font-black text-blue-600">{countElements('characters')}</div>
-              <div className="text-xs font-bold text-slate-500 uppercase">Characters</div>
-            </div>
-            <div className={`p-4 rounded-xl text-center border shadow-sm ${theme==='dark'?'bg-slate-950 border-slate-800':'bg-slate-50 border-slate-200'}`}>
-              <div className="text-3xl font-black text-green-600">{countElements('props')}</div>
-              <div className="text-xs font-bold text-slate-500 uppercase">Props</div>
-            </div>
-            <div className={`p-4 rounded-xl text-center border shadow-sm ${theme==='dark'?'bg-slate-950 border-slate-800':'bg-slate-50 border-slate-200'}`}>
-              <div className="text-3xl font-black text-purple-600">{countElements('sets')}</div>
-              <div className="text-xs font-bold text-slate-500 uppercase">Sets</div>
-            </div>
-            <div className={`p-4 rounded-xl text-center border shadow-sm ${theme==='dark'?'bg-slate-950 border-slate-800':'bg-slate-50 border-slate-200'}`}>
-              <div className="text-3xl font-black text-orange-500">{countElements('fx')}</div>
-              <div className="text-xs font-bold text-slate-500 uppercase">FX</div>
-            </div>
-         </div>
-
-         <form onSubmit={addBreakdownItem} className="flex flex-col gap-4 mb-8">
-           <div className="flex flex-wrap gap-4">
-             <input name="sequence" placeholder="Séquence (ex: SQ01)" className={`${inputClass} flex-1 min-w-[120px] font-bold`} defaultValue="SQ01" required/>
-             <input name="scene" placeholder="Scène (ex: SC01)" className={`${inputClass} flex-1 min-w-[120px] font-bold`} required/>
-             <input name="duration" type="number" placeholder="Durée (frames)" className={`${inputClass} flex-1 min-w-[120px]`} defaultValue="100"/>
-             <input name="description" placeholder="Description de l'action..." className={`${inputClass} flex-[2] min-w-[200px]`}/>
-           </div>
-           <div className="flex flex-wrap gap-4">
-             <input name="characters" placeholder="Personnages (séparés par virgule)" className={`${inputClass} flex-1 min-w-[150px]`}/>
-             <input name="props" placeholder="Props (séparés par virgule)" className={`${inputClass} flex-1 min-w-[150px]`}/>
-             <input name="sets" placeholder="Décors (séparés par virgule)" className={`${inputClass} flex-1 min-w-[150px]`}/>
-             <input name="fx" placeholder="FX (séparés par virgule)" className={`${inputClass} flex-1 min-w-[150px]`}/>
-             <button type="submit" className="bg-blue-600 text-white font-bold px-6 py-2.5 rounded-lg hover:bg-blue-500 transition-colors shadow-sm">Créer Scène</button>
-           </div>
-         </form>
-
-         <div className="overflow-x-auto">
-           <table className="w-full text-left text-sm whitespace-nowrap">
-             <thead>
-               <tr className={`border-b text-xs uppercase ${theme==='dark'?'border-slate-800 text-slate-500':'border-slate-200 text-slate-500'}`}>
-                 <th className="p-4">Séquence</th><th className="p-4">Scène</th><th className="p-4">Durée</th><th className="p-4">Description</th>
-                 <th className="p-4">Characters</th><th className="p-4">Props</th><th className="p-4">Sets</th><th className="p-4">FX</th><th className="p-4 text-right">Actions</th>
-               </tr>
-             </thead>
-             <tbody className={`divide-y ${theme==='dark'?'divide-slate-800/50':'divide-slate-200'}`}>
-               {breakdownItems.map(item => (
-                 <tr key={item.id} className="hover:bg-slate-100 dark:hover:bg-slate-800/20 transition-colors">
-                   <td className="p-4 font-mono text-xs font-bold text-slate-500">{item.sequence || '-'}</td>
-                   <td className="p-4 font-black text-blue-600 dark:text-blue-400">{item.scene || '-'}</td>
-                   <td className="p-4 font-bold">{item.duration} f</td>
-  const renderBreakdown = () => {
+    const renderBreakdown = () => {
     const addBreakdownItem = async (e) => {
       e.preventDefault();
       const form = e.target;
@@ -1329,6 +1212,7 @@ export default function App() {
       </div>
     );
   };
+
 
   const pixelateStyle = `
     @keyframes pixelateAnim { 0% { filter: blur(0px) contrast(1); transform: scale(1); } 50% { filter: blur(3px) contrast(5); transform: scale(1.05); } 100% { filter: blur(0px) contrast(1); transform: scale(1); } }
