@@ -34,7 +34,7 @@ const TEMPLATES = {
   '3D': ['Animatic', 'Color Script', 'Layout', 'Modeling', '3D Background', '3D FX', '3D Anim', '3D Lighting', '3D Render', 'Compositing'],
   'Game': ['Concept Art', 'Modeling Low Poly', 'UV Mapping', 'Texturing', 'Rigging', 'Animation', 'VFX', 'Integration Engine']
 };
-const ASSET_CATEGORIES = ['Model Design', 'Props Design', 'Storyboard', 'Background Concept'];
+const ASSET_CATEGORIES = ['Character', 'Prop', 'Set', 'FX', 'Model Design', 'Props Design', 'Storyboard', 'Background Concept'];
 const FRAMERATE = 25;
 
 const generateCloudinarySignature = async (publicId, timestamp, apiSecret) => {
@@ -78,6 +78,7 @@ const dict = {
 };
 
 const ShotDetailsEditor = ({ shot, onSave, t }) => {
+  const [isEditing, setIsEditing] = useState(false);
   const [desc, setDesc] = useState(shot.description || '');
   const [dur, setDur] = useState(shot.durationFrames || '');
 
@@ -86,10 +87,26 @@ const ShotDetailsEditor = ({ shot, onSave, t }) => {
     setDur(shot.durationFrames || '');
   }, [shot.description, shot.durationFrames]);
 
-  const isDirty = desc !== (shot.description || '') || parseInt(dur || 0) !== (shot.durationFrames || 0);
+  const handleSave = () => {
+    onSave({ description: desc, durationFrames: parseInt(dur) || 0 });
+    setIsEditing(false);
+  };
+
+  if (!isEditing) {
+    return (
+      <div 
+        onClick={() => setIsEditing(true)} 
+        className="mb-2 ml-6 text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-300 cursor-pointer transition-colors border border-transparent hover:border-slate-300 dark:hover:border-slate-700 p-1.5 rounded no-print"
+        title="Cliquez pour éditer la durée et la description"
+      >
+        {shot.durationFrames ? <span className="font-bold mr-3 text-blue-500">{shot.durationFrames} frames</span> : <span className="font-bold mr-3 italic opacity-50">Durée ?</span>}
+        {shot.description ? <span>{shot.description}</span> : <span className="italic opacity-50">Aucune description... (cliquez pour ajouter)</span>}
+      </div>
+    );
+  }
 
   return (
-     <div className="space-y-1 mb-2 ml-6 text-xs bg-slate-200/60 dark:bg-slate-900/60 p-2 rounded-lg border border-slate-300 dark:border-slate-800 transition-all">
+     <div className="space-y-1 mb-2 ml-6 text-xs bg-slate-200/60 dark:bg-slate-900/60 p-2 rounded-lg border border-slate-300 dark:border-slate-800 transition-all no-print">
         <div className="flex items-center">
           <span className="text-[9px] uppercase font-bold text-slate-500 mr-2 w-10">{t('duration')}</span>
           <input type="number" value={dur} onChange={e=>setDur(e.target.value)} placeholder="Frames" className="p-1 rounded bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 w-16 text-center text-[10px] font-bold outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all" />
@@ -98,11 +115,10 @@ const ShotDetailsEditor = ({ shot, onSave, t }) => {
           <span className="text-[9px] uppercase font-bold text-slate-500 mr-2 w-10 mt-1">{t('desc')}</span>
           <textarea value={desc} onChange={e=>setDesc(e.target.value)} placeholder="..." className="p-1.5 rounded bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 w-full h-12 text-[10px] resize-none outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all" />
         </div>
-        {isDirty && (
-          <div className="flex justify-end mt-1.5">
-            <button onClick={() => onSave({ description: desc, durationFrames: parseInt(dur) || 0 })} className="bg-green-600 hover:bg-green-500 transition-colors text-white text-[10px] px-2.5 py-1 rounded shadow flex items-center font-bold"><CheckSquare size={12} className="mr-1.5"/> {t('save')}</button>
-          </div>
-        )}
+        <div className="flex justify-end mt-1.5 space-x-2">
+          <button onClick={() => setIsEditing(false)} className="bg-slate-400 hover:bg-slate-500 transition-colors text-white text-[10px] px-2.5 py-1 rounded shadow font-bold">Annuler</button>
+          <button onClick={handleSave} className="bg-green-600 hover:bg-green-500 transition-colors text-white text-[10px] px-2.5 py-1 rounded shadow flex items-center font-bold"><CheckSquare size={12} className="mr-1.5"/> {t('save')}</button>
+        </div>
      </div>
   )
 }
@@ -1052,27 +1068,45 @@ export default function App() {
       e.preventDefault();
       const form = e.target;
       const seq = form.sequence.value;
-      const cat = form.category.value;
-      const name = form.itemName.value;
-      const count = form.count.value;
-      const notes = form.notes.value;
-      if (!name) return;
-      await addDoc(collection(db, 'breakdown'), { workspaceId: workspace.id, sequence: seq, category: cat, name: name, count: count, notes: notes });
+      const scene = form.scene.value;
+      const duration = parseInt(form.duration.value) || 100;
+      const description = form.description.value;
+      const characters = form.characters.value;
+      const props = form.props.value;
+      const sets = form.sets.value;
+      const fx = form.fx.value;
+      
+      if (!scene) return;
+      await addDoc(collection(db, 'breakdown'), { 
+        workspaceId: workspace.id, sequence: seq, scene: scene, duration: duration, description: description, 
+        characters: characters, props: props, sets: sets, fx: fx 
+      });
       form.reset();
     };
 
     const convertToAsset = async (item) => {
-      await addDoc(collection(db, 'assets'), {
-        name: item.name,
-        category: ASSET_CATEGORIES.includes(item.category) ? item.category : ASSET_CATEGORIES[0],
-        workspaceId: workspace.id, previews: [], assignedTo: {}, priority: 'Normal', tags: [item.category]
-      });
-      openModal("Succès", `L'asset "${item.name}" a été créé avec succès !`);
+      const categories = [
+        { key: 'characters', cat: 'Character' }, { key: 'props', cat: 'Prop' },
+        { key: 'sets', cat: 'Set' }, { key: 'fx', cat: 'FX' }
+      ];
+      
+      let count = 0;
+      for (const c of categories) {
+        if (!item[c.key]) continue;
+        const elements = item[c.key].split(',').map(s => s.trim()).filter(Boolean);
+        for (const el of elements) {
+          await addDoc(collection(db, 'assets'), {
+            name: el, category: c.cat, workspaceId: workspace.id, previews: [], assignedTo: {}, priority: 'Normal', tags: [item.scene || '']
+          });
+          count++;
+        }
+      }
+      openModal("Succès", `${count} assets ont été créés automatiquement depuis la scène ${item.scene} !`);
     };
 
     const convertToShots = async (item) => {
       const seqName = item.sequence || 'SQ01';
-      const numShots = parseInt(item.count) || 1;
+      const sceneName = item.scene || 'SC01';
       
       const snap = await getDocs(query(collection(db, 'shots'), where('workspaceId', '==', workspace.id), where('sequence', '==', seqName)));
       let localShots = snap.docs.map(d => d.data());
@@ -1082,71 +1116,84 @@ export default function App() {
         nextOrder = (localShots[localShots.length - 1].order || localShots.length * 10) + 10;
       }
 
-      for(let i = 0; i < numShots; i++) {
-        await addDoc(collection(db, 'shots'), { 
-          sequence: seqName, 
-          scene: 'TEMP', 
-          name: 'TEMP', 
-          order: nextOrder + (i * 10), 
-          workspaceId: workspace.id, 
-          status: {}, assignedTo: {}, previews: {}, priority: 'Normal', tags: [item.name], description: item.notes, durationFrames: 100 
-        });
-      }
-      openModal("Succès", `${numShots} plan(s) généré(s) pour la séquence ${seqName} !`);
-      setTimeout(() => recalculateSequenceShots(seqName), 500);
+      await addDoc(collection(db, 'shots'), { 
+        sequence: seqName, scene: sceneName, name: `${sceneName}_SH010`, order: nextOrder, 
+        workspaceId: workspace.id, status: {}, assignedTo: {}, previews: {}, priority: 'Normal', tags: [], description: item.description || '', durationFrames: item.duration || 100 
+      });
+      openModal("Succès", `La scène ${sceneName} a été générée dans la séquence ${seqName} (Shots) !`);
     };
 
-    const exportBreakdownCSV = () => {
-      let csv = "Séquence,Catégorie,Nom,Quantité,Notes\n";
-      breakdownItems.forEach(item => { csv += `"${item.sequence||''}","${item.category}","${item.name}","${item.count}","${item.notes}"\n`; });
-      const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = "stripboard_breakdown.csv"; a.click();
-    };
+    const countElements = (catKey) => breakdownItems.reduce((acc, item) => acc + (item[catKey] ? item[catKey].split(',').filter(x => x.trim() !== '').length : 0), 0);
 
     return (
       <div className={`border rounded-xl p-6 ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}>
-         <div className="flex justify-between items-center mb-4">
+         <div className="flex justify-between items-center mb-6">
             <h3 className="font-black text-xl text-blue-600">{t('breakdown')}</h3>
-            <div className="flex items-center space-x-3">
-               <select value={breakdownFilter} onChange={e=>setBreakdownFilter(e.target.value)} className={`${inputClass} !py-1.5 font-bold`}>
-                 <option value="">Toutes les catégories</option>
-                 <option value="Character">Character</option>
-                 <option value="Prop">Prop</option>
-                 <option value="Set">Set</option>
-                 <option value="FX">FX</option>
-               </select>
-               <button onClick={exportBreakdownCSV} className="flex items-center space-x-2 bg-green-700 hover:bg-green-600 transition text-white px-3 py-2 rounded-lg font-bold text-sm shadow-sm"><FileSpreadsheet size={16}/> <span>{t('exportCSV')}</span></button>
+         </div>
+
+         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div className={`p-4 rounded-xl text-center border shadow-sm ${theme==='dark'?'bg-slate-950 border-slate-800':'bg-slate-50 border-slate-200'}`}>
+              <div className="text-3xl font-black text-blue-600">{countElements('characters')}</div>
+              <div className="text-xs font-bold text-slate-500 uppercase">Characters</div>
+            </div>
+            <div className={`p-4 rounded-xl text-center border shadow-sm ${theme==='dark'?'bg-slate-950 border-slate-800':'bg-slate-50 border-slate-200'}`}>
+              <div className="text-3xl font-black text-green-600">{countElements('props')}</div>
+              <div className="text-xs font-bold text-slate-500 uppercase">Props</div>
+            </div>
+            <div className={`p-4 rounded-xl text-center border shadow-sm ${theme==='dark'?'bg-slate-950 border-slate-800':'bg-slate-50 border-slate-200'}`}>
+              <div className="text-3xl font-black text-purple-600">{countElements('sets')}</div>
+              <div className="text-xs font-bold text-slate-500 uppercase">Sets</div>
+            </div>
+            <div className={`p-4 rounded-xl text-center border shadow-sm ${theme==='dark'?'bg-slate-950 border-slate-800':'bg-slate-50 border-slate-200'}`}>
+              <div className="text-3xl font-black text-orange-500">{countElements('fx')}</div>
+              <div className="text-xs font-bold text-slate-500 uppercase">FX</div>
             </div>
          </div>
-         <form onSubmit={addBreakdownItem} className="flex flex-wrap gap-2 mb-6">
-           <input name="sequence" placeholder="Séquence (ex: SQ01)" className={`${inputClass} flex-1 min-w-[120px] font-bold`} defaultValue="SQ01" required/>
-           <select name="category" className={`${inputClass} flex-1 min-w-[120px]`}><option value="Character">Character</option><option value="Prop">Prop</option><option value="Set">Set</option><option value="FX">FX</option></select>
-           <input name="itemName" placeholder="Nom de l'élément" className={`${inputClass} flex-[2] min-w-[150px]`} required/>
-           <input name="count" type="number" placeholder="Plans / Qté" title="Nombre de plans à générer ou quantité de l'asset" className={`${inputClass} flex-1 min-w-[100px]`} defaultValue="1"/>
-           <input name="notes" placeholder="Notes..." className={`${inputClass} flex-[3] min-w-[200px]`}/>
-           <button type="submit" className="bg-blue-600 text-white font-bold px-4 py-2 rounded-lg hover:bg-blue-500 transition-colors">Ajouter</button>
+
+         <form onSubmit={addBreakdownItem} className="flex flex-col gap-4 mb-8">
+           <div className="flex flex-wrap gap-4">
+             <input name="sequence" placeholder="Séquence (ex: SQ01)" className={`${inputClass} flex-1 min-w-[120px] font-bold`} defaultValue="SQ01" required/>
+             <input name="scene" placeholder="Scène (ex: SC01)" className={`${inputClass} flex-1 min-w-[120px] font-bold`} required/>
+             <input name="duration" type="number" placeholder="Durée (frames)" className={`${inputClass} flex-1 min-w-[120px]`} defaultValue="100"/>
+             <input name="description" placeholder="Description de l'action..." className={`${inputClass} flex-[2] min-w-[200px]`}/>
+           </div>
+           <div className="flex flex-wrap gap-4">
+             <input name="characters" placeholder="Personnages (séparés par virgule)" className={`${inputClass} flex-1 min-w-[150px]`}/>
+             <input name="props" placeholder="Props (séparés par virgule)" className={`${inputClass} flex-1 min-w-[150px]`}/>
+             <input name="sets" placeholder="Décors (séparés par virgule)" className={`${inputClass} flex-1 min-w-[150px]`}/>
+             <input name="fx" placeholder="FX (séparés par virgule)" className={`${inputClass} flex-1 min-w-[150px]`}/>
+             <button type="submit" className="bg-blue-600 text-white font-bold px-6 py-2.5 rounded-lg hover:bg-blue-500 transition-colors shadow-sm">Créer Scène</button>
+           </div>
          </form>
+
          <div className="overflow-x-auto">
            <table className="w-full text-left text-sm whitespace-nowrap">
-             <thead><tr className={`border-b text-xs uppercase ${theme==='dark'?'border-slate-800 text-slate-500':'border-slate-200 text-slate-500'}`}><th className="p-2">Séquence</th><th className="p-2">Catégorie</th><th className="p-2">Nom</th><th className="p-2">Qté / Plans</th><th className="p-2">Notes</th><th className="p-2 text-right">Actions</th></tr></thead>
+             <thead>
+               <tr className={`border-b text-xs uppercase ${theme==='dark'?'border-slate-800 text-slate-500':'border-slate-200 text-slate-500'}`}>
+                 <th className="p-4">Séquence</th><th className="p-4">Scène</th><th className="p-4">Durée</th><th className="p-4">Description</th>
+                 <th className="p-4">Characters</th><th className="p-4">Props</th><th className="p-4">Sets</th><th className="p-4">FX</th><th className="p-4 text-right">Actions</th>
+               </tr>
+             </thead>
              <tbody className={`divide-y ${theme==='dark'?'divide-slate-800/50':'divide-slate-200'}`}>
-               {breakdownItems.filter(item => breakdownFilter ? item.category === breakdownFilter : true).map(item => (
+               {breakdownItems.map(item => (
                  <tr key={item.id} className="hover:bg-slate-100 dark:hover:bg-slate-800/20 transition-colors">
-                   <td className="p-2 font-mono text-xs font-bold">{item.sequence || '-'}</td>
-                   <td className="p-2 font-bold text-slate-600 dark:text-slate-400">{item.category}</td>
-                   <td className="p-2 font-black">{item.name}</td>
-                   <td className="p-2">{item.count}</td>
-                   <td className="p-2 text-slate-500 italic max-w-[200px] truncate" title={item.notes}>{item.notes}</td>
-                   <td className="p-2 flex justify-end space-x-3">
-                      <button onClick={() => convertToShots(item)} className="text-purple-500 hover:text-purple-600 transition flex items-center space-x-1 border border-purple-500/30 px-2 py-0.5 rounded-md hover:bg-purple-50 dark:hover:bg-purple-900/30" title="Générer les Plans dans Shots"><Film size={14}/> <span className="text-[10px] font-bold">Plans</span></button>
-                      <button onClick={() => convertToAsset(item)} className="text-blue-500 hover:text-blue-600 transition flex items-center space-x-1 border border-blue-500/30 px-2 py-0.5 rounded-md hover:bg-blue-50 dark:hover:bg-blue-900/30" title={t('createAsset')}><Box size={14}/> <span className="text-[10px] font-bold">Asset</span></button>
-                      <button onClick={()=>deleteDoc(doc(db, 'breakdown', item.id))} className="text-red-500 hover:text-red-600 transition p-1" title="Supprimer"><Trash2 size={16}/></button>
+                   <td className="p-4 font-mono text-xs font-bold text-slate-500">{item.sequence || '-'}</td>
+                   <td className="p-4 font-black text-blue-600 dark:text-blue-400">{item.scene || '-'}</td>
+                   <td className="p-4 font-bold">{item.duration} f</td>
+                   <td className="p-4 text-slate-500 italic max-w-[200px] truncate" title={item.description}>{item.description}</td>
+                   <td className="p-4"><div className="flex flex-wrap gap-1">{(item.characters||'').split(',').map((x,i) => x.trim() && <span key={i} className="bg-slate-200 dark:bg-slate-800 text-[10px] px-2 py-1 rounded">{x.trim()}</span>)}</div></td>
+                   <td className="p-4"><div className="flex flex-wrap gap-1">{(item.props||'').split(',').map((x,i) => x.trim() && <span key={i} className="bg-slate-200 dark:bg-slate-800 text-[10px] px-2 py-1 rounded">{x.trim()}</span>)}</div></td>
+                   <td className="p-4"><div className="flex flex-wrap gap-1">{(item.sets||'').split(',').map((x,i) => x.trim() && <span key={i} className="bg-slate-200 dark:bg-slate-800 text-[10px] px-2 py-1 rounded">{x.trim()}</span>)}</div></td>
+                   <td className="p-4"><div className="flex flex-wrap gap-1">{(item.fx||'').split(',').map((x,i) => x.trim() && <span key={i} className="bg-slate-200 dark:bg-slate-800 text-[10px] px-2 py-1 rounded">{x.trim()}</span>)}</div></td>
+                   <td className="p-4 flex justify-end space-x-3">
+                      <button onClick={() => convertToShots(item)} className="text-purple-500 hover:text-purple-600 transition flex items-center space-x-1 border border-purple-500/30 px-3 py-1.5 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/30" title="Générer en Plan (Shots)"><Film size={14}/> <span className="text-[10px] font-bold">Plan</span></button>
+                      <button onClick={() => convertToAsset(item)} className="text-blue-500 hover:text-blue-600 transition flex items-center space-x-1 border border-blue-500/30 px-3 py-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30" title="Générer tous les Assets"><Box size={14}/> <span className="text-[10px] font-bold">Assets</span></button>
+                      <button onClick={()=>deleteDoc(doc(db, 'breakdown', item.id))} className="text-red-500 hover:text-red-600 transition p-2" title="Supprimer"><Trash2 size={16}/></button>
                    </td>
                  </tr>
                ))}
-               {breakdownItems.filter(item => breakdownFilter ? item.category === breakdownFilter : true).length === 0 && (
-                 <tr><td colSpan="6" className="text-center p-6 text-slate-500 italic">Aucun élément dans cette catégorie.</td></tr>
+               {breakdownItems.length === 0 && (
+                 <tr><td colSpan="9" className="text-center p-8 text-slate-500 italic">Aucune scène analysée dans le dépouillement.</td></tr>
                )}
              </tbody>
            </table>
@@ -2202,7 +2249,7 @@ export default function App() {
                         </div>
                         
                         <button onClick={() => setStrokes(strokes.slice(0, -1))} className="p-1.5 text-slate-500 hover:text-slate-700 dark:hover:text-white rounded transition"><Undo size={14} /></button>
-                        {strokes.length > 0 && <button onClick={deleteRetakeFromDB} className="p-1.5 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/50 rounded transition border-l border-slate-300 dark:border-slate-800 ml-0.5 pl-1.5"><Trash2 size={14} /></button>}
+                        {strokes.length > 0 && <button onClick={deleteRetakeFromDB} className="p-1.5 text-red-500 hover:bg-red-100 dark:bg-red-900/50 rounded transition border-l border-slate-300 dark:border-slate-800 ml-0.5 pl-1.5"><Trash2 size={14} /></button>}
                       </div>
                     )}
                     <button onClick={saveAnnotations} className="bg-blue-600 hover:bg-blue-500 text-white p-1.5 rounded-lg transition shadow" title="Enregistrer le point rouge"><Save size={16} /></button>
