@@ -199,6 +199,7 @@ export default function App() {
   const [members, setMembers] = useState([]);
   const [timeLogs, setTimeLogs] = useState([]);
   const [breakdownItems, setBreakdownItems] = useState([]);
+  const [breakdownFilter, setBreakdownFilter] = useState('');
   const [globalHistory, setGlobalHistory] = useState([]);
   
   const [cloudNameInput, setCloudNameInput] = useState('');
@@ -1050,12 +1051,13 @@ export default function App() {
     const addBreakdownItem = async (e) => {
       e.preventDefault();
       const form = e.target;
+      const seq = form.sequence.value;
       const cat = form.category.value;
       const name = form.itemName.value;
       const count = form.count.value;
       const notes = form.notes.value;
       if (!name) return;
-      await addDoc(collection(db, 'breakdown'), { workspaceId: workspace.id, category: cat, name: name, count: count, notes: notes });
+      await addDoc(collection(db, 'breakdown'), { workspaceId: workspace.id, sequence: seq, category: cat, name: name, count: count, notes: notes });
       form.reset();
     };
 
@@ -1068,9 +1070,35 @@ export default function App() {
       openModal("Succès", `L'asset "${item.name}" a été créé avec succès !`);
     };
 
+    const convertToShots = async (item) => {
+      const seqName = item.sequence || 'SQ01';
+      const numShots = parseInt(item.count) || 1;
+      
+      const snap = await getDocs(query(collection(db, 'shots'), where('workspaceId', '==', workspace.id), where('sequence', '==', seqName)));
+      let localShots = snap.docs.map(d => d.data());
+      let nextOrder = 10;
+      if (localShots.length > 0) {
+        localShots.sort((a,b) => (a.order||0) - (b.order||0));
+        nextOrder = (localShots[localShots.length - 1].order || localShots.length * 10) + 10;
+      }
+
+      for(let i = 0; i < numShots; i++) {
+        await addDoc(collection(db, 'shots'), { 
+          sequence: seqName, 
+          scene: 'TEMP', 
+          name: 'TEMP', 
+          order: nextOrder + (i * 10), 
+          workspaceId: workspace.id, 
+          status: {}, assignedTo: {}, previews: {}, priority: 'Normal', tags: [item.name], description: item.notes, durationFrames: 100 
+        });
+      }
+      openModal("Succès", `${numShots} plan(s) généré(s) pour la séquence ${seqName} !`);
+      setTimeout(() => recalculateSequenceShots(seqName), 500);
+    };
+
     const exportBreakdownCSV = () => {
-      let csv = "Catégorie,Nom,Quantité,Notes\n";
-      breakdownItems.forEach(item => { csv += `"${item.category}","${item.name}","${item.count}","${item.notes}"\n`; });
+      let csv = "Séquence,Catégorie,Nom,Quantité,Notes\n";
+      breakdownItems.forEach(item => { csv += `"${item.sequence||''}","${item.category}","${item.name}","${item.count}","${item.notes}"\n`; });
       const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a'); a.href = url; a.download = "stripboard_breakdown.csv"; a.click();
@@ -1080,28 +1108,46 @@ export default function App() {
       <div className={`border rounded-xl p-6 ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}>
          <div className="flex justify-between items-center mb-4">
             <h3 className="font-black text-xl text-blue-600">{t('breakdown')}</h3>
-            <button onClick={exportBreakdownCSV} className="flex items-center space-x-2 bg-green-700 hover:bg-green-600 transition text-white px-3 py-2 rounded-lg font-bold text-sm shadow-sm"><FileSpreadsheet size={16}/> <span>{t('exportCSV')}</span></button>
+            <div className="flex items-center space-x-3">
+               <select value={breakdownFilter} onChange={e=>setBreakdownFilter(e.target.value)} className={`${inputClass} !py-1.5 font-bold`}>
+                 <option value="">Toutes les catégories</option>
+                 <option value="Character">Character</option>
+                 <option value="Prop">Prop</option>
+                 <option value="Set">Set</option>
+                 <option value="FX">FX</option>
+               </select>
+               <button onClick={exportBreakdownCSV} className="flex items-center space-x-2 bg-green-700 hover:bg-green-600 transition text-white px-3 py-2 rounded-lg font-bold text-sm shadow-sm"><FileSpreadsheet size={16}/> <span>{t('exportCSV')}</span></button>
+            </div>
          </div>
          <form onSubmit={addBreakdownItem} className="flex flex-wrap gap-2 mb-6">
+           <input name="sequence" placeholder="Séquence (ex: SQ01)" className={`${inputClass} flex-1 min-w-[120px] font-bold`} defaultValue="SQ01" required/>
            <select name="category" className={`${inputClass} flex-1 min-w-[120px]`}><option value="Character">Character</option><option value="Prop">Prop</option><option value="Set">Set</option><option value="FX">FX</option></select>
            <input name="itemName" placeholder="Nom de l'élément" className={`${inputClass} flex-[2] min-w-[150px]`} required/>
-           <input name="count" type="number" placeholder="Quantité" className={`${inputClass} flex-1 min-w-[100px]`} defaultValue="1"/>
+           <input name="count" type="number" placeholder="Plans / Qté" title="Nombre de plans à générer ou quantité de l'asset" className={`${inputClass} flex-1 min-w-[100px]`} defaultValue="1"/>
            <input name="notes" placeholder="Notes..." className={`${inputClass} flex-[3] min-w-[200px]`}/>
            <button type="submit" className="bg-blue-600 text-white font-bold px-4 py-2 rounded-lg hover:bg-blue-500 transition-colors">Ajouter</button>
          </form>
          <div className="overflow-x-auto">
            <table className="w-full text-left text-sm whitespace-nowrap">
-             <thead><tr className={`border-b text-xs uppercase ${theme==='dark'?'border-slate-800 text-slate-500':'border-slate-200 text-slate-500'}`}><th className="p-2">Catégorie</th><th className="p-2">Nom</th><th className="p-2">Qté</th><th className="p-2">Notes</th><th className="p-2 text-right">Action</th></tr></thead>
+             <thead><tr className={`border-b text-xs uppercase ${theme==='dark'?'border-slate-800 text-slate-500':'border-slate-200 text-slate-500'}`}><th className="p-2">Séquence</th><th className="p-2">Catégorie</th><th className="p-2">Nom</th><th className="p-2">Qté / Plans</th><th className="p-2">Notes</th><th className="p-2 text-right">Actions</th></tr></thead>
              <tbody className={`divide-y ${theme==='dark'?'divide-slate-800/50':'divide-slate-200'}`}>
-               {breakdownItems.map(item => (
-                 <tr key={item.id} className="hover:bg-slate-100 dark:hover:bg-slate-800/20">
-                   <td className="p-2 font-bold">{item.category}</td><td className="p-2">{item.name}</td><td className="p-2">{item.count}</td><td className="p-2 text-slate-500 italic">{item.notes}</td>
+               {breakdownItems.filter(item => breakdownFilter ? item.category === breakdownFilter : true).map(item => (
+                 <tr key={item.id} className="hover:bg-slate-100 dark:hover:bg-slate-800/20 transition-colors">
+                   <td className="p-2 font-mono text-xs font-bold">{item.sequence || '-'}</td>
+                   <td className="p-2 font-bold text-slate-600 dark:text-slate-400">{item.category}</td>
+                   <td className="p-2 font-black">{item.name}</td>
+                   <td className="p-2">{item.count}</td>
+                   <td className="p-2 text-slate-500 italic max-w-[200px] truncate" title={item.notes}>{item.notes}</td>
                    <td className="p-2 flex justify-end space-x-3">
-                      <button onClick={() => convertToAsset(item)} className="text-blue-500 hover:text-blue-600 transition" title={t('createAsset')}><Box size={16}/></button>
-                      <button onClick={()=>deleteDoc(doc(db, 'breakdown', item.id))} className="text-red-500 hover:text-red-600 transition" title="Supprimer"><Trash2 size={16}/></button>
+                      <button onClick={() => convertToShots(item)} className="text-purple-500 hover:text-purple-600 transition flex items-center space-x-1 border border-purple-500/30 px-2 py-0.5 rounded-md hover:bg-purple-50 dark:hover:bg-purple-900/30" title="Générer les Plans dans Shots"><Film size={14}/> <span className="text-[10px] font-bold">Plans</span></button>
+                      <button onClick={() => convertToAsset(item)} className="text-blue-500 hover:text-blue-600 transition flex items-center space-x-1 border border-blue-500/30 px-2 py-0.5 rounded-md hover:bg-blue-50 dark:hover:bg-blue-900/30" title={t('createAsset')}><Box size={14}/> <span className="text-[10px] font-bold">Asset</span></button>
+                      <button onClick={()=>deleteDoc(doc(db, 'breakdown', item.id))} className="text-red-500 hover:text-red-600 transition p-1" title="Supprimer"><Trash2 size={16}/></button>
                    </td>
                  </tr>
                ))}
+               {breakdownItems.filter(item => breakdownFilter ? item.category === breakdownFilter : true).length === 0 && (
+                 <tr><td colSpan="6" className="text-center p-6 text-slate-500 italic">Aucun élément dans cette catégorie.</td></tr>
+               )}
              </tbody>
            </table>
          </div>
@@ -1345,7 +1391,7 @@ export default function App() {
                           <div onClick={async () => {
                             const wsDoc = await getDoc(doc(db, 'workspaces', p.workspaceId));
                             if(wsDoc.exists()) { setWorkspace({ id: wsDoc.id, ...wsDoc.data() }); setCurrentView('workspace'); setActiveTab('myTasks'); }
-                          }} className="cursor-pointer w-10 h-10 rounded-full bg-blue-600 hover:bg-blue-500 flex items-center justify-center text-white shadow-lg transform hover:scale-105 transition"><Play size={18} className="ml-1" /></div>
+                          }} className="cursor-pointer w-10 h-10 rounded-full bg-blue-600 hover:bg-blue-50 flex items-center justify-center text-white shadow-lg transform hover:scale-105 transition"><Play size={18} className="ml-1" /></div>
                         </div>
                       </div>
                     </div>
