@@ -9,7 +9,7 @@ import {
 import { initializeApp } from 'firebase/app';
 import { 
   Film, Box, Settings, Plus, Play, Pause, Trash2, LogOut, 
-  Users, Upload, Clock, SkipForward, SkipBack, MonitorPlay, FolderKanban, BarChart, ChevronLeft, ChevronRight, UserCircle, Save, Eraser, Undo, X, Bell, Clapperboard, MessageSquare, Type, CheckSquare, Search, HelpCircle, Moon, Sun, Edit3, UserPlus, MessageCircle, GripVertical, Tag, ListTodo, Printer, History, Gamepad2, FileSpreadsheet, FileText, Volume2, VolumeX, Calendar, PieChart, ShieldAlert, UserCheck
+  Users, Upload, Clock, SkipForward, SkipBack, MonitorPlay, FolderKanban, BarChart, ChevronLeft, ChevronRight, UserCircle, Save, Eraser, Undo, X, Bell, Clapperboard, MessageSquare, Type, CheckSquare, Search, HelpCircle, Moon, Sun, Edit3, UserPlus, MessageCircle, GripVertical, Tag, ListTodo, Printer, History, Gamepad2, FileSpreadsheet, FileText, Volume2, VolumeX, Calendar, PieChart, ShieldAlert, UserCheck, MailPlus 
 } from 'lucide-react';
 
 const keyPart1 = "AIzaSyDgTadoI2_";
@@ -86,7 +86,6 @@ const ShotNameEditor = ({ shot, lang, updateDoc, db, doc }) => {
 
   const handleBlur = () => {
     let finalName = val;
-    // On sauvegarde toujours en SH dans la base pour la cohérence globale
     if (lang === 'fr' && val.startsWith('SC')) finalName = val.replace(/^SC/, 'SH');
     
     if (finalName !== shot.name) {
@@ -232,6 +231,12 @@ export default function App() {
   const [newProjectBannerFile, setNewProjectBannerFile] = useState(null);
   const [joinCode, setJoinCode] = useState('');
   
+  // Nouveaux states Cloudinary à la création
+  const [newProjCloudName, setNewProjCloudName] = useState('');
+  const [newProjUploadPreset, setNewProjUploadPreset] = useState('');
+  const [newProjApiKey, setNewProjApiKey] = useState('');
+  const [newProjApiSecret, setNewProjApiSecret] = useState('');
+
   const [profileName, setProfileName] = useState('');
   const [emailNotifs, setEmailNotifs] = useState(false);
   const [browserNotifs, setBrowserNotifs] = useState(false);
@@ -537,6 +542,11 @@ export default function App() {
   const triggerEasterEgg = () => { setLogoPixelated(true); setTimeout(() => setLogoPixelated(false), 500); };
   const formatTime = (s) => `${Math.floor(s/3600).toString().padStart(2,'0')}:${Math.floor((s%3600)/60).toString().padStart(2,'0')}:${Math.floor(s%60).toString().padStart(2,'0')}`;
 
+  const copyInviteCode = (code) => {
+    navigator.clipboard.writeText(code);
+    openModal("Code copié !", `Le code d'invitation a été copié dans le presse-papier :\n\n${code}\n\nEnvoyez-le à vos collaborateurs pour qu'ils rejoignent le projet.`);
+  };
+
   const logAudit = async (itemId, type, text) => {
     await addDoc(collection(db, `${type}/${itemId}/comments`), {
       type: 'system', text: text, date: serverTimestamp(), author: userData.displayName
@@ -589,8 +599,11 @@ export default function App() {
 
   const uploadBannerFileToCloud = async (file) => {
     if (!file) return '';
-    const formData = new FormData(); formData.append('file', file); formData.append('upload_preset', uploadPresetInput || 'fabrica_preset');
-    const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudNameInput || 'dp6xxxx'}/image/upload`, { method: 'POST', body: formData });
+    const cName = currentView === 'dashboard' ? (newProjCloudName || 'dp6xxxx') : (workspace?.cloudinaryCloudName || cloudNameInput || 'dp6xxxx');
+    const preset = currentView === 'dashboard' ? (newProjUploadPreset || 'fabrica_preset') : (workspace?.cloudinaryUploadPreset || uploadPresetInput || 'fabrica_preset');
+    
+    const formData = new FormData(); formData.append('file', file); formData.append('upload_preset', preset);
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${cName}/image/upload`, { method: 'POST', body: formData });
     const data = await res.json();
     return data.secure_url || '';
   };
@@ -607,11 +620,19 @@ export default function App() {
       type: newProjectType, 
       bannerUrl: bannerUrl, 
       pipeline: TEMPLATES[newProjectType] || TEMPLATES['2D'], 
-      createdAt: serverTimestamp() 
+      createdAt: serverTimestamp(),
+      cloudinaryCloudName: newProjCloudName,
+      cloudinaryUploadPreset: newProjUploadPreset,
+      cloudinaryApiKey: newProjApiKey,
+      cloudinaryApiSecret: newProjApiSecret
     });
     await addDoc(collection(db, 'projectMembers'), { workspaceId: wsRef.id, workspaceName: newProjectName, userId: user.uid, displayName: userData.displayName, email: user.email, role: 'Admin', bannerUrl: bannerUrl, leads: [] });
     setNewProjectName('');
     setNewProjectBannerFile(null);
+    setNewProjCloudName('');
+    setNewProjUploadPreset('');
+    setNewProjApiKey('');
+    setNewProjApiSecret('');
   };
 
   const joinProject = async (e) => {
@@ -1052,10 +1073,9 @@ export default function App() {
       form.reset();
     };
 
-    // Calcul des bornes temporelles dynamiques (auto-extensible)
     let minDate = new Date();
     let maxDate = new Date();
-    maxDate.setDate(maxDate.getDate() + 28); // 4 semaines par défaut si vide
+    maxDate.setDate(maxDate.getDate() + 28); 
 
     if (scheduleItems.length > 0) {
       const startTimes = scheduleItems.map(i => new Date(i.startDate).getTime()).filter(t => !isNaN(t));
@@ -1066,7 +1086,6 @@ export default function App() {
       }
     }
 
-    // Ajout d'une petite marge avant / après
     const startDate = new Date(minDate);
     startDate.setDate(startDate.getDate() - 3);
     startDate.setHours(0,0,0,0);
@@ -1077,7 +1096,6 @@ export default function App() {
 
     const totalMs = endDate.getTime() - startDate.getTime();
 
-    // Génération de la liste quotidienne
     const dayList = [];
     let cur = new Date(startDate);
     while (cur <= endDate) {
@@ -1106,10 +1124,8 @@ export default function App() {
            <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-5 py-2.5 rounded-lg transition-colors shadow-sm text-sm">Ajouter</button>
         </form>
 
-        {/* Vue Gantt Dynamic Timeline */}
         <div className="overflow-x-auto border rounded-xl border-slate-300 dark:border-slate-800 shadow-sm">
           <div className="min-w-[800px]">
-            {/* Header Dates / Semaines */}
             <div className="flex border-b border-slate-300 dark:border-slate-800 bg-slate-100 dark:bg-slate-950 text-xs font-bold text-slate-500">
               <div className="w-56 p-3 shrink-0 border-r border-slate-300 dark:border-slate-800 uppercase tracking-wider">Tâche & Dates</div>
               <div className="flex-1 flex overflow-hidden">
@@ -1125,7 +1141,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Lignes d'événements */}
             <div className="divide-y divide-slate-200 dark:divide-slate-800">
               {scheduleItems.length === 0 ? (
                 <div className="p-8 text-center text-slate-500 italic text-sm">Aucun événement dans l'agenda. Utilisez le formulaire ci-dessus pour ajouter des tâches.</div>
@@ -1152,14 +1167,12 @@ export default function App() {
                         <button onClick={() => deleteDoc(doc(db, 'schedule', item.id))} className="text-slate-400 hover:text-red-500 p-1 transition"><Trash2 size={14}/></button>
                       </div>
                       <div className="flex-1 relative h-12 flex items-center px-1">
-                        {/* Lignes arrières du quadrillage */}
                         <div className="absolute inset-0 flex pointer-events-none">
                           {dayList.map((d, idx) => (
                             <div key={idx} className={`flex-1 border-r ${d.getDay()===1 ? 'border-blue-500/20 bg-blue-500/5' : 'border-slate-200/50 dark:border-slate-800/40'}`}></div>
                           ))}
                         </div>
 
-                        {/* Barre Gantt */}
                         <div
                           className={`absolute h-7 ${item.color} text-white rounded-lg px-3 flex items-center text-xs font-bold shadow-md truncate transition-all cursor-pointer hover:opacity-90`}
                           style={{ left: `${leftPct}%`, width: `${Math.max(1.5, widthPct)}%` }}
@@ -1594,6 +1607,7 @@ export default function App() {
                           </div>
                         </div>
                         <div className="flex items-center space-x-3 bg-white/70 dark:bg-slate-950/70 p-1.5 rounded-full backdrop-blur-md text-slate-800 dark:text-white">
+                          <button onClick={() => copyInviteCode(p.workspaceId)} className="p-2 hover:text-blue-600 transition" title="Copier le code d'invitation (ID Projet)"><MailPlus size={18}/></button>
                           {p.role === 'Admin' && <button onClick={() => {
                             const newName = window.prompt("Nouveau nom :", p.workspaceName);
                             if(newName) {
@@ -1620,6 +1634,16 @@ export default function App() {
                     <label className="text-xs font-bold text-slate-500 mb-1 block">Bannière (Fichier)</label>
                     <input type="file" accept="image/*" onChange={(e) => setNewProjectBannerFile(e.target.files[0])} className={`text-xs ${inputClass} !py-1.5`} />
                   </div>
+
+                  <details className={`text-xs border rounded-lg p-3 ${theme==='dark'?'border-slate-800 bg-slate-950/50':'border-slate-300 bg-slate-50'}`}>
+                    <summary className="font-bold cursor-pointer text-slate-600 dark:text-slate-400">⚙️ Config Cloudinary (Optionnel)</summary>
+                    <div className="space-y-2 mt-3">
+                       <input type="text" placeholder="Cloud Name" value={newProjCloudName} onChange={e=>setNewProjCloudName(e.target.value)} className={`${inputClass} !py-1.5`} />
+                       <input type="text" placeholder="Upload Preset (unsigned)" value={newProjUploadPreset} onChange={e=>setNewProjUploadPreset(e.target.value)} className={`${inputClass} !py-1.5`} />
+                       <input type="text" placeholder="API Key" value={newProjApiKey} onChange={e=>setNewProjApiKey(e.target.value)} className={`${inputClass} !py-1.5`} />
+                       <input type="password" placeholder="API Secret" value={newProjApiSecret} onChange={e=>setNewProjApiSecret(e.target.value)} className={`${inputClass} !py-1.5`} />
+                    </div>
+                  </details>
 
                   <div className="flex space-x-2">
                     {['2D', '3D', 'Game'].map(tp => (
@@ -1733,7 +1757,12 @@ export default function App() {
               <button onClick={() => setCurrentView('dashboard')} className="flex items-center space-x-2 text-slate-700 hover:text-blue-600 transition dark:text-slate-400 font-bold"><ChevronLeft size={20} /> <span className="hidden md:inline">Projets</span></button>
               <div className="flex items-center space-x-2">
                 <div className="w-8 h-8 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-lg flex items-center justify-center shrink-0 shadow-md"><Clapperboard size={18} className="text-white" /></div>
-                <div className="text-sm font-black hidden md:block leading-tight truncate drop-shadow-sm">{workspace?.name}</div>
+                <div className="flex flex-col overflow-hidden">
+                   <div className="text-sm font-black hidden md:block leading-tight truncate drop-shadow-sm">{workspace?.name}</div>
+                   <button onClick={() => copyInviteCode(workspace.id)} className="hidden md:flex items-center space-x-1 mt-0.5 text-[10px] text-slate-700 hover:text-blue-600 dark:text-slate-300 dark:hover:text-blue-400 transition font-bold" title="Copier le code d'invitation (ID Projet)">
+                     <MailPlus size={12}/> <span>Inviter (Code)</span>
+                   </button>
+                </div>
               </div>
             </div>
           </div>
@@ -2246,7 +2275,7 @@ export default function App() {
                           <div className="text-xs text-slate-600 font-mono font-bold">{m.email}</div>
                        </div>
                     </div>
-                    {userPermissions.role === 'Admin' && m.userId !== user.uid ? (
+                    {userPermissions.role === 'Admin' ? (
                       <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
                          <div className="flex flex-col space-y-1">
                             <span className="text-[9px] uppercase font-bold text-slate-500">Leads (Étapes)</span>
@@ -2270,7 +2299,7 @@ export default function App() {
                                <label className="flex items-center space-x-1 cursor-pointer font-bold text-slate-700 dark:text-slate-300"><input type="checkbox" checked={m.canAssign} onChange={e=>updateDoc(doc(db, 'projectMembers', m.id), { canAssign: e.target.checked })} className="accent-blue-600"/><span>Assigner/Valider</span></label>
                             </div>
                          )}
-                         <select className={`${inputClass} !p-2 !w-auto !text-sm !font-black !text-blue-600`} value={m.role} onChange={async (e) => await updateDoc(doc(db, 'projectMembers', m.id), { role: e.target.value, canEdit: false, canAssign: false })}>
+                         <select disabled={m.userId === user.uid} className={`${inputClass} !p-2 !w-auto !text-sm !font-black !text-blue-600 disabled:opacity-50`} value={m.role} onChange={async (e) => await updateDoc(doc(db, 'projectMembers', m.id), { role: e.target.value, canEdit: false, canAssign: false })}>
                            <option value="Guest" className="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white">Guest (Lecture seule)</option>
                            <option value="Artist" className="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white">Artist</option>
                            <option value="Supervisor" className="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white">Supervisor</option>
@@ -2358,22 +2387,24 @@ export default function App() {
               <div className={`p-6 rounded-xl border space-y-6 shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}>
                 <h3 className="font-black text-xl text-blue-600">Bannière du Projet</h3>
                 <div>
-                  <label className="text-xs font-bold text-slate-600 mb-1 block">Uploader une nouvelle image</label>
+                  <label className="text-xs font-bold text-slate-600 mb-1 block">Uploader une nouvelle image (Sauvegarde automatique)</label>
                   <input type="file" accept="image/*" onChange={async (e) => {
                      const file = e.target.files[0];
                      if(file) {
+                        setUploadingMedia(true);
                         const url = await uploadBannerFileToCloud(file);
-                        if(url) setWorkspace({...workspace, bannerUrl: url});
+                        if(url) {
+                           await updateDoc(doc(db, 'workspaces', workspace.id), { bannerUrl: url });
+                           const snap = await getDocs(query(collection(db, 'projectMembers'), where('workspaceId', '==', workspace.id)));
+                           snap.forEach(d => updateDoc(d.ref, { bannerUrl: url }));
+                           setWorkspace({...workspace, bannerUrl: url});
+                           openModal('Succès', 'Bannière mise à jour pour tous les membres !');
+                        }
+                        setUploadingMedia(false);
                      }
                   }} className={`text-sm ${inputClass} !py-1.5`} />
                   {workspace?.bannerUrl && <img src={workspace.bannerUrl} className="mt-4 h-24 object-cover rounded-lg border border-slate-300 dark:border-slate-700 shadow-sm"/>}
                 </div>
-                <button onClick={async () => {
-                   await updateDoc(doc(db, 'workspaces', workspace.id), { bannerUrl: workspace.bannerUrl || '' });
-                   const snap = await getDocs(query(collection(db, 'projectMembers'), where('workspaceId', '==', workspace.id)));
-                   snap.forEach(d => updateDoc(d.ref, { bannerUrl: workspace.bannerUrl || '' }));
-                   openModal('Succès', 'Bannière mise à jour pour tous les membres !');
-                }} className="bg-blue-600 hover:bg-blue-500 transition text-white px-6 py-2.5 rounded-lg font-bold text-sm shadow-md">Mettre à jour la bannière</button>
               </div>
 
               <div className={`p-6 rounded-xl border border-red-500/30 space-y-4 ${theme==='dark'?'bg-slate-900':'bg-slate-100'}`}>
@@ -2388,9 +2419,7 @@ export default function App() {
                       <button onClick={() => setDeleteStepConfirm('')} className="bg-slate-700 text-white px-3 py-1.5 rounded text-xs font-bold transition hover:bg-slate-600">Annuler</button>
                       <button onClick={async () => {
                         const wsId = workspace.id;
-                        // Suppression du projet
                         await deleteDoc(doc(db, 'workspaces', wsId));
-                        // Nettoyage de la liste de membres liée pour la faire disparaître du Dashboard
                         const snapMembers = await getDocs(query(collection(db, 'projectMembers'), where('workspaceId', '==', wsId)));
                         for (const mDoc of snapMembers.docs) {
                           await deleteDoc(mDoc.ref);
