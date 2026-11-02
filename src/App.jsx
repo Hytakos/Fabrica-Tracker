@@ -60,8 +60,7 @@ const dict = {
     cloudGuide2: "2. Allez dans Dashboard, copiez votre 'Cloud Name'.",
     cloudGuide3: "3. Allez dans Settings > Upload. Créez un 'Upload preset' en mode 'Unsigned'. Copiez son nom.",
     cloudGuide4: "4. Allez dans Settings > API Keys. Générez ou copiez 'API Key' et 'API Secret'.",
-    cloudGuide5: "5. Collez toutes ces infos dans l'onglet Paramètres du Tracker pour activer l'upload de médias."
-  }
+    cloudGuide5: "5. Collez toutes ces infos dans l'onglet Paramètres du Tracker pour activer l'upload de médias.",
 	helpDesc: "Retrouvez ci-dessous toutes les informations techniques...",
 	helpRolesTitle: "Rôles, Leads & Permissions",
 	helpRoles1: "Admin & Supervisor : Accès total (création, assignation, suppression). Les Admins peuvent gérer les paramètres Cloudinary et la suppression du projet.",
@@ -102,7 +101,7 @@ const dict = {
     cloudGuide2: "2. Go to Dashboard, copy your 'Cloud Name'.",
     cloudGuide3: "3. Go to Settings > Upload. Create an 'Upload preset' and set it to 'Unsigned'. Copy its name.",
     cloudGuide4: "4. Go to Settings > API Keys. Generate or copy 'API Key' and 'API Secret'.",
-    cloudGuide5: "5. Paste all these details in the Settings tab of the Tracker to enable media upload."
+    cloudGuide5: "5. Paste all these details in the Settings tab of the Tracker to enable media upload.",
 	helpDesc: "Find below all the technical information...",
 	helpRolesTitle: "Roles, Leads & Permissions",
 	helpRoles1: "Admin & Supervisor: Full access (creation, assignment, deletion). Admins can manage Cloudinary settings and project deletion.",
@@ -1594,10 +1593,14 @@ useEffect(() => {
                   <button onClick={()=>setIsChatWidgetOpen(false)} className="p-1 text-slate-400 hover:text-red-500 transition"><X size={20}/></button>
                </div>
                <div className="flex-1 overflow-y-auto p-3 space-y-3 bg-slate-50 dark:bg-slate-950/30">
-                 {pmMessages.length === 0 ? <p className="text-xs text-center text-slate-500 italic mt-10">Dites bonjour !</p> : null}
                  {pmMessages.map(msg => (
-				))}
-				<div ref={pmEndRef} />
+                    <div key={msg.id} className={`p-2.5 rounded-xl text-xs max-w-[85%] shadow-sm ${msg.authorId === user.uid ? 'bg-blue-600 text-white ml-auto rounded-br-none' : (theme==='dark'?'bg-slate-800 text-slate-200 mr-auto rounded-bl-none':'bg-white border border-slate-200 text-slate-700 mr-auto rounded-bl-none')}`}>
+                      <p className="whitespace-pre-wrap">{msg.text}</p>
+                    </div>
+                 ))}
+                 <div ref={pmEndRef} />
+               </div>
+               <form onSubmit={postPm} className={`p-2 border-t flex space-x-2 ${theme==='dark'?'border-slate-800 bg-slate-900':'border-slate-300 bg-slate-50'}`}>
 			  </div>
                     <div key={msg.id} className={`p-2.5 rounded-xl text-xs max-w-[85%] shadow-sm ${msg.authorId === user.uid ? 'bg-blue-600 text-white ml-auto rounded-br-none' : (theme==='dark'?'bg-slate-800 text-slate-200 mr-auto rounded-bl-none':'bg-white border border-slate-200 text-slate-700 mr-auto rounded-bl-none')}`}>
                       <p className="whitespace-pre-wrap">{msg.text}</p>
@@ -1612,14 +1615,12 @@ useEffect(() => {
           )}
         </div>
       )}
-      // Cherchez la balise : <button onClick={() => setIsChatWidgetOpen(!isChatWidgetOpen)}...
-// Remplacez tout le bouton par ceci :
 	  <button onClick={() => setIsChatWidgetOpen(!isChatWidgetOpen)} className="relative w-14 h-14 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-2xl transform hover:scale-105 transition">
 		 {isChatWidgetOpen ? <X size={24}/> : <MessageCircle size={24}/>}
 		 {!isChatWidgetOpen && friendRequests.length > 0 && (
 		 <span className="absolute -top-1 -right-1 flex h-4 w-4">
-		 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-		 <span className="relative inline-flex rounded-full h-4 w-4 bg-red-500 text-[10px] text-white justify-center items-center font-bold">{friendRequests.length}</span>
+		   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+		   <span className="relative inline-flex rounded-full h-4 w-4 bg-red-500 text-[10px] text-white justify-center items-center font-bold">{friendRequests.length}</span>
 		 </span>
 	    )}
 	  </button>
