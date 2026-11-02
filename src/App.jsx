@@ -9,7 +9,7 @@ import {
 import { initializeApp } from 'firebase/app';
 import { 
   Film, Box, Settings, Plus, Play, Pause, Trash2, LogOut, 
-  Users, Upload, Clock, SkipForward, SkipBack, MonitorPlay, FolderKanban, BarChart, ChevronLeft, UserCircle, Save, Eraser, Undo, X, Bell, Clapperboard, MessageSquare, Type, CheckSquare, Search, HelpCircle, Moon, Sun, Edit3, UserPlus, MessageCircle, GripVertical, Tag, ListTodo, Printer, History, Gamepad2, FileSpreadsheet, FileText, Volume2, VolumeX, Calendar, PieChart, ShieldAlert, UserCheck
+  Users, Upload, Clock, SkipForward, SkipBack, MonitorPlay, FolderKanban, BarChart, ChevronLeft, ChevronRight, UserCircle, Save, Eraser, Undo, X, Bell, Clapperboard, MessageSquare, Type, CheckSquare, Search, HelpCircle, Moon, Sun, Edit3, UserPlus, MessageCircle, GripVertical, Tag, ListTodo, Printer, History, Gamepad2, FileSpreadsheet, FileText, Volume2, VolumeX, Calendar, PieChart, ShieldAlert, UserCheck
 } from 'lucide-react';
 
 const keyPart1 = "AIzaSyDgTadoI2_";
@@ -213,6 +213,7 @@ export default function App() {
   const [shots, setShots] = useState([]);
   const [assets, setAssets] = useState([]);
   const [scheduleItems, setScheduleItems] = useState([]);
+  const [currentScheduleDate, setCurrentScheduleDate] = useState(new Date());
   const [members, setMembers] = useState([]);
   const [timeLogs, setTimeLogs] = useState([]);
   const [breakdownItems, setBreakdownItems] = useState([]);
@@ -1012,16 +1013,17 @@ export default function App() {
   const sortedCats = Object.keys(groupedAssets).sort();
 
   const renderSchedule = () => {
-    const today = new Date();
-    const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-    const daysArray = Array.from({length: daysInMonth}, (_, i) => i + 1);
-
-    const allTasks = [...scheduleItems].sort((a,b) => {
-      const dateA = a.startDate ? new Date(a.startDate).getTime() : 0;
-      const dateB = b.startDate ? new Date(b.startDate).getTime() : 0;
-      return dateA - dateB;
-    });
+    const year = currentScheduleDate.getFullYear();
+    const month = currentScheduleDate.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const firstDay = new Date(year, month, 1).getDay();
+    const offset = (firstDay + 6) % 7; 
     
+    const days = [];
+    for (let i = 0; i < offset; i++) days.push(null);
+    for (let i = 1; i <= daysInMonth; i++) days.push(i);
+    while (days.length % 7 !== 0) days.push(null);
+
     const handleAddScheduleItem = async (e) => {
       e.preventDefault();
       const form = e.target;
@@ -1034,10 +1036,19 @@ export default function App() {
       form.reset();
     };
 
+    const nextMonth = () => setCurrentScheduleDate(new Date(year, month + 1, 1));
+    const prevMonth = () => setCurrentScheduleDate(new Date(year, month - 1, 1));
+    const monthName = currentScheduleDate.toLocaleString(lang, { month: 'long', year: 'numeric' });
+
     return (
-      <div className={`border rounded-xl p-4 overflow-hidden flex flex-col ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}>
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="font-black text-xl text-blue-600">{t('schedule')}</h3>
+      <div className={`border rounded-xl p-6 ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}>
+        <div className="flex flex-col sm:flex-row sm:justify-between items-start sm:items-center mb-6 space-y-4 sm:space-y-0">
+          <h3 className="font-black text-xl text-blue-600 flex items-center"><Calendar className="mr-3"/> {t('schedule')}</h3>
+          <div className="flex space-x-2 items-center bg-slate-200 dark:bg-slate-950 p-1.5 rounded-lg border border-slate-300 dark:border-slate-800 shadow-sm">
+             <button onClick={prevMonth} className="p-2 rounded hover:bg-white dark:hover:bg-slate-800 transition"><ChevronLeft size={18}/></button>
+             <span className="font-black text-sm capitalize w-36 text-center">{monthName}</span>
+             <button onClick={nextMonth} className="p-2 rounded hover:bg-white dark:hover:bg-slate-800 transition"><ChevronRight size={18}/></button>
+          </div>
         </div>
         
         <form onSubmit={handleAddScheduleItem} className={`mb-6 p-4 rounded-xl border flex flex-wrap gap-4 items-center shadow-sm ${theme==='dark'?'bg-slate-950 border-slate-800':'bg-slate-200/50 border-slate-300'}`}>
@@ -1045,53 +1056,40 @@ export default function App() {
            <input name="taskName" placeholder="Nom de la tâche..." className={`${inputClass} flex-1 min-w-[150px]`} required />
            <input type="date" name="startDate" className={`${inputClass} w-auto`} required />
            <input type="date" name="endDate" className={`${inputClass} w-auto`} required />
-           <select name="color" className={`${inputClass} w-auto`}>
+           <select name="color" className={`${inputClass} w-auto font-bold`}>
               <option value="bg-blue-500">Bleu</option>
               <option value="bg-purple-500">Violet</option>
               <option value="bg-green-500">Vert</option>
               <option value="bg-red-500">Rouge</option>
               <option value="bg-orange-500">Orange</option>
            </select>
-           <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-4 py-2 rounded-lg transition-colors shadow-sm">Ajouter</button>
+           <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-5 py-2.5 rounded-lg transition-colors shadow-sm text-sm">Ajouter</button>
         </form>
 
-        <div className="flex-1 overflow-x-auto">
-          <div className="min-w-[800px]">
-            <div className="flex border-b border-slate-700 pb-2 mb-2">
-              <div className="w-80 shrink-0 font-bold text-xs uppercase text-slate-500">Tâche & Dates</div>
-              <div className="flex-1 flex">
-                 {daysArray.map(d => <div key={d} className="flex-1 text-center text-[10px] text-slate-500 font-bold border-l border-slate-700/30">{d}</div>)}
+        <div className={`grid grid-cols-7 gap-px rounded-xl overflow-hidden border shadow-sm ${theme==='dark'?'bg-slate-800 border-slate-800':'bg-slate-300 border-slate-300'}`}>
+          {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map(d => (
+            <div key={d} className={`text-center py-2.5 text-xs font-black uppercase tracking-wider ${theme==='dark'?'bg-slate-950 text-slate-400':'bg-slate-100 text-slate-600'}`}>{d}</div>
+          ))}
+          {days.map((day, idx) => {
+            if (!day) return <div key={idx} className={`min-h-[120px] ${theme==='dark'?'bg-slate-950/40':'bg-slate-50/50'}`}></div>;
+            
+            const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+            const dayItems = scheduleItems.filter(item => dateStr >= item.startDate && dateStr <= item.endDate);
+
+            return (
+              <div key={idx} className={`min-h-[120px] p-1.5 border-t relative group transition-colors ${theme==='dark'?'bg-slate-900 border-slate-800 hover:bg-slate-800/80':'bg-white border-slate-300 hover:bg-slate-50'}`}>
+                 <div className={`text-right text-xs font-black mb-1.5 pr-1 ${theme==='dark'?'text-slate-500':'text-slate-400'}`}>{day}</div>
+                 <div className="space-y-1 overflow-y-auto max-h-[85px] pr-1 scrollbar-hide">
+                   {dayItems.map(item => (
+                      <div key={item.id} className={`${item.color} text-white text-[10px] font-bold px-1.5 py-1 rounded truncate shadow-sm cursor-pointer hover:opacity-80 flex justify-between items-center group/item`} title={item.name}>
+                        <span className="truncate">{item.name}</span>
+                        <button onClick={() => deleteDoc(doc(db, 'schedule', item.id))} className="opacity-0 group-hover/item:opacity-100 hover:text-black transition-opacity ml-1 p-0.5"><Trash2 size={10}/></button>
+                      </div>
+                   ))}
+                 </div>
               </div>
-            </div>
-            {allTasks.map(task => {
-              const startDay = task.startDate ? new Date(task.startDate).getDate() : null;
-              const endDay = task.endDate ? new Date(task.endDate).getDate() : null;
-              const duration = (startDay && endDay) ? (endDay - startDay) + 1 : 0;
-              const offset = startDay ? startDay - 1 : 0;
-              const color = task.color || 'bg-blue-500';
-              
-              return (
-                <div key={task.id} className="flex items-center mb-2 border-b border-slate-200 dark:border-slate-800/50 pb-2 group">
-                  <div className="w-80 shrink-0 pr-4 flex items-center justify-between">
-                     <div className="flex-1 pr-2">
-                       <input type="text" value={task.name} onChange={e => updateDoc(doc(db, 'schedule', task.id), { name: e.target.value })} className="text-xs font-bold w-full bg-transparent outline-none border-b border-transparent focus:border-blue-500 mb-1" />
-                       <div className="flex space-x-2 text-[10px]">
-                          <input type="date" value={task.startDate || ''} onChange={e => updateDoc(doc(db, 'schedule', task.id), { startDate: e.target.value })} className={`p-1 rounded outline-none ${theme==='dark'?'bg-slate-950 border-slate-700':'bg-slate-100 border-slate-300'} border`} title={t('startDate')} />
-                          <input type="date" value={task.endDate || ''} onChange={e => updateDoc(doc(db, 'schedule', task.id), { endDate: e.target.value })} className={`p-1 rounded outline-none ${theme==='dark'?'bg-slate-950 border-slate-700':'bg-slate-100 border-slate-300'} border`} title={t('endDate')} />
-                       </div>
-                     </div>
-                     <button onClick={() => deleteDoc(doc(db, 'schedule', task.id))} className="text-red-500 hover:text-red-700 opacity-0 group-hover:opacity-100 transition p-1"><Trash2 size={14}/></button>
-                  </div>
-                  <div className="flex-1 flex relative h-8 bg-slate-200/50 dark:bg-slate-950 rounded items-center">
-                    {duration > 0 && (
-                       <div className={`absolute h-6 rounded shadow-sm ${color} opacity-80 cursor-pointer hover:opacity-100 transition-opacity`} style={{ left: `${(offset / daysInMonth) * 100}%`, width: `${(duration / daysInMonth) * 100}%` }}></div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-            {allTasks.length === 0 && <p className="text-xs text-slate-500 italic mt-4">Aucun événement à l'agenda. Créez-en un via le formulaire.</p>}
-          </div>
+            )
+          })}
         </div>
       </div>
     );
@@ -1467,7 +1465,7 @@ export default function App() {
                       {p.bannerUrl && (
                         <>
                           <div className="absolute inset-0 bg-cover bg-center opacity-70 group-hover:opacity-90 transition" style={{backgroundImage: `url(${p.bannerUrl})`}}></div>
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent"></div>
+                          <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/50 to-transparent"></div>
                         </>
                       )}
                       <div className={`relative z-10 p-4 flex justify-between items-center backdrop-blur-[2px] ${p.bannerUrl ? 'text-white' : ''}`}>
@@ -1617,7 +1615,7 @@ export default function App() {
       <aside className={`w-16 md:w-64 border-r flex flex-col justify-between shrink-0 h-full z-20 no-print ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-slate-100 border-slate-300'}`}>
         <div className="space-y-4">
           <div className="relative p-4 border-b border-slate-300 dark:border-slate-800 bg-cover bg-center" style={workspace?.bannerUrl ? {backgroundImage: `url(${workspace.bannerUrl})`} : {}}>
-            {workspace?.bannerUrl && <div className="absolute inset-0 bg-slate-200/80 dark:bg-slate-950/80 backdrop-blur-sm"></div>}
+            {workspace?.bannerUrl && <div className="absolute inset-0 bg-slate-200/70 dark:bg-slate-950/70 backdrop-blur-[2px]"></div>}
             <div className="relative z-10 space-y-4">
               <button onClick={() => setCurrentView('dashboard')} className="flex items-center space-x-2 text-slate-700 hover:text-blue-600 transition dark:text-slate-400 font-bold"><ChevronLeft size={20} /> <span className="hidden md:inline">Projets</span></button>
               <div className="flex items-center space-x-2">
@@ -2255,7 +2253,12 @@ export default function App() {
                   }} className={`text-sm ${inputClass} !py-1.5`} />
                   {workspace?.bannerUrl && <img src={workspace.bannerUrl} className="mt-4 h-24 object-cover rounded-lg border border-slate-300 dark:border-slate-700 shadow-sm"/>}
                 </div>
-                <button onClick={() => updateDoc(doc(db, 'workspaces', workspace.id), { bannerUrl: workspace.bannerUrl || '' }).then(()=>openModal('Succès', 'Bannière mise à jour !'))} className="bg-blue-600 hover:bg-blue-500 transition text-white px-6 py-2.5 rounded-lg font-bold text-sm shadow-md">Mettre à jour la bannière</button>
+                <button onClick={async () => {
+                   await updateDoc(doc(db, 'workspaces', workspace.id), { bannerUrl: workspace.bannerUrl || '' });
+                   const snap = await getDocs(query(collection(db, 'projectMembers'), where('workspaceId', '==', workspace.id)));
+                   snap.forEach(d => updateDoc(d.ref, { bannerUrl: workspace.bannerUrl || '' }));
+                   openModal('Succès', 'Bannière mise à jour pour tous les membres !');
+                }} className="bg-blue-600 hover:bg-blue-500 transition text-white px-6 py-2.5 rounded-lg font-bold text-sm shadow-md">Mettre à jour la bannière</button>
               </div>
 
               <div className={`p-6 rounded-xl border border-red-500/30 space-y-4 ${theme==='dark'?'bg-slate-900':'bg-slate-100'}`}>
