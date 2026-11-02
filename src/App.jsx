@@ -1755,6 +1755,7 @@ export default function App() {
         )}
       </div>
     );
+  }
 
   return (
     <div className={`h-screen flex overflow-hidden ${theme === 'dark' ? 'dark bg-slate-950 text-slate-100' : lightWrapperClass}`}>
