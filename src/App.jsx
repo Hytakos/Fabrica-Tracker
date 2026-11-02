@@ -61,6 +61,7 @@ const dict = {
     cloudGuide3: "3. Allez dans Settings > Upload. Créez un 'Upload preset' en mode 'Unsigned'. Copiez son nom.",
     cloudGuide4: "4. Allez dans Settings > API Keys. Générez ou copiez 'API Key' et 'API Secret'.",
     cloudGuide5: "5. Collez toutes ces infos dans l'onglet Paramètres du Tracker pour activer l'upload de médias."
+  }
 	helpDesc: "Retrouvez ci-dessous toutes les informations techniques...",
 	helpRolesTitle: "Rôles, Leads & Permissions",
 	helpRoles1: "Admin & Supervisor : Accès total (création, assignation, suppression). Les Admins peuvent gérer les paramètres Cloudinary et la suppression du projet.",
