@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  initializeAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail 
+  initializeAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, deleteUser 
 } from 'firebase/auth';
 import { 
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
@@ -75,6 +75,35 @@ const dict = {
     cloudGuide4: "4. Go to Settings > API Keys. Generate or copy 'API Key' and 'API Secret'.",
     cloudGuide5: "5. Paste all these details in the Settings tab of the Tracker to enable media upload."
   }
+};
+
+const ShotNameEditor = ({ shot, lang, updateDoc, db, doc }) => {
+  const [val, setVal] = useState(lang === 'fr' ? shot.name.replace(/^SH/, 'SC') : shot.name.replace(/^SC/, 'SH'));
+  
+  useEffect(() => {
+    setVal(lang === 'fr' ? shot.name.replace(/^SH/, 'SC') : shot.name.replace(/^SC/, 'SH'));
+  }, [shot.name, lang]);
+
+  const handleBlur = () => {
+    let finalName = val;
+    // On sauvegarde toujours en SH dans la base pour la cohérence globale
+    if (lang === 'fr' && val.startsWith('SC')) finalName = val.replace(/^SC/, 'SH');
+    
+    if (finalName !== shot.name) {
+      updateDoc(doc(db, 'shots', shot.id), { name: finalName, scene: finalName });
+    }
+  };
+
+  return (
+    <input 
+       type="text" 
+       value={val}
+       onChange={e => setVal(e.target.value)}
+       onBlur={handleBlur}
+       className="bg-transparent border border-transparent hover:border-slate-300 dark:hover:border-slate-700 focus:border-blue-500 focus:bg-white dark:focus:bg-slate-950 rounded outline-none font-black text-base w-full transition-colors px-1 -ml-1"
+       title="Renommer le plan"
+    />
+  );
 };
 
 const ShotDetailsEditor = ({ shot, onSave, t }) => {
@@ -1257,7 +1286,7 @@ export default function App() {
          <form onSubmit={addBreakdownItem} className={`flex flex-wrap gap-4 mb-8 p-4 rounded-xl border items-center shadow-sm ${theme==='dark'?'bg-slate-950 border-slate-800':'bg-slate-100 border-slate-200'}`}>
            <span className="font-bold text-sm text-slate-500 uppercase mr-2">Nouvelle Entrée :</span>
            <input name="sequence" placeholder="Séquence (ex: SQ01)" className={`${inputClass} flex-1 min-w-[120px] max-w-[200px] font-bold`} defaultValue="SQ01" required/>
-           <input name="scene" placeholder="Scène (ex: SC01)" className={`${inputClass} flex-1 min-w-[120px] max-w-[200px] font-bold`} required/>
+           <input name="scene" placeholder="Scène (ex: SC001)" className={`${inputClass} flex-1 min-w-[120px] max-w-[200px] font-bold`} required/>
            <button type="submit" className="bg-blue-600 text-white font-bold px-6 py-2.5 rounded-lg hover:bg-blue-500 transition-colors shadow-sm">Créer</button>
          </form>
 
@@ -1340,9 +1369,37 @@ export default function App() {
           {authMode === 'login' && <div className="text-right"><button type="button" onClick={handleForgotPassword} className="text-xs text-blue-500 hover:underline transition">Mot de passe oublié ?</button></div>}
           <button type="submit" className="w-full py-3 bg-blue-600 text-white font-bold rounded-lg transition shadow-md">{authMode === 'login' ? 'Se connecter' : 'Créer un compte'}</button>
         </form>
+
+        {modal.isOpen && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[200] p-4 backdrop-blur-sm no-print">
+            <div className={`p-6 rounded-xl border w-full max-w-sm space-y-4 shadow-2xl ${theme==='dark'?'bg-slate-900 border-slate-800 text-white':lightCardClass}`}>
+              <h3 className="font-bold text-lg">{modal.title}</h3><p className="text-sm opacity-80">{modal.msg}</p>
+              <div className="flex space-x-3 pt-4">
+                {modal.onConfirm && <button onClick={closeModal} className="flex-1 py-2 bg-slate-200 dark:bg-slate-800 rounded font-bold transition hover:bg-slate-300 dark:hover:bg-slate-700">{t('cancel')}</button>}
+                <button onClick={modal.onConfirm || closeModal} className="flex-1 py-2 bg-blue-600 text-white rounded font-bold transition hover:bg-blue-500">{t('ok')}</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
+
+  const handleDeleteAccount = () => {
+    openModal("Supprimer mon compte", "Cette action est irréversible. Toutes vos données seront effacées.", async () => {
+      try {
+        const uid = user.uid;
+        await deleteDoc(doc(db, 'users', uid));
+        const snap = await getDocs(query(collection(db, 'projectMembers'), where('userId', '==', uid)));
+        snap.forEach(d => deleteDoc(d.ref));
+        await deleteUser(user);
+        closeModal();
+        setCurrentView('dashboard');
+      } catch(err) {
+        openModal("Erreur", "Veuillez vous déconnecter puis vous reconnecter avant de supprimer votre compte (sécurité Firebase).");
+      }
+    });
+  };
 
   if (currentView === 'profile') {
     return (
@@ -1383,6 +1440,10 @@ export default function App() {
             </div>
 
             <button type="submit" className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold transition shadow-md mt-4 hover:bg-blue-500">Mettre à jour le profil</button>
+            
+            <div className="pt-6 border-t border-slate-200 dark:border-slate-800 mt-6">
+              <button type="button" onClick={handleDeleteAccount} className="w-full py-3 bg-red-100 hover:bg-red-200 text-red-600 dark:bg-red-900/30 dark:hover:bg-red-900/50 dark:text-red-400 rounded-xl font-bold transition">Supprimer définitivement mon compte</button>
+            </div>
          </form>
 
         {modal.isOpen && (
@@ -1516,7 +1577,7 @@ export default function App() {
                     <div key={p.id} className={`relative rounded-lg overflow-hidden border transition group ${theme==='dark'?'bg-slate-950 border-slate-800 hover:border-blue-500':'bg-white border-slate-300 hover:border-blue-500'}`}>
                       {p.bannerUrl && (
                         <>
-                          <div className="absolute inset-0 bg-cover bg-center opacity-70 group-hover:opacity-90 transition" style={{backgroundImage: `url(${p.bannerUrl})`}}></div>
+                          <div className="absolute inset-0 bg-cover bg-center opacity-70 group-hover:opacity-90 transition" style={{backgroundImage: `url("${p.bannerUrl}")`}}></div>
                           <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/50 to-transparent"></div>
                         </>
                       )}
@@ -1666,7 +1727,7 @@ export default function App() {
 
       <aside className={`w-16 md:w-64 border-r flex flex-col justify-between shrink-0 h-full z-20 no-print ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-slate-100 border-slate-300'}`}>
         <div className="space-y-4">
-          <div className="relative p-4 border-b border-slate-300 dark:border-slate-800 bg-cover bg-center" style={workspace?.bannerUrl ? {backgroundImage: `url(${workspace.bannerUrl})`} : {}}>
+          <div className="relative p-4 border-b border-slate-300 dark:border-slate-800 bg-cover bg-center" style={workspace?.bannerUrl ? {backgroundImage: `url("${workspace.bannerUrl}")`} : {}}>
             {workspace?.bannerUrl && <div className="absolute inset-0 bg-slate-200/70 dark:bg-slate-950/70 backdrop-blur-[2px]"></div>}
             <div className="relative z-10 space-y-4">
               <button onClick={() => setCurrentView('dashboard')} className="flex items-center space-x-2 text-slate-700 hover:text-blue-600 transition dark:text-slate-400 font-bold"><ChevronLeft size={20} /> <span className="hidden md:inline">Projets</span></button>
@@ -1851,8 +1912,10 @@ export default function App() {
                                     {userPermissions.canEdit && <input type="checkbox" checked={batchSelection.includes(s.id)} onChange={(e) => setBatchSelection(e.target.checked ? [...batchSelection, s.id] : batchSelection.filter(id=>id!==s.id))} className="mr-3 mt-1 cursor-pointer no-print accent-blue-600"/>}
                                     <div className="w-full">
                                       <div className="font-black text-base flex items-center justify-between w-full">
-                                         <div><span className="text-slate-500 text-xs font-mono mr-1">{s.scene}</span> {s.name}</div>
-                                         <div className="flex items-center space-x-1">
+                                         <div className="flex-1 mr-2">
+                                            <ShotNameEditor shot={s} lang={lang} updateDoc={updateDoc} db={db} doc={doc} />
+                                         </div>
+                                         <div className="flex items-center space-x-1 shrink-0">
                                             {userPermissions.canAssign ? (
                                               <select value={s.priority || 'Normal'} onChange={e => changePriority(s.id, e.target.value, 'shots')} className={`text-[10px] p-0 outline-none bg-transparent cursor-pointer no-print ${theme==='dark'?'text-slate-400':'text-slate-500'}`}>
                                                   <option value="Urgent" className="bg-slate-50 dark:bg-slate-900">🔴</option><option value="Normal" className="bg-slate-50 dark:bg-slate-900">🟡</option><option value="Low" className="bg-slate-50 dark:bg-slate-900">🟢</option>
