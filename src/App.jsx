@@ -47,21 +47,65 @@ const generateCloudinarySignature = async (publicId, timestamp, apiSecret) => {
 const dict = {
   fr: {
     projects: "Mes Projets", friends: "Mes Amis", myTasks: "Mes Tâches", assets: "Assets", shots: "Plans", time: "Chrono", stats: "Stats", team: "Équipe", settings: "Paramètres", help: "Aide",
-    schedule: "Agenda", breakdown: "Dépouillement", historyLog: "Historique global", scene: "Scène", plan: "Plan",
+    schedule: "Agenda", breakdown: "Dépouillement", historyLog: "Historique", scene: "Scène", plan: "Plan",
     ok: "Ok", cancel: "Annuler", batchAction: "Multi-action", manualTime: "Saisie manuelle", join: "Rejoindre", addFriend: "Ajouter Ami", friendId: "ID Ami", myId: "Mon ID", sharedProj: "projet(s) partagé(s)",
     createProj: "Créer un projet", joinProj: "Rejoindre", projName: "Nom", joinCode: "Code", searchShot: "Rechercher...", allStatus: "Tous statuts", allMembers: "Toute l'équipe", addShot: "Ajouter Plan",
     addAsset: "Ajouter Asset", assetName: "Nom de l'asset", category: "Catégorie", priority: "Priorité", tags: "Tags", history: "Historique", report: "Rapport PDF", desc: "Description", duration: "Durée",
-    todo: "À faire", wip: "En cours", reviewStatus: "En validation", reuse: "Réutiliser", retake: "Retake", done: "Terminé", upload: "Upload", wait: "En attente"
+    todo: "À faire", wip: "En cours", reviewStatus: "En validation", reuse: "Réutiliser", retake: "Retake", done: "Terminé", upload: "Upload", wait: "En attente",
+    createAsset: "Créer Asset", exportCSV: "Export CSV", save: "Valider", startDate: "Début", endDate: "Fin",
+    cloudGuideTitle: "Tutoriel complet : Configurer Cloudinary (Gratuit)",
+    cloudGuide1: "1. Créez un compte gratuit sur Cloudinary.com",
+    cloudGuide2: "2. Allez dans Dashboard, copiez votre 'Cloud Name'.",
+    cloudGuide3: "3. Allez dans Settings > Upload. Créez un 'Upload preset' en mode 'Unsigned'. Copiez son nom.",
+    cloudGuide4: "4. Allez dans Settings > API Keys. Générez ou copiez 'API Key' et 'API Secret'.",
+    cloudGuide5: "5. Collez toutes ces infos dans l'onglet Paramètres du Tracker pour activer l'upload de médias."
   },
   en: {
-    projects: "My Projects", friends: "My Friends", myTasks: "My Tasks", assets: "Assets", shots: "Shots", time: "Time Tracker", stats: "Stats", team: "Team", settings: "Settings", help: "Help",
+    projects: "My Projects", friends: "My Friends", myTasks: "My Tasks", assets: "Assets", shots: "Shots", time: "Tracker", stats: "Stats", team: "Team", settings: "Settings", help: "Help",
     schedule: "Schedule", breakdown: "Breakdown", historyLog: "History Log", scene: "Scene", plan: "Shot",
     ok: "Ok", cancel: "Cancel", batchAction: "Batch Action", manualTime: "Manual Entry", join: "Join", addFriend: "Add Friend", friendId: "Friend ID", myId: "My ID", sharedProj: "shared project(s)",
     createProj: "Create Project", joinProj: "Join Project", projName: "Name", joinCode: "Code", searchShot: "Search...", allStatus: "All Status", allMembers: "All Team", addShot: "Add Shot",
     addAsset: "Add Asset", assetName: "Asset Name", category: "Category", priority: "Priority", tags: "Tags", history: "History", report: "PDF Report", desc: "Description", duration: "Duration",
-    todo: "To Do", wip: "WIP", reviewStatus: "Review", reuse: "Reuse", retake: "Retake", done: "Done", upload: "Upload", wait: "Waiting"
+    todo: "To Do", wip: "WIP", reviewStatus: "Review", reuse: "Reuse", retake: "Retake", done: "Done", upload: "Upload", wait: "Waiting",
+    createAsset: "Create Asset", exportCSV: "Export CSV", save: "Save", startDate: "Start", endDate: "End",
+    cloudGuideTitle: "Complete Tutorial: Setup Cloudinary (Free)",
+    cloudGuide1: "1. Create a free account on Cloudinary.com",
+    cloudGuide2: "2. Go to Dashboard, copy your 'Cloud Name'.",
+    cloudGuide3: "3. Go to Settings > Upload. Create an 'Upload preset' and set it to 'Unsigned'. Copy its name.",
+    cloudGuide4: "4. Go to Settings > API Keys. Generate or copy 'API Key' and 'API Secret'.",
+    cloudGuide5: "5. Paste all these details in the Settings tab of the Tracker to enable media upload."
   }
 };
+
+const ShotDetailsEditor = ({ shot, onSave, t }) => {
+  const [desc, setDesc] = useState(shot.description || '');
+  const [dur, setDur] = useState(shot.durationFrames || '');
+
+  useEffect(() => {
+    setDesc(shot.description || '');
+    setDur(shot.durationFrames || '');
+  }, [shot.description, shot.durationFrames]);
+
+  const isDirty = desc !== (shot.description || '') || parseInt(dur || 0) !== (shot.durationFrames || 0);
+
+  return (
+     <div className="space-y-1 mb-2 ml-6 text-xs bg-slate-200/60 dark:bg-slate-900/60 p-2 rounded-lg border border-slate-300 dark:border-slate-800 transition-all">
+        <div className="flex items-center">
+          <span className="text-[9px] uppercase font-bold text-slate-500 mr-2 w-10">{t('duration')}</span>
+          <input type="number" value={dur} onChange={e=>setDur(e.target.value)} placeholder="Frames" className="p-1 rounded bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 w-16 text-center text-[10px] font-bold outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all" />
+        </div>
+        <div className="flex items-start">
+          <span className="text-[9px] uppercase font-bold text-slate-500 mr-2 w-10 mt-1">{t('desc')}</span>
+          <textarea value={desc} onChange={e=>setDesc(e.target.value)} placeholder="..." className="p-1.5 rounded bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 w-full h-12 text-[10px] resize-none outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all" />
+        </div>
+        {isDirty && (
+          <div className="flex justify-end mt-1.5">
+            <button onClick={() => onSave({ description: desc, durationFrames: parseInt(dur) || 0 })} className="bg-green-600 hover:bg-green-500 transition-colors text-white text-[10px] px-2.5 py-1 rounded shadow flex items-center font-bold"><CheckSquare size={12} className="mr-1.5"/> {t('save')}</button>
+          </div>
+        )}
+     </div>
+  )
+}
 
 const PingPongGame = ({ onClose }) => {
   const canvasRef = useRef(null);
@@ -238,7 +282,7 @@ export default function App() {
   const openModal = (title, msg, onConfirm = null) => setModal({ isOpen: true, title, msg, onConfirm });
   const closeModal = () => setModal({ isOpen: false, title: '', msg: '', onConfirm: null });
 
-  const inputClass = "w-full p-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 text-slate-900 dark:text-slate-100 shadow-sm transition-all";
+  const inputClass = "w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 text-slate-900 dark:text-slate-100 shadow-sm transition-all";
 
   useEffect(() => {
     localStorage.setItem('customPrimary', primaryColor);
@@ -367,7 +411,6 @@ export default function App() {
   const myAssignedShots = shots.filter(s => workspace?.pipeline?.some(step => getAssignees(s, step).includes(user?.uid) || (userPermissions.leads?.includes(step) && s.status?.[step] === 'review')));
   const myAssignedAssets = assets.filter(a => getAssignees(a, 'Global').includes(user?.uid) || (userPermissions.leads?.includes('Global')));
 
-  // Tri intelligent pour "Mes Tâches" : Retake en 1er, To Do, WIP, Reuse, et masquer les Done (sauf Review en 1er pour les Lead/Admins)
   const sortTasksByPriorityStatus = (tasksList, isShot = true) => {
     return [...tasksList].sort((a, b) => {
       const getScore = (task) => {
@@ -887,7 +930,7 @@ export default function App() {
         ctx.stroke();
       }
     });
-    ctx.globalCompositeOperation = 'source-over'; // Reset
+    ctx.globalCompositeOperation = 'source-over'; 
   };
   useEffect(() => { drawOnCanvas(); }, [strokes, currentStroke]);
 
@@ -950,12 +993,15 @@ export default function App() {
   const sortedCats = Object.keys(groupedAssets).sort();
 
   const renderSchedule = () => {
-    // Basic Gantt logic mapping tasks to a monthly grid
     const today = new Date();
     const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
     const daysArray = Array.from({length: daysInMonth}, (_, i) => i + 1);
 
-    const tasksWithDates = [...shots, ...assets].filter(t => t.startDate && t.endDate).sort((a,b) => new Date(a.startDate) - new Date(b.startDate));
+    const allTasks = [...shots, ...assets].sort((a,b) => {
+      const dateA = a.startDate ? new Date(a.startDate).getTime() : 0;
+      const dateB = b.startDate ? new Date(b.startDate).getTime() : 0;
+      return dateA - dateB;
+    });
     
     return (
       <div className={`border rounded-xl p-4 overflow-hidden flex flex-col ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}>
@@ -963,28 +1009,37 @@ export default function App() {
         <div className="flex-1 overflow-x-auto">
           <div className="min-w-[800px]">
             <div className="flex border-b border-slate-700 pb-2 mb-2">
-              <div className="w-48 shrink-0 font-bold text-xs uppercase text-slate-500">Tâche</div>
+              <div className="w-80 shrink-0 font-bold text-xs uppercase text-slate-500">Tâche & Dates</div>
               <div className="flex-1 flex">
                  {daysArray.map(d => <div key={d} className="flex-1 text-center text-[10px] text-slate-500 font-bold border-l border-slate-700/30">{d}</div>)}
               </div>
             </div>
-            {tasksWithDates.map(task => {
-              const startDay = new Date(task.startDate).getDate();
-              const endDay = new Date(task.endDate).getDate();
-              const duration = (endDay - startDay) + 1;
-              const offset = startDay - 1;
+            {allTasks.map(task => {
+              const startDay = task.startDate ? new Date(task.startDate).getDate() : null;
+              const endDay = task.endDate ? new Date(task.endDate).getDate() : null;
+              const duration = (startDay && endDay) ? (endDay - startDay) + 1 : 0;
+              const offset = startDay ? startDay - 1 : 0;
               const color = task.scene ? 'bg-purple-500' : 'bg-blue-500';
+              const isAsset = !task.scene;
               
               return (
-                <div key={task.id} className="flex items-center mb-2">
-                  <div className="w-48 shrink-0 text-xs font-bold truncate pr-2" title={task.name}>{task.scene || task.category} / {task.name}</div>
-                  <div className="flex-1 flex relative h-6 bg-slate-100 dark:bg-slate-950 rounded">
-                    <div className={`absolute h-full rounded shadow-sm ${color}`} style={{ left: `${(offset / daysInMonth) * 100}%`, width: `${(duration / daysInMonth) * 100}%` }}></div>
+                <div key={task.id} className="flex items-center mb-2 border-b border-slate-200 dark:border-slate-800/50 pb-2">
+                  <div className="w-80 shrink-0 pr-4">
+                     <div className="text-xs font-bold truncate mb-1" title={task.name}>{task.scene || task.category} / {task.name}</div>
+                     <div className="flex space-x-2 text-[10px]">
+                        <input type="date" value={task.startDate || ''} onChange={e => updateDoc(doc(db, isAsset ? 'assets' : 'shots', task.id), { startDate: e.target.value })} className={`p-1 rounded outline-none ${theme==='dark'?'bg-slate-950 border-slate-700':'bg-slate-100 border-slate-300'} border`} title={t('startDate')} />
+                        <input type="date" value={task.endDate || ''} onChange={e => updateDoc(doc(db, isAsset ? 'assets' : 'shots', task.id), { endDate: e.target.value })} className={`p-1 rounded outline-none ${theme==='dark'?'bg-slate-950 border-slate-700':'bg-slate-100 border-slate-300'} border`} title={t('endDate')} />
+                     </div>
+                  </div>
+                  <div className="flex-1 flex relative h-8 bg-slate-200/50 dark:bg-slate-950 rounded items-center">
+                    {duration > 0 && (
+                       <div className={`absolute h-6 rounded shadow-sm ${color} opacity-80`} style={{ left: `${(offset / daysInMonth) * 100}%`, width: `${(duration / daysInMonth) * 100}%` }}></div>
+                    )}
                   </div>
                 </div>
               );
             })}
-            {tasksWithDates.length === 0 && <p className="text-xs text-slate-500 italic mt-4">Aucune tâche avec dates définies. Éditez vos plans/assets pour ajouter startDate et endDate.</p>}
+            {allTasks.length === 0 && <p className="text-xs text-slate-500 italic mt-4">Aucune tâche disponible.</p>}
           </div>
         </div>
       </div>
@@ -1003,24 +1058,48 @@ export default function App() {
       await addDoc(collection(db, 'breakdown'), { workspaceId: workspace.id, category: cat, name: name, count: count, notes: notes });
       form.reset();
     };
+
+    const convertToAsset = async (item) => {
+      await addDoc(collection(db, 'assets'), {
+        name: item.name,
+        category: ASSET_CATEGORIES.includes(item.category) ? item.category : ASSET_CATEGORIES[0],
+        workspaceId: workspace.id, previews: [], assignedTo: {}, priority: 'Normal', tags: [item.category]
+      });
+      openModal("Succès", `L'asset "${item.name}" a été créé avec succès !`);
+    };
+
+    const exportBreakdownCSV = () => {
+      let csv = "Catégorie,Nom,Quantité,Notes\n";
+      breakdownItems.forEach(item => { csv += `"${item.category}","${item.name}","${item.count}","${item.notes}"\n`; });
+      const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = "stripboard_breakdown.csv"; a.click();
+    };
+
     return (
       <div className={`border rounded-xl p-6 ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}>
-         <h3 className="font-black text-xl mb-4 text-blue-600">{t('breakdown')}</h3>
+         <div className="flex justify-between items-center mb-4">
+            <h3 className="font-black text-xl text-blue-600">{t('breakdown')}</h3>
+            <button onClick={exportBreakdownCSV} className="flex items-center space-x-2 bg-green-700 hover:bg-green-600 transition text-white px-3 py-2 rounded-lg font-bold text-sm shadow-sm"><FileSpreadsheet size={16}/> <span>{t('exportCSV')}</span></button>
+         </div>
          <form onSubmit={addBreakdownItem} className="flex flex-wrap gap-2 mb-6">
            <select name="category" className={`${inputClass} flex-1 min-w-[120px]`}><option value="Character">Character</option><option value="Prop">Prop</option><option value="Set">Set</option><option value="FX">FX</option></select>
            <input name="itemName" placeholder="Nom de l'élément" className={`${inputClass} flex-[2] min-w-[150px]`} required/>
            <input name="count" type="number" placeholder="Quantité" className={`${inputClass} flex-1 min-w-[100px]`} defaultValue="1"/>
            <input name="notes" placeholder="Notes..." className={`${inputClass} flex-[3] min-w-[200px]`}/>
-           <button type="submit" className="bg-blue-600 text-white font-bold px-4 py-2 rounded-lg">Ajouter</button>
+           <button type="submit" className="bg-blue-600 text-white font-bold px-4 py-2 rounded-lg hover:bg-blue-500 transition-colors">Ajouter</button>
          </form>
          <div className="overflow-x-auto">
            <table className="w-full text-left text-sm whitespace-nowrap">
-             <thead><tr className={`border-b text-xs uppercase ${theme==='dark'?'border-slate-800 text-slate-500':'border-slate-200 text-slate-500'}`}><th className="p-2">Catégorie</th><th className="p-2">Nom</th><th className="p-2">Qté</th><th className="p-2">Notes</th><th className="p-2">Action</th></tr></thead>
+             <thead><tr className={`border-b text-xs uppercase ${theme==='dark'?'border-slate-800 text-slate-500':'border-slate-200 text-slate-500'}`}><th className="p-2">Catégorie</th><th className="p-2">Nom</th><th className="p-2">Qté</th><th className="p-2">Notes</th><th className="p-2 text-right">Action</th></tr></thead>
              <tbody className={`divide-y ${theme==='dark'?'divide-slate-800/50':'divide-slate-200'}`}>
                {breakdownItems.map(item => (
                  <tr key={item.id} className="hover:bg-slate-100 dark:hover:bg-slate-800/20">
                    <td className="p-2 font-bold">{item.category}</td><td className="p-2">{item.name}</td><td className="p-2">{item.count}</td><td className="p-2 text-slate-500 italic">{item.notes}</td>
-                   <td className="p-2"><button onClick={()=>deleteDoc(doc(db, 'breakdown', item.id))} className="text-red-500"><Trash2 size={16}/></button></td>
+                   <td className="p-2 flex justify-end space-x-3">
+                      <button onClick={() => convertToAsset(item)} className="text-blue-500 hover:text-blue-600 transition" title={t('createAsset')}><Box size={16}/></button>
+                      <button onClick={()=>deleteDoc(doc(db, 'breakdown', item.id))} className="text-red-500 hover:text-red-600 transition" title="Supprimer"><Trash2 size={16}/></button>
+                   </td>
                  </tr>
                ))}
              </tbody>
@@ -1040,18 +1119,18 @@ export default function App() {
     .from-blue-600 { --tw-gradient-from: var(--primary) !important; }
     .to-indigo-500 { --tw-gradient-to: var(--secondary) !important; }
   `;
-  const lightWrapperClass = "bg-[#f8fafc] text-slate-800";
-  const lightCardClass = "bg-white border-slate-200 shadow-sm"; 
+  const lightWrapperClass = "bg-slate-100 text-slate-700";
+  const lightCardClass = "bg-slate-50 border-slate-200 shadow-sm"; 
 
-  if (loading) return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white">Chargement...</div>;
+  if (loading) return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white font-bold">Chargement...</div>;
 
   if (!user) {
     return (
       <div className={`min-h-screen flex flex-col items-center justify-center p-4 relative ${theme === 'dark' ? 'bg-slate-950 text-white' : lightWrapperClass}`}>
         <style>{pixelateStyle}</style>
         <div className="absolute top-4 right-4 flex space-x-2">
-          <button onClick={()=>setLang(lang==='fr'?'en':'fr')} className="px-3 py-1 rounded font-bold text-sm bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100 uppercase">{lang}</button>
-          <button onClick={()=>setTheme(theme==='dark'?'light':'dark')} className="p-2 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100">{theme==='dark' ? <Sun size={20}/> : <Moon size={20}/>}</button>
+          <button onClick={()=>setLang(lang==='fr'?'en':'fr')} className="px-3 py-1 rounded font-bold text-sm bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100 uppercase transition">{lang}</button>
+          <button onClick={()=>setTheme(theme==='dark'?'light':'dark')} className="p-2 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100 transition">{theme==='dark' ? <Sun size={20}/> : <Moon size={20}/>}</button>
         </div>
         <form onSubmit={handleAuth} className={`border p-8 rounded-xl w-full max-w-md space-y-5 shadow-2xl ${theme === 'dark' ? 'bg-slate-900 border-slate-800' : lightCardClass}`}>
           <div className="flex flex-col items-center justify-center space-y-2 mb-2">
@@ -1059,18 +1138,18 @@ export default function App() {
             <h1 onClick={()=>setLogoPixelated(true)} className="text-2xl font-black tracking-tight cursor-pointer select-none" style={{ animation: logoPixelated ? 'pixelateAnim 0.5s ease-in-out' : 'none' }}>Fabrica Tracker</h1>
           </div>
           <div className="flex space-x-2 border-b border-slate-200 dark:border-slate-800 pb-2">
-            <button type="button" onClick={() => setAuthMode('login')} className={`flex-1 pb-2 ${authMode === 'login' ? 'text-blue-500 font-bold border-b-2 border-blue-500' : 'text-slate-400'}`}>Connexion</button>
-            <button type="button" onClick={() => setAuthMode('register')} className={`flex-1 pb-2 ${authMode === 'register' ? 'text-blue-500 font-bold border-b-2 border-blue-500' : 'text-slate-400'}`}>Inscription</button>
+            <button type="button" onClick={() => setAuthMode('login')} className={`flex-1 pb-2 transition ${authMode === 'login' ? 'text-blue-500 font-bold border-b-2 border-blue-500' : 'text-slate-400'}`}>Connexion</button>
+            <button type="button" onClick={() => setAuthMode('register')} className={`flex-1 pb-2 transition ${authMode === 'register' ? 'text-blue-500 font-bold border-b-2 border-blue-500' : 'text-slate-400'}`}>Inscription</button>
           </div>
           {authMode === 'register' && (
             <>
               <input type="text" placeholder="Pseudo" value={authName} onChange={(e) => setAuthName(e.target.value)} className={inputClass} />
-              <label className="flex items-center space-x-2 text-sm text-slate-500"><input type="checkbox" checked={emailNotifs} onChange={(e)=>setEmailNotifs(e.target.checked)}/> <span>Recevoir alertes Email</span></label>
+              <label className="flex items-center space-x-2 text-sm text-slate-500 cursor-pointer"><input type="checkbox" checked={emailNotifs} onChange={(e)=>setEmailNotifs(e.target.checked)}/> <span>Recevoir alertes Email</span></label>
             </>
           )}
           <input type="email" placeholder="Email" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} className={inputClass} required />
           <input type="password" placeholder="Mot de passe" value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} className={inputClass} required />
-          {authMode === 'login' && <div className="text-right"><button type="button" onClick={handleForgotPassword} className="text-xs text-blue-500 hover:underline">Mot de passe oublié ?</button></div>}
+          {authMode === 'login' && <div className="text-right"><button type="button" onClick={handleForgotPassword} className="text-xs text-blue-500 hover:underline transition">Mot de passe oublié ?</button></div>}
           <button type="submit" className="w-full py-3 bg-blue-600 text-white font-bold rounded-lg transition shadow-md">{authMode === 'login' ? 'Se connecter' : 'Créer un compte'}</button>
         </form>
       </div>
@@ -1098,7 +1177,7 @@ export default function App() {
 
             <div className="space-y-4">
                <div><label className="text-xs font-bold text-slate-500 uppercase">Pseudo</label><input type="text" value={profileName} onChange={e=>setProfileName(e.target.value)} className={inputClass} /></div>
-               <label className="flex items-center space-x-2 text-sm"><input type="checkbox" checked={emailNotifs} onChange={e=>setEmailNotifs(e.target.checked)}/><span>Notifications par Email</span></label>
+               <label className="flex items-center space-x-2 text-sm cursor-pointer"><input type="checkbox" checked={emailNotifs} onChange={e=>setEmailNotifs(e.target.checked)}/><span>Notifications par Email</span></label>
             </div>
             
             <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
@@ -1115,7 +1194,7 @@ export default function App() {
                </div>
             </div>
 
-            <button type="submit" className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold transition shadow-md mt-4">Mettre à jour le profil</button>
+            <button type="submit" className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold transition shadow-md mt-4 hover:bg-blue-500">Mettre à jour le profil</button>
          </form>
 
         {modal.isOpen && (
@@ -1124,7 +1203,7 @@ export default function App() {
               <h3 className="font-bold text-lg">{modal.title}</h3><p className="text-sm opacity-80">{modal.msg}</p>
               <div className="flex space-x-3 pt-4">
                 {modal.onConfirm && <button onClick={closeModal} className="flex-1 py-2 bg-slate-200 dark:bg-slate-800 rounded font-bold transition hover:bg-slate-300 dark:hover:bg-slate-700">{t('cancel')}</button>}
-                <button onClick={modal.onConfirm || closeModal} className="flex-1 py-2 bg-blue-600 text-white rounded font-bold transition">{t('ok')}</button>
+                <button onClick={modal.onConfirm || closeModal} className="flex-1 py-2 bg-blue-600 text-white rounded font-bold transition hover:bg-blue-500">{t('ok')}</button>
               </div>
             </div>
           </div>
@@ -1139,14 +1218,14 @@ export default function App() {
         <div className={`w-80 h-[28rem] mb-4 rounded-xl shadow-2xl border flex flex-col overflow-hidden transform transition-all ${theme==='dark'?'bg-slate-900 border-slate-700':lightCardClass}`}>
           {!activeFriend ? (
              <div className="flex flex-col h-full">
-               <div className={`p-4 border-b font-bold flex justify-between items-center ${theme==='dark'?'border-slate-800 bg-slate-950/50':'border-slate-200 bg-slate-50'}`}>
+               <div className={`p-4 border-b font-bold flex justify-between items-center ${theme==='dark'?'border-slate-800 bg-slate-950/50':'border-slate-200 bg-slate-100'}`}>
                   <div className="flex items-center"><MessageCircle size={18} className="mr-2 text-blue-500"/> Mes Messages</div>
-                  <button onClick={()=>setIsChatWidgetOpen(false)} className="text-slate-400 hover:text-red-500"><X size={18}/></button>
+                  <button onClick={()=>setIsChatWidgetOpen(false)} className="text-slate-400 hover:text-red-500 transition"><X size={18}/></button>
                </div>
                <div className="flex-1 overflow-y-auto p-2 space-y-1">
                  {friendsList.length === 0 ? <p className="text-xs text-center text-slate-500 italic mt-10">Ajoutez des amis dans le Dashboard.</p> : null}
                  {friendsList.map(f => (
-                   <button key={f.id} onClick={() => setActiveFriend(f)} className={`w-full flex items-center justify-between p-3 rounded-lg transition text-left ${theme==='dark'?'hover:bg-slate-800':'hover:bg-slate-100'}`}>
+                   <button key={f.id} onClick={() => setActiveFriend(f)} className={`w-full flex items-center justify-between p-3 rounded-lg transition text-left ${theme==='dark'?'hover:bg-slate-800':'hover:bg-slate-200/50'}`}>
                      <div className="flex items-center">
                        <UserCircle size={24} className="text-slate-400 mr-3 shrink-0"/>
                        <span className="font-bold text-sm truncate">{f.displayName}</span>
@@ -1158,25 +1237,25 @@ export default function App() {
              </div>
           ) : (
              <div className="flex flex-col h-full">
-               <div className={`p-3 border-b flex justify-between items-center shadow-sm ${theme==='dark'?'border-slate-800 bg-slate-950/50':'border-slate-200 bg-slate-50'}`}>
-                  <button onClick={()=>setActiveFriend(null)} className="p-1 text-slate-400 hover:text-blue-500"><ChevronLeft size={20}/></button>
+               <div className={`p-3 border-b flex justify-between items-center shadow-sm ${theme==='dark'?'border-slate-800 bg-slate-950/50':'border-slate-200 bg-slate-100'}`}>
+                  <button onClick={()=>setActiveFriend(null)} className="p-1 text-slate-400 hover:text-blue-500 transition"><ChevronLeft size={20}/></button>
                   <div className="flex items-center space-x-2">
                     <span className="font-bold text-sm truncate flex-1 text-center cursor-pointer hover:underline" onClick={()=>setViewProfileId(activeFriend.id)}>{activeFriend.displayName}</span>
                     {onlineUsers[activeFriend.id] && <div className="w-2 h-2 bg-green-500 rounded-full"></div>}
                   </div>
-                  <button onClick={()=>setIsChatWidgetOpen(false)} className="p-1 text-slate-400 hover:text-red-500"><X size={20}/></button>
+                  <button onClick={()=>setIsChatWidgetOpen(false)} className="p-1 text-slate-400 hover:text-red-500 transition"><X size={20}/></button>
                </div>
                <div className="flex-1 overflow-y-auto p-3 space-y-3 bg-slate-50 dark:bg-slate-950/30">
                  {pmMessages.length === 0 ? <p className="text-xs text-center text-slate-500 italic mt-10">Dites bonjour !</p> : null}
                  {pmMessages.map(msg => (
-                    <div key={msg.id} className={`p-2.5 rounded-xl text-xs max-w-[85%] shadow-sm ${msg.authorId === user.uid ? 'bg-blue-600 text-white ml-auto rounded-br-none' : (theme==='dark'?'bg-slate-800 text-slate-200 mr-auto rounded-bl-none':'bg-white border text-slate-700 mr-auto rounded-bl-none')}`}>
+                    <div key={msg.id} className={`p-2.5 rounded-xl text-xs max-w-[85%] shadow-sm ${msg.authorId === user.uid ? 'bg-blue-600 text-white ml-auto rounded-br-none' : (theme==='dark'?'bg-slate-800 text-slate-200 mr-auto rounded-bl-none':'bg-white border border-slate-200 text-slate-700 mr-auto rounded-bl-none')}`}>
                       <p className="whitespace-pre-wrap">{msg.text}</p>
                     </div>
                  ))}
                </div>
-               <form onSubmit={postPm} className={`p-2 border-t flex space-x-2 ${theme==='dark'?'border-slate-800 bg-slate-900':'border-slate-200 bg-white'}`}>
-                  <input type="text" value={newPmMsg} onChange={e=>setNewPmMsg(e.target.value)} placeholder="Message..." className={`flex-1 p-2 rounded-lg outline-none text-sm ${theme==='dark'?'bg-slate-950 border-slate-700 border':'bg-slate-100 border-slate-300 border focus:border-blue-500'}`} />
-                  <button type="submit" className="bg-blue-600 text-white p-2 rounded-lg transition"><Plus size={18}/></button>
+               <form onSubmit={postPm} className={`p-2 border-t flex space-x-2 ${theme==='dark'?'border-slate-800 bg-slate-900':'border-slate-200 bg-slate-50'}`}>
+                  <input type="text" value={newPmMsg} onChange={e=>setNewPmMsg(e.target.value)} placeholder="Message..." className={`flex-1 p-2 rounded-lg outline-none text-sm transition ${theme==='dark'?'bg-slate-950 border-slate-700 border':'bg-white border-slate-300 border focus:border-blue-500'}`} />
+                  <button type="submit" className="bg-blue-600 text-white p-2 rounded-lg transition hover:bg-blue-500"><Plus size={18}/></button>
                </form>
              </div>
           )}
@@ -1203,15 +1282,15 @@ export default function App() {
             <h1 onClick={()=>setLogoPixelated(true)} className="text-2xl font-black cursor-pointer select-none" style={{ animation: logoPixelated ? 'pixelateAnim 0.5s ease-in-out' : 'none' }}>Fabrica Tracker</h1>
           </div>
           
-          <div className={`flex items-center space-x-3 p-2 rounded-xl border shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
-            <button onClick={()=>setLang(lang==='fr'?'en':'fr')} className="px-3 py-1.5 rounded font-bold text-sm bg-slate-100 dark:bg-slate-800 uppercase text-slate-900 dark:text-slate-100 shadow-sm">{lang}</button>
-            <button onClick={()=>setTheme(theme==='dark'?'light':'dark')} className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-sm">{theme==='dark' ? <Sun size={18}/> : <Moon size={18}/>}</button>
+          <div className={`flex items-center space-x-3 p-2 rounded-xl border shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-slate-50 border-slate-200'}`}>
+            <button onClick={()=>setLang(lang==='fr'?'en':'fr')} className="px-3 py-1.5 rounded font-bold text-sm bg-slate-100 dark:bg-slate-800 uppercase text-slate-900 dark:text-slate-100 shadow-sm transition">{lang}</button>
+            <button onClick={()=>setTheme(theme==='dark'?'light':'dark')} className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-sm transition">{theme==='dark' ? <Sun size={18}/> : <Moon size={18}/>}</button>
             <div className="w-px h-6 bg-slate-300 dark:bg-slate-700 mx-1"></div>
-            <button onClick={() => setCurrentView('profile')} className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg border shadow-sm ${theme==='dark'?'bg-slate-800 border-slate-700 hover:text-white':'bg-slate-50 border-slate-200 hover:text-blue-600'} transition`}>
+            <button onClick={() => setCurrentView('profile')} className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg border shadow-sm transition ${theme==='dark'?'bg-slate-800 border-slate-700 hover:text-white':'bg-white border-slate-200 hover:text-blue-600'}`}>
               <UserCircle size={18} /> 
               <span className="text-sm font-medium">{userData?.displayName} {isAbsent && '🏖️'}</span>
             </button>
-            <button onClick={() => signOut(auth)} className="text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 p-2 rounded-lg transition"><LogOut size={18} /></button>
+            <button onClick={() => signOut(auth)} className="text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 p-2 rounded-lg transition"><LogOut size={18} /></button>
           </div>
         </header>
 
@@ -1226,27 +1305,27 @@ export default function App() {
                 </div>
               </div>
               {viewProfileId !== user.uid && !friendsList.find(f => f.id === viewProfileId) && (
-                <button onClick={() => addFriend(viewProfileId)} className="w-full bg-blue-600 text-white py-2.5 rounded-lg font-bold">Ajouter en ami</button>
+                <button onClick={() => addFriend(viewProfileId)} className="w-full bg-blue-600 hover:bg-blue-500 transition text-white py-2.5 rounded-lg font-bold">Ajouter en ami</button>
               )}
-              <button onClick={() => setViewProfileId(null)} className="w-full py-2 bg-slate-200 dark:bg-slate-800 rounded-lg font-bold text-slate-800 dark:text-white">Fermer</button>
+              <button onClick={() => setViewProfileId(null)} className="w-full py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 transition rounded-lg font-bold text-slate-800 dark:text-white">Fermer</button>
             </div>
           </div>
         )}
 
         <div className="max-w-5xl mx-auto w-full mb-6 flex space-x-4 border-b border-slate-200 dark:border-slate-800 pb-2">
-          <button onClick={()=>setDashTab('projects')} className={`font-bold text-lg ${dashTab === 'projects' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}>{t('projects')}</button>
-          <button onClick={()=>setDashTab('friends')} className={`font-bold text-lg ${dashTab === 'friends' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}>{t('friends')}</button>
+          <button onClick={()=>setDashTab('projects')} className={`font-bold text-lg transition ${dashTab === 'projects' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}>{t('projects')}</button>
+          <button onClick={()=>setDashTab('friends')} className={`font-bold text-lg transition ${dashTab === 'friends' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}>{t('friends')}</button>
         </div>
 
         <div className="max-w-5xl mx-auto w-full grid grid-cols-1 md:grid-cols-3 gap-6">
           {dashTab === 'projects' && (
             <>
-              <div className={`md:col-span-2 border p-6 rounded-xl flex-1 ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}>
+              <div className={`md:col-span-2 border p-6 rounded-xl flex-1 shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}>
                 <h2 className="text-xl font-bold mb-4 flex items-center"><FolderKanban className="mr-2 text-blue-500" /> {t('projects')}</h2>
                 <div className="space-y-3">
                   {myProjects.length === 0 ? <p className="text-slate-500 italic">Aucun projet. Créez-en un à droite.</p> : null}
                   {myProjects.map(p => (
-                    <div key={p.id} className={`relative rounded-lg overflow-hidden border transition group ${theme==='dark'?'bg-slate-950 border-slate-800 hover:border-blue-500':'bg-slate-50 border-slate-200 hover:border-blue-500'}`}>
+                    <div key={p.id} className={`relative rounded-lg overflow-hidden border transition group ${theme==='dark'?'bg-slate-950 border-slate-800 hover:border-blue-500':'bg-white border-slate-200 hover:border-blue-500'}`}>
                       {p.bannerUrl && <div className="absolute inset-0 bg-cover bg-center opacity-30 group-hover:opacity-40 transition" style={{backgroundImage: `url(${p.bannerUrl})`}}></div>}
                       <div className="relative z-10 p-4 flex justify-between items-center backdrop-blur-[2px]">
                         <div className="flex-1 cursor-pointer flex items-center" onClick={async () => {
@@ -1255,18 +1334,18 @@ export default function App() {
                         }}>
                           <div><h3 className="font-bold text-lg drop-shadow-md">{p.workspaceName}</h3><p className="text-xs text-slate-700 font-bold dark:text-slate-300 uppercase tracking-wider mt-1 drop-shadow-md">Rôle : <span className="text-blue-600 dark:text-blue-400 font-black">{p.role}</span></p></div>
                         </div>
-                        <div className="flex items-center space-x-3 bg-white/50 dark:bg-slate-950/50 p-1.5 rounded-full backdrop-blur-md">
+                        <div className="flex items-center space-x-3 bg-white/70 dark:bg-slate-950/70 p-1.5 rounded-full backdrop-blur-md">
                           {p.role === 'Admin' && <button onClick={() => {
                             const newName = window.prompt("Nouveau nom :", p.workspaceName);
                             if(newName) {
                               updateDoc(doc(db, 'workspaces', p.workspaceId), { name: newName });
                               getDocs(query(collection(db, 'projectMembers'), where('workspaceId', '==', p.workspaceId))).then(snap => snap.forEach(m => updateDoc(m.ref, { workspaceName: newName })));
                             }
-                          }} className="p-2 text-slate-800 dark:text-slate-300 transition"><Edit3 size={18}/></button>}
+                          }} className="p-2 text-slate-800 dark:text-slate-300 hover:text-blue-600 transition"><Edit3 size={18}/></button>}
                           <div onClick={async () => {
                             const wsDoc = await getDoc(doc(db, 'workspaces', p.workspaceId));
                             if(wsDoc.exists()) { setWorkspace({ id: wsDoc.id, ...wsDoc.data() }); setCurrentView('workspace'); setActiveTab('myTasks'); }
-                          }} className="cursor-pointer w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white shadow-lg transform hover:scale-105 transition"><Play size={18} className="ml-1" /></div>
+                          }} className="cursor-pointer w-10 h-10 rounded-full bg-blue-600 hover:bg-blue-500 flex items-center justify-center text-white shadow-lg transform hover:scale-105 transition"><Play size={18} className="ml-1" /></div>
                         </div>
                       </div>
                     </div>
@@ -1274,7 +1353,7 @@ export default function App() {
                 </div>
               </div>
               <div className="space-y-6">
-                <form onSubmit={createProject} className={`border p-6 rounded-xl space-y-4 ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}>
+                <form onSubmit={createProject} className={`border p-6 rounded-xl space-y-4 shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}>
                   <h2 className="text-lg font-bold">{t('createProj')}</h2>
                   <input type="text" placeholder={t('projName')} value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} className={inputClass} required />
                   
@@ -1285,15 +1364,15 @@ export default function App() {
 
                   <div className="flex space-x-2">
                     {['2D', '3D', 'Game'].map(tp => (
-                      <button key={tp} type="button" onClick={() => setNewProjectType(tp)} className={`flex-1 py-1.5 text-xs font-bold rounded border ${newProjectType === tp ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300'}`}>{tp}</button>
+                      <button key={tp} type="button" onClick={() => setNewProjectType(tp)} className={`flex-1 py-1.5 text-xs font-bold rounded border transition ${newProjectType === tp ? 'bg-blue-600 text-white border-blue-600 shadow' : 'bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300'}`}>{tp}</button>
                     ))}
                   </div>
-                  <button type="submit" className="w-full py-2 bg-blue-600 text-white font-bold rounded-lg transition shadow-sm">Créer</button>
+                  <button type="submit" className="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition shadow-sm">Créer</button>
                 </form>
-                <form onSubmit={joinProject} className={`border p-6 rounded-xl space-y-4 ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}>
+                <form onSubmit={joinProject} className={`border p-6 rounded-xl space-y-4 shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}>
                   <h2 className="text-lg font-bold">{t('joinProj')}</h2>
                   <input type="text" placeholder={t('joinCode')} value={joinCode} onChange={(e) => setJoinCode(e.target.value)} className={`font-mono text-center tracking-widest ${inputClass}`} required />
-                  <button type="submit" className="w-full py-2 bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-white font-bold rounded-lg transition">{t('join')}</button>
+                  <button type="submit" className="w-full py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-white font-bold rounded-lg transition">{t('join')}</button>
                 </form>
               </div>
             </>
@@ -1301,28 +1380,28 @@ export default function App() {
 
           {dashTab === 'friends' && (
             <>
-               <div className={`md:col-span-2 border p-6 rounded-xl ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}>
+               <div className={`md:col-span-2 border p-6 rounded-xl shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}>
                 <h2 className="text-xl font-bold mb-4 flex items-center"><Users className="mr-2 text-blue-500" /> {t('friends')}</h2>
                 <div className="space-y-3">
                   {friendsList.length === 0 ? <p className="text-slate-500 italic">Aucun ami ajouté.</p> : null}
                   {friendsList.map(f => (
-                    <div key={f.id} className={`border p-4 rounded-lg flex justify-between items-center transition ${theme==='dark'?'bg-slate-950 border-slate-800':'bg-slate-50 border-slate-200'}`}>
+                    <div key={f.id} className={`border p-4 rounded-lg flex justify-between items-center transition ${theme==='dark'?'bg-slate-950 border-slate-800 hover:border-slate-700':'bg-white border-slate-200 hover:border-slate-300'}`}>
                       <div className="flex items-center space-x-3 cursor-pointer hover:opacity-80" onClick={()=>setViewProfileId(f.id)}>
                          <UserCircle size={32} className="text-slate-400"/> 
                          <div className="flex items-center space-x-2"><h3 className="font-bold text-lg hover:underline">{f.displayName}</h3> {onlineUsers[f.id] && <div className="w-2.5 h-2.5 bg-green-500 rounded-full shadow" title="En ligne"></div>}</div>
                       </div>
-                      <button onClick={() => { setActiveFriend(f); setIsChatWidgetOpen(true); }} className="p-2 text-blue-500 bg-blue-50 dark:bg-blue-900/30 rounded-full"><MessageSquare size={18}/></button>
+                      <button onClick={() => { setActiveFriend(f); setIsChatWidgetOpen(true); }} className="p-2 text-blue-500 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 rounded-full transition"><MessageSquare size={18}/></button>
                     </div>
                   ))}
                 </div>
               </div>
               <div className="space-y-6">
-                <form onSubmit={(e)=>{e.preventDefault(); addFriend(friendInput);}} className={`border p-6 rounded-xl space-y-4 ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}>
+                <form onSubmit={(e)=>{e.preventDefault(); addFriend(friendInput);}} className={`border p-6 rounded-xl space-y-4 shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}>
                   <h2 className="text-lg font-bold flex items-center"><UserPlus className="mr-2"/> {t('addFriend')}</h2>
                   <input type="text" placeholder={t('friendId')} value={friendInput} onChange={(e) => setFriendInput(e.target.value)} className={`font-mono text-center tracking-widest ${inputClass}`} required />
-                  <button type="submit" className="w-full py-2 bg-blue-600 text-white font-bold rounded-lg transition shadow-sm">Ajouter</button>
+                  <button type="submit" className="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition shadow-sm">Ajouter</button>
                 </form>
-                <div className={`border p-6 rounded-xl text-center space-y-2 ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}>
+                <div className={`border p-6 rounded-xl text-center space-y-2 shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}>
                   <h3 className="font-bold text-sm text-slate-500">{t('myId')}</h3>
                   <div className="font-mono bg-slate-100 dark:bg-slate-950 p-2 rounded text-blue-600 dark:text-blue-500 font-bold select-all cursor-pointer border border-slate-200 dark:border-slate-800">{user.uid}</div>
                 </div>
@@ -1344,8 +1423,8 @@ export default function App() {
           <div className={`p-6 rounded-xl border w-full max-w-sm space-y-4 shadow-2xl ${theme==='dark'?'bg-slate-900 border-slate-800 text-white':lightCardClass}`}>
             <h3 className="font-bold text-lg">{modal.title}</h3><p className="text-sm opacity-80">{modal.msg}</p>
             <div className="flex space-x-3 pt-4">
-              {modal.onConfirm && <button onClick={closeModal} className="flex-1 py-2 bg-slate-200 dark:bg-slate-800 rounded font-bold transition hover:bg-slate-300 dark:hover:bg-slate-700">{t('cancel')}</button>}
-              <button onClick={modal.onConfirm || closeModal} className="flex-1 py-2 bg-blue-600 text-white rounded font-bold transition">{t('ok')}</button>
+              {modal.onConfirm && <button onClick={closeModal} className="flex-1 py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 rounded font-bold transition">{t('cancel')}</button>}
+              <button onClick={modal.onConfirm || closeModal} className="flex-1 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold transition">{t('ok')}</button>
             </div>
           </div>
         </div>
@@ -1362,9 +1441,9 @@ export default function App() {
                 </div>
               </div>
               {viewProfileId !== user.uid && !friendsList.find(f => f.id === viewProfileId) && (
-                <button onClick={() => addFriend(viewProfileId)} className="w-full bg-blue-600 text-white py-2.5 rounded-lg font-bold">Ajouter en ami</button>
+                <button onClick={() => addFriend(viewProfileId)} className="w-full bg-blue-600 hover:bg-blue-500 transition text-white py-2.5 rounded-lg font-bold">Ajouter en ami</button>
               )}
-              <button onClick={() => setViewProfileId(null)} className="w-full py-2 bg-slate-200 dark:bg-slate-800 rounded-lg font-bold text-slate-800 dark:text-white">Fermer</button>
+              <button onClick={() => setViewProfileId(null)} className="w-full py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 transition rounded-lg font-bold text-slate-800 dark:text-white">Fermer</button>
             </div>
           </div>
         )}
@@ -1376,23 +1455,23 @@ export default function App() {
             <div><label className="text-xs font-bold text-slate-500">{t('assetName')}</label><input type="text" value={addAssetName} onChange={(e)=>setAddAssetName(e.target.value)} className={inputClass} required/></div>
             <div><label className="text-xs font-bold text-slate-500">{t('category')}</label>
                <select value={addAssetCategory} onChange={(e)=>setAddAssetCategory(e.target.value)} className={inputClass}>
-                 {ASSET_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                 {ASSET_CATEGORIES.map(c => <option key={c} value={c} className="bg-slate-50 dark:bg-slate-900">{c}</option>)}
                </select>
             </div>
             <div className="flex space-x-3 pt-2">
-              <button type="button" onClick={() => {setShowAddAsset(false); setAddAssetName('');}} className="flex-1 py-2 bg-slate-200 dark:bg-slate-800 rounded font-bold hover:bg-slate-300 dark:hover:bg-slate-700">{t('cancel')}</button>
-              <button type="submit" className="flex-1 py-2 bg-blue-600 text-white rounded font-bold">OK</button>
+              <button type="button" onClick={() => {setShowAddAsset(false); setAddAssetName('');}} className="flex-1 py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 transition rounded font-bold">{t('cancel')}</button>
+              <button type="submit" className="flex-1 py-2 bg-blue-600 hover:bg-blue-500 transition text-white rounded font-bold">OK</button>
             </div>
           </form>
         </div>
       )}
 
-      <aside className={`w-16 md:w-64 border-r flex flex-col justify-between shrink-0 h-full z-20 no-print ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-200'}`}>
+      <aside className={`w-16 md:w-64 border-r flex flex-col justify-between shrink-0 h-full z-20 no-print ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-slate-50 border-slate-200'}`}>
         <div className="space-y-4">
           <div className="relative p-4 border-b border-slate-200 dark:border-slate-800 bg-cover bg-center" style={workspace?.bannerUrl ? {backgroundImage: `url(${workspace.bannerUrl})`} : {}}>
-            {workspace?.bannerUrl && <div className="absolute inset-0 bg-white/70 dark:bg-slate-950/80 backdrop-blur-sm"></div>}
+            {workspace?.bannerUrl && <div className="absolute inset-0 bg-slate-100/80 dark:bg-slate-950/80 backdrop-blur-sm"></div>}
             <div className="relative z-10 space-y-4">
-              <button onClick={() => setCurrentView('dashboard')} className="flex items-center space-x-2 text-slate-600 dark:text-slate-400 font-bold"><ChevronLeft size={20} /> <span className="hidden md:inline">Projets</span></button>
+              <button onClick={() => setCurrentView('dashboard')} className="flex items-center space-x-2 text-slate-600 hover:text-blue-600 transition dark:text-slate-400 font-bold"><ChevronLeft size={20} /> <span className="hidden md:inline">Projets</span></button>
               <div className="flex items-center space-x-2">
                 <div className="w-8 h-8 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-lg flex items-center justify-center shrink-0 shadow-md"><Clapperboard size={18} className="text-white" /></div>
                 <div className="text-sm font-black hidden md:block leading-tight truncate drop-shadow-sm">{workspace?.name}</div>
@@ -1415,8 +1494,8 @@ export default function App() {
           </nav>
         </div>
         <div className="p-4 flex items-center space-x-2">
-          <button onClick={()=>setLang(lang==='fr'?'en':'fr')} className="flex-1 p-2 rounded border dark:border-slate-800 border-slate-300 bg-slate-100 dark:bg-slate-900 transition text-xs text-slate-900 dark:text-slate-100 font-bold uppercase shadow-sm">{lang}</button>
-          <button onClick={()=>setTheme(theme==='dark'?'light':'dark')} className="p-2 rounded border dark:border-slate-800 border-slate-300 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm">{theme==='dark' ? <Sun size={16}/> : <Moon size={16}/>}</button>
+          <button onClick={()=>setLang(lang==='fr'?'en':'fr')} className="flex-1 p-2 rounded border dark:border-slate-800 border-slate-300 bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 transition text-xs text-slate-900 dark:text-slate-100 font-bold uppercase shadow-sm">{lang}</button>
+          <button onClick={()=>setTheme(theme==='dark'?'light':'dark')} className="p-2 rounded border dark:border-slate-800 border-slate-300 bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm transition">{theme==='dark' ? <Sun size={16}/> : <Moon size={16}/>}</button>
         </div>
       </aside>
 
@@ -1429,7 +1508,7 @@ export default function App() {
             <div className="flex items-center space-x-6">
               {userPermissions.canAssign && (
                 <div className="relative">
-                  <button onClick={() => setShowNotifications(!showNotifications)} className="relative p-2 text-slate-400 transition">
+                  <button onClick={() => setShowNotifications(!showNotifications)} className="relative p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition">
                     <Bell size={20} />
                     {pendingReviews.length > 0 && <span className="absolute top-0 right-0 w-4 h-4 bg-red-500 text-[10px] font-bold rounded-full flex items-center justify-center text-white">{pendingReviews.length}</span>}
                   </button>
@@ -1437,7 +1516,7 @@ export default function App() {
                     <div className={`absolute top-10 right-0 w-64 border rounded-xl shadow-2xl z-50 p-3 max-h-64 overflow-y-auto ${theme==='dark'?'bg-slate-900 border-slate-700':lightCardClass}`}>
                       <h4 className="text-sm font-bold border-b border-slate-200 dark:border-slate-800 pb-2 mb-2">À Valider</h4>
                       {pendingReviews.length === 0 ? <p className="text-xs text-slate-500 italic">Rien à voir pour le moment !</p> : pendingReviews.map(s => (
-                        <div key={s.id} className={`text-xs p-2 rounded mb-1 border cursor-pointer transition ${theme==='dark'?'hover:bg-slate-800 border-slate-800':'hover:bg-blue-50 border-slate-100'}`} onClick={()=>{setActiveTab('shots'); setShowNotifications(false);}}>
+                        <div key={s.id} className={`text-xs p-2 rounded mb-1 border cursor-pointer transition ${theme==='dark'?'hover:bg-slate-800 border-slate-800':'hover:bg-blue-50 border-slate-200'}`} onClick={()=>{setActiveTab('shots'); setShowNotifications(false);}}>
                           <span className="font-bold text-blue-500">{s.name}</span> prêt pour validation.
                         </div>
                       ))}
@@ -1458,7 +1537,7 @@ export default function App() {
                   {sortTasksByPriorityStatus(myAssignedShots, true).length === 0 ? <p className="text-sm text-slate-500 italic">Aucun plan actif assigné pour l'instant.</p> : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                        {sortTasksByPriorityStatus(myAssignedShots, true).map(s => (
-                          <div key={s.id} className={`p-4 rounded-lg border flex flex-col justify-between cursor-pointer transition shadow-sm ${theme==='dark'?'bg-slate-950 border-slate-800':'bg-[#f8fafc] border-slate-200'}`} onClick={() => setActiveTab('shots')}>
+                          <div key={s.id} className={`p-4 rounded-lg border flex flex-col justify-between cursor-pointer transition shadow-sm ${theme==='dark'?'bg-slate-950 border-slate-800 hover:border-blue-500':'bg-slate-50 border-slate-200 hover:border-blue-500'}`} onClick={() => setActiveTab('shots')}>
                              <div className="flex justify-between items-start mb-2">
                                <div><div className="text-xs text-slate-500 font-mono font-bold">{s.sequence} / {s.scene}</div><div className="font-bold text-lg">{s.name}</div></div>
                                {getPriorityIcon(s.priority)}
@@ -1481,7 +1560,7 @@ export default function App() {
                   {sortTasksByPriorityStatus(myAssignedAssets, false).length === 0 ? <p className="text-sm text-slate-500 italic">Aucun asset actif assigné pour l'instant.</p> : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                        {sortTasksByPriorityStatus(myAssignedAssets, false).map(a => (
-                          <div key={a.id} className={`p-4 rounded-lg border flex flex-col justify-between cursor-pointer transition shadow-sm ${theme==='dark'?'bg-slate-950 border-slate-800':'bg-[#f8fafc] border-slate-200'}`} onClick={() => setActiveTab('assets')}>
+                          <div key={a.id} className={`p-4 rounded-lg border flex flex-col justify-between cursor-pointer transition shadow-sm ${theme==='dark'?'bg-slate-950 border-slate-800 hover:border-blue-500':'bg-slate-50 border-slate-200 hover:border-blue-500'}`} onClick={() => setActiveTab('assets')}>
                              <div className="flex justify-between items-start mb-2">
                                <div><div className="text-xs text-slate-500 font-bold">{a.category}</div><div className="font-bold text-lg">{a.name}</div></div>
                                {getPriorityIcon(a.priority)}
@@ -1505,28 +1584,28 @@ export default function App() {
                 <div className="flex flex-col md:flex-row flex-1 gap-2 w-full">
                   <div className="relative flex-1"><Search className="absolute left-3 top-2.5 text-slate-400" size={16}/><input type="text" placeholder={t('searchShot')} value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} className={`${inputClass} pl-10`} /></div>
                   <select value={filterTag} onChange={e=>setFilterTag(e.target.value)} className={inputClass + " flex-1 font-bold"}>
-                    <option value="" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">-- Tags --</option>
-                    {Array.from(new Set(shots.flatMap(s=>s.tags||[]))).map(t => <option key={t} value={t} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">{t}</option>)}
+                    <option value="" className="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white">-- Tags --</option>
+                    {Array.from(new Set(shots.flatMap(s=>s.tags||[]))).map(t => <option key={t} value={t} className="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white">{t}</option>)}
                   </select>
                   <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)} className={inputClass + " flex-1 font-bold"}>
-                     <option value="" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">{t('allStatus')}</option>
-                     <option value="todo" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">{t('todo')}</option>
-                     <option value="wip" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">{t('wip')}</option>
-                     <option value="review" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">{t('reviewStatus')}</option>
-                     <option value="retake" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">{t('retake')}</option>
-                     <option value="reuse" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">{t('reuse')}</option>
-                     <option value="done" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">{t('done')}</option>
+                     <option value="" className="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white">{t('allStatus')}</option>
+                     <option value="todo" className="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white">{t('todo')}</option>
+                     <option value="wip" className="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white">{t('wip')}</option>
+                     <option value="review" className="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white">{t('reviewStatus')}</option>
+                     <option value="retake" className="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white">{t('retake')}</option>
+                     <option value="reuse" className="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white">{t('reuse')}</option>
+                     <option value="done" className="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white">{t('done')}</option>
                   </select>
                   <select value={filterAssignee} onChange={e=>setFilterAssignee(e.target.value)} className={inputClass + " flex-1 font-bold"}>
-                     <option value="" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">{t('allMembers')}</option>
-                     {members.map(m=><option key={m.userId} value={m.userId} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">{m.displayName}</option>)}
+                     <option value="" className="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white">{t('allMembers')}</option>
+                     {members.map(m=><option key={m.userId} value={m.userId} className="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white">{m.displayName}</option>)}
                   </select>
                 </div>
                 
                 <div className="flex space-x-2 shrink-0">
-                  <button onClick={()=>setActiveTab('stats')} className="bg-purple-600 text-white px-3 py-2 rounded-lg font-bold text-sm shadow-sm flex items-center space-x-1" title="Voir Stats"><PieChart size={16}/></button>
-                  <button onClick={exportExcel} className="bg-green-700 text-white px-3 py-2 rounded-lg font-bold text-sm shadow-sm flex items-center space-x-1" title="Export Excel"><FileSpreadsheet size={16}/><span>Excel</span></button>
-                  {userPermissions.canAssign && <button onClick={addNewSequence} className="w-full xl:w-auto flex items-center justify-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm shadow-sm"><Plus size={16} /> <span>Séquence</span></button>}
+                  <button onClick={()=>setActiveTab('stats')} className="bg-purple-600 hover:bg-purple-500 transition text-white px-3 py-2 rounded-lg font-bold text-sm shadow-sm flex items-center space-x-1" title="Voir Stats"><PieChart size={16}/></button>
+                  <button onClick={exportExcel} className="bg-green-700 hover:bg-green-600 transition text-white px-3 py-2 rounded-lg font-bold text-sm shadow-sm flex items-center space-x-1" title="Export Excel"><FileSpreadsheet size={16}/><span>Excel</span></button>
+                  {userPermissions.canAssign && <button onClick={addNewSequence} className="w-full xl:w-auto flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-500 transition text-white px-4 py-2 rounded-lg font-bold text-sm shadow-sm"><Plus size={16} /> <span>Séquence</span></button>}
                 </div>
               </div>
 
@@ -1536,13 +1615,13 @@ export default function App() {
                   <div className="flex space-x-2 items-center">
                     <select value={batchActionStep} onChange={e=>setBatchActionStep(e.target.value)} className="bg-blue-800 text-white border-none rounded-lg p-2 text-sm outline-none font-bold"><option value="">-- Étape --</option>{workspace?.pipeline?.map(p=><option key={p} value={p}>{p}</option>)}</select>
                     <select value={batchActionStatus} onChange={e=>setBatchActionStatus(e.target.value)} className="bg-blue-800 text-white border-none rounded-lg p-2 text-sm outline-none font-bold"><option value="">-- Statut --</option><option value="todo">{t('todo')}</option><option value="wip">{t('wip')}</option><option value="review">{t('reviewStatus')}</option><option value="retake">{t('retake')}</option><option value="done">{t('done')}</option></select>
-                    <button onClick={applyBatchAction} className="bg-white text-blue-600 px-4 py-2 rounded-lg font-bold text-sm shadow-sm">Appliquer</button>
+                    <button onClick={applyBatchAction} className="bg-slate-50 text-blue-600 hover:bg-white transition px-4 py-2 rounded-lg font-bold text-sm shadow-sm">Appliquer</button>
                   </div>
                 </div>
               )}
 
               {filteredShots.length === 0 && (
-                <div className={`p-10 text-center text-slate-500 italic border border-dashed rounded-xl ${theme==='dark'?'border-slate-700 bg-slate-900/50':'border-slate-300 bg-white'}`}>
+                <div className={`p-10 text-center text-slate-500 italic border border-dashed rounded-xl ${theme==='dark'?'border-slate-700 bg-slate-900/50':'border-slate-300 bg-slate-50'}`}>
                    <Film size={48} className="mx-auto mb-4 opacity-30" />
                    Aucun plan trouvé ou créé. {userPermissions.canAssign && 'Cliquez sur "+ Séquence" pour commencer la numérotation auto.'}
                 </div>
@@ -1550,16 +1629,16 @@ export default function App() {
 
               {sortedSeqs.map(seq => (
                 <div key={seq} className={`border rounded-xl overflow-hidden shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}>
-                  <div className={`p-3 border-b flex justify-between items-center ${theme==='dark'?'bg-slate-950/50 border-slate-800':'bg-slate-50 border-slate-200'}`}>
+                  <div className={`p-3 border-b flex justify-between items-center ${theme==='dark'?'bg-slate-950/50 border-slate-800':'bg-slate-100 border-slate-200'}`}>
                     <div className="font-black text-blue-600 tracking-widest text-sm flex items-center"><Film size={16} className="mr-2 opacity-50"/> {seq}</div>
-                    {userPermissions.canAssign && <button onClick={() => addNewShot(seq)} className="text-xs bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 px-3 py-1 rounded-lg font-bold shadow-sm flex items-center"><Plus size={14} className="mr-1"/> Ajouter Plan</button>}
+                    {userPermissions.canAssign && <button onClick={() => addNewShot(seq)} className="text-xs bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 transition text-slate-800 dark:text-slate-200 px-3 py-1 rounded-lg font-bold shadow-sm flex items-center"><Plus size={14} className="mr-1"/> Ajouter Plan</button>}
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm whitespace-nowrap">
                       <thead>
-                        <tr className={`border-b text-xs uppercase ${theme==='dark'?'border-slate-800 text-slate-400 bg-slate-900':'border-slate-200 text-slate-500 bg-white'}`}>
-                          <th className="p-3 sticky left-0 z-10 w-64 font-bold bg-inherit">
-                            {userPermissions.canEdit && <input type="checkbox" onChange={(e) => setBatchSelection(e.target.checked ? groupedShots[seq].map(s=>s.id) : batchSelection.filter(id => !groupedShots[seq].map(s=>s.id).includes(id))) } className="mr-2 cursor-pointer no-print"/>} {t('scene')} / {t('plan')}
+                        <tr className={`border-b text-xs uppercase ${theme==='dark'?'border-slate-800 text-slate-400 bg-slate-900':'border-slate-200 text-slate-500 bg-slate-50'}`}>
+                          <th className="p-3 sticky left-0 z-10 w-96 font-bold bg-inherit">
+                            {userPermissions.canEdit && <input type="checkbox" onChange={(e) => setBatchSelection(e.target.checked ? groupedShots[seq].map(s=>s.id) : batchSelection.filter(id => !groupedShots[seq].map(s=>s.id).includes(id))) } className="mr-2 cursor-pointer no-print accent-blue-600"/>} {t('scene')} / {t('plan')}
                           </th>
                           {workspace?.pipeline?.map(step => <th key={step} className={`p-3 min-w-[240px] border-l font-bold ${theme==='dark'?'border-slate-800':'border-slate-200'}`}>{step}</th>)}
                         </tr>
@@ -1567,18 +1646,18 @@ export default function App() {
                       <tbody className={`divide-y ${theme==='dark'?'divide-slate-800/50':'divide-slate-200'}`}>
                         {groupedShots[seq].sort((a,b)=> (a.order||0) - (b.order||0)).map((s, index) => (
                           <React.Fragment key={s.id}>
-                            <tr className={`group ${theme==='dark'?'hover:bg-slate-800/40':'hover:bg-[#f8fafc]'} transition-colors`}>
+                            <tr className={`group ${theme==='dark'?'hover:bg-slate-800/40':'hover:bg-slate-100/50'} transition-colors`}>
                               <td className={`p-3 font-medium sticky left-0 z-10 align-top ${theme==='dark'?'bg-slate-900':'bg-white'} group-hover:bg-inherit`}>
                                 <div className="flex justify-between items-start mb-2">
                                   <div className="flex items-start w-full">
-                                    {userPermissions.canEdit && <input type="checkbox" checked={batchSelection.includes(s.id)} onChange={(e) => setBatchSelection(e.target.checked ? [...batchSelection, s.id] : batchSelection.filter(id=>id!==s.id))} className="mr-3 mt-1 cursor-pointer no-print"/>}
+                                    {userPermissions.canEdit && <input type="checkbox" checked={batchSelection.includes(s.id)} onChange={(e) => setBatchSelection(e.target.checked ? [...batchSelection, s.id] : batchSelection.filter(id=>id!==s.id))} className="mr-3 mt-1 cursor-pointer no-print accent-blue-600"/>}
                                     <div className="w-full">
                                       <div className="font-black text-base flex items-center justify-between w-full">
                                          <div><span className="text-slate-400 text-xs font-mono mr-1">{s.scene}</span> {s.name}</div>
                                          <div className="flex items-center space-x-1">
                                             {userPermissions.canAssign ? (
                                               <select value={s.priority || 'Normal'} onChange={e => changePriority(s.id, e.target.value, 'shots')} className={`text-[10px] p-0 outline-none bg-transparent cursor-pointer no-print ${theme==='dark'?'text-slate-400':'text-slate-500'}`}>
-                                                  <option value="Urgent" className="bg-white dark:bg-slate-900">🔴</option><option value="Normal" className="bg-white dark:bg-slate-900">🟡</option><option value="Low" className="bg-white dark:bg-slate-900">🟢</option>
+                                                  <option value="Urgent" className="bg-slate-50 dark:bg-slate-900">🔴</option><option value="Normal" className="bg-slate-50 dark:bg-slate-900">🟡</option><option value="Low" className="bg-slate-50 dark:bg-slate-900">🟢</option>
                                               </select>
                                             ) : <span className="text-[10px]">{s.priority==='Urgent'?'🔴':s.priority==='Low'?'🟢':'🟡'}</span>}
                                             {userPermissions.canAssign && <button onClick={() => openModal("Supprimer Plan", `Détruire définitivement le plan ${s.name} ?`, async () => { await deleteDoc(doc(db, 'shots', s.id)); closeModal(); setTimeout(()=>recalculateSequenceShots(s.sequence), 500); })} className="text-slate-400 hover:text-red-500 transition opacity-0 group-hover:opacity-100 no-print ml-2"><Trash2 size={16}/></button>}
@@ -1587,18 +1666,10 @@ export default function App() {
                                     </div>
                                   </div>
                                 </div>
-                                <div className="space-y-1 mb-2 ml-6 text-xs">
-                                  <div className="flex items-center">
-                                    <span className="text-[9px] uppercase font-bold text-slate-400 mr-2 w-10">{t('duration')}</span>
-                                    <input type="number" value={s.durationFrames || ''} onChange={e=>updateDoc(doc(db, 'shots', s.id), {durationFrames: parseInt(e.target.value)})} placeholder="Frames" className={`p-1 rounded bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 w-16 text-center text-[10px] font-bold`} />
-                                  </div>
-                                  <div className="flex items-start">
-                                    <span className="text-[9px] uppercase font-bold text-slate-400 mr-2 w-10 mt-1">{t('desc')}</span>
-                                    <textarea value={s.description || ''} onChange={e=>updateDoc(doc(db, 'shots', s.id), {description: e.target.value})} placeholder="..." className={`p-1 rounded bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 w-full h-8 text-[10px] resize-none overflow-hidden`} />
-                                  </div>
-                                </div>
+                                
+                                <ShotDetailsEditor shot={s} onSave={(updates) => updateDoc(doc(db, 'shots', s.id), updates)} t={t} />
 
-                                <div className="flex flex-wrap gap-1 ml-6 pt-1 border-t border-slate-100 dark:border-slate-800">
+                                <div className="flex flex-wrap gap-1 ml-6 pt-1 border-t border-slate-100 dark:border-slate-800/50">
                                    {(s.tags || []).map(tag => (
                                       <span key={tag} className="text-[9px] bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-400 px-1.5 py-0.5 rounded flex items-center font-bold">
                                          {tag} {userPermissions.canAssign && <X size={8} className="ml-1 cursor-pointer hover:text-red-500 no-print" onClick={()=>removeTag(s.id, 'shots', s.tags, tag)}/>}
@@ -1620,20 +1691,20 @@ export default function App() {
                                     <div className="flex flex-col space-y-1.5 no-print">
                                       <div className="flex flex-wrap gap-1">
                                         {assignees.map(uid => (
-                                          <span key={uid} onClick={() => userPermissions.canAssign && removeAssignee('shots', s.id, step, uid)} className={`text-[10px] px-1.5 py-0.5 rounded flex items-center font-bold shadow-sm ${userPermissions.canAssign ? 'cursor-pointer bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 hover:bg-red-100 dark:hover:bg-red-900/50 hover:text-red-600 dark:hover:text-red-300' : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'}`}>
+                                          <span key={uid} onClick={() => userPermissions.canAssign && removeAssignee('shots', s.id, step, uid)} className={`text-[10px] px-1.5 py-0.5 rounded flex items-center font-bold shadow-sm transition-colors ${userPermissions.canAssign ? 'cursor-pointer bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 hover:bg-red-100 dark:hover:bg-red-900/50 hover:text-red-600 dark:hover:text-red-300' : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'}`}>
                                             {members.find(m => m.userId === uid)?.displayName || 'Inconnu'} {userPermissions.canAssign && <X size={10} className="ml-1"/>}
                                           </span>
                                         ))}
                                       </div>
-                                      {userPermissions.canAssign && (<select className={`${inputClass} !p-1 !text-xs !py-1`} value="" onChange={(e) => { if(e.target.value) addAssignee('shots', s.id, step, e.target.value) }}><option value="" className="bg-white dark:bg-slate-900">+ Assigner</option>{members.filter(m => !assignees.includes(m.userId)).map(m => <option key={m.userId} value={m.userId} className="bg-white dark:bg-slate-900">{m.displayName}</option>)}</select>)}
+                                      {userPermissions.canAssign && (<select className={`${inputClass} !p-1 !text-xs !py-1`} value="" onChange={(e) => { if(e.target.value) addAssignee('shots', s.id, step, e.target.value) }}><option value="" className="bg-slate-50 dark:bg-slate-900">+ Assigner</option>{members.filter(m => !assignees.includes(m.userId)).map(m => <option key={m.userId} value={m.userId} className="bg-slate-50 dark:bg-slate-900">{m.displayName}</option>)}</select>)}
                                       
                                       <select disabled={!userPermissions.canEdit} className={`rounded p-1 text-xs font-bold outline-none transition-colors border shadow-sm ${getStatusColor(s.status?.[step])}`} value={s.status?.[step] || 'todo'} onChange={(e) => changeStatus(s, step, e.target.value, 'shots')}>
-                                         <option value="todo" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">{t('todo')}</option>
-                                         <option value="wip" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">{t('wip')}</option>
-                                         <option value="review" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">{t('reviewStatus')}</option>
-                                         <option value="retake" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">{t('retake')}</option>
-                                         <option value="reuse" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">{t('reuse')}</option>
-                                         <option value="done" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">{t('done')}</option>
+                                         <option value="todo" className="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white">{t('todo')}</option>
+                                         <option value="wip" className="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white">{t('wip')}</option>
+                                         <option value="review" className="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white">{t('reviewStatus')}</option>
+                                         <option value="retake" className="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white">{t('retake')}</option>
+                                         <option value="reuse" className="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white">{t('reuse')}</option>
+                                         <option value="done" className="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white">{t('done')}</option>
                                       </select>
                                     </div>
                                     <div className="hidden print:block text-xs font-bold">{s.status?.[step] || 'todo'}</div>
@@ -1641,7 +1712,7 @@ export default function App() {
                                       {activePreview ? (
                                         <div className="flex flex-col w-full space-y-1">
                                           <div className="flex justify-between items-center px-0.5">
-                                            {versions.length > 1 ? (<select value={activeIdx} onChange={(e) => setSelectedVersions({...selectedVersions, [`${s.id}_${step}`]: parseInt(e.target.value)})} className="bg-transparent text-xs text-slate-500 font-bold outline-none">{versions.map((v, i) => <option key={i} value={i} className="dark:bg-slate-900">V{v.version}</option>)}</select>) : <span className="text-xs font-bold text-slate-400">V1</span>}
+                                            {versions.length > 1 ? (<select value={activeIdx} onChange={(e) => setSelectedVersions({...selectedVersions, [`${s.id}_${step}`]: parseInt(e.target.value)})} className="bg-transparent text-xs text-slate-500 font-bold outline-none cursor-pointer">{versions.map((v, i) => <option key={i} value={i} className="bg-slate-50 dark:bg-slate-900">V{v.version}</option>)}</select>) : <span className="text-xs font-bold text-slate-400">V1</span>}
                                             <div className="flex space-x-2 text-slate-400">{canUpload && <label className="cursor-pointer hover:text-blue-500 transition" title="Upload"><Upload size={14}/><input type="file" accept="image/*,video/mp4,video/quicktime" className="hidden" onChange={(e)=>uploadShotPreview(s.id, step, e.target.files[0], versions)} /></label>}{canUpload && <button onClick={() => confirmDeletePreview(s.id, step, activeIdx, versions, 'shots')} className="hover:text-red-500 transition"><Trash2 size={14}/></button>}</div>
                                           </div>
                                           <div className="relative w-full h-12 bg-black rounded border border-slate-800 group/preview cursor-pointer overflow-hidden shadow-sm" onClick={() => openReview(s, step, activePreview.version, activePreview, 'shots')}>
@@ -1683,19 +1754,19 @@ export default function App() {
             <div className="space-y-8">
               <div className="flex justify-between items-center no-print">
                 <div className="flex space-x-2">
-                   {userPermissions.canAssign && <button onClick={() => setShowAddAsset(true)} className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm shadow-sm"><Plus size={16} /> <span>{t('addAsset')}</span></button>}
-                   <button onClick={()=>setActiveTab('stats')} className="bg-purple-600 text-white px-3 py-2 rounded-lg font-bold text-sm shadow-sm flex items-center space-x-1" title="Voir Stats"><PieChart size={16}/></button>
+                   {userPermissions.canAssign && <button onClick={() => setShowAddAsset(true)} className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-500 transition text-white px-4 py-2 rounded-lg font-bold text-sm shadow-sm"><Plus size={16} /> <span>{t('addAsset')}</span></button>}
+                   <button onClick={()=>setActiveTab('stats')} className="bg-purple-600 hover:bg-purple-500 transition text-white px-3 py-2 rounded-lg font-bold text-sm shadow-sm flex items-center space-x-1" title="Voir Stats"><PieChart size={16}/></button>
                 </div>
                 <div className="flex space-x-2">
                   <select value={filterTag} onChange={e=>setFilterTag(e.target.value)} className={inputClass + " font-bold py-2"}>
-                     <option value="" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">-- Tags --</option>
-                     {Array.from(new Set(assets.flatMap(a=>a.tags||[]))).map(t => <option key={t} value={t} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">{t}</option>)}
+                     <option value="" className="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white">-- Tags --</option>
+                     {Array.from(new Set(assets.flatMap(a=>a.tags||[]))).map(t => <option key={t} value={t} className="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white">{t}</option>)}
                   </select>
                 </div>
               </div>
               
               {assets.length === 0 && (
-                <div className={`p-10 text-center text-slate-500 italic border border-dashed rounded-xl ${theme==='dark'?'border-slate-700 bg-slate-900/50':'border-slate-300 bg-white'}`}>
+                <div className={`p-10 text-center text-slate-500 italic border border-dashed rounded-xl ${theme==='dark'?'border-slate-700 bg-slate-900/50':'border-slate-300 bg-slate-50'}`}>
                    <Box size={48} className="mx-auto mb-4 opacity-30" />
                    Aucun asset trouvé ou créé. {userPermissions.canAssign && 'Cliquez sur "Ajouter Asset" pour commencer.'}
                 </div>
@@ -1727,7 +1798,7 @@ export default function App() {
                             <div className="absolute bottom-1 right-1 bg-black/70 text-xs font-bold px-1.5 rounded text-white pointer-events-none shadow">{activePreview.files.length} img</div>
                           </div>
                         ) : (
-                          <label className={`w-full h-40 flex flex-col items-center justify-center cursor-pointer transition no-print font-bold ${theme==='dark'?'bg-slate-950 hover:bg-slate-900 text-slate-600':'bg-slate-50 hover:bg-slate-100 text-slate-400'}`}>
+                          <label className={`w-full h-40 flex flex-col items-center justify-center cursor-pointer transition no-print font-bold ${theme==='dark'?'bg-slate-950 hover:bg-slate-900 text-slate-600':'bg-slate-100 hover:bg-slate-200 text-slate-400'}`}>
                             <Upload size={24} className="mb-2"/> <span className="text-xs">Upload V1 (Multiple)</span><input disabled={!canUpload} type="file" multiple accept="image/*" className="hidden" onChange={(e)=>uploadAssetPreviews(a.id, e.target.files, versions)}/>
                           </label>
                         )}
@@ -1736,17 +1807,17 @@ export default function App() {
                             <div className="font-black text-base truncate pr-2">{a.name}</div>
                             {userPermissions.canAssign ? (
                                <select value={a.priority || 'Normal'} onChange={e => changePriority(a.id, e.target.value, 'assets')} className={`text-[10px] p-0 outline-none bg-transparent cursor-pointer no-print ${theme==='dark'?'text-slate-400':'text-slate-500'}`}>
-                                  <option value="Urgent" className="bg-white dark:bg-slate-900">🔴</option><option value="Normal" className="bg-white dark:bg-slate-900">🟡</option><option value="Low" className="bg-white dark:bg-slate-900">🟢</option>
+                                  <option value="Urgent" className="bg-slate-50 dark:bg-slate-900">🔴</option><option value="Normal" className="bg-slate-50 dark:bg-slate-900">🟡</option><option value="Low" className="bg-slate-50 dark:bg-slate-900">🟢</option>
                                </select>
                              ) : <span className="text-[10px]">{a.priority==='Urgent'?'🔴':a.priority==='Low'?'🟢':'🟡'}</span>}
                           </div>
                           
                           <div className="flex justify-between items-center no-print">
-                            {userPermissions.canAssign ? <select className={`${inputClass} !p-1 !text-xs w-full font-bold`} value={a.category || ''} onChange={async (e) => await updateDoc(doc(db, 'assets', a.id), { category: e.target.value })}>{ASSET_CATEGORIES.map(c => <option key={c} value={c} className="bg-white dark:bg-slate-900">{c}</option>)}</select> : <div className="text-xs text-slate-500 font-bold">{a.category}</div>}
+                            {userPermissions.canAssign ? <select className={`${inputClass} !p-1 !text-xs w-full font-bold`} value={a.category || ''} onChange={async (e) => await updateDoc(doc(db, 'assets', a.id), { category: e.target.value })}>{ASSET_CATEGORIES.map(c => <option key={c} value={c} className="bg-slate-50 dark:bg-slate-900">{c}</option>)}</select> : <div className="text-xs text-slate-500 font-bold">{a.category}</div>}
                           </div>
                           
                           <div className="flex flex-wrap gap-1 pt-1 no-print">
-                            {assignees.map(uid => (<span key={uid} onClick={() => userPermissions.canAssign && removeAssignee('assets', a.id, 'Global', uid)} className={`text-[10px] px-1.5 py-0.5 rounded flex items-center font-bold shadow-sm ${userPermissions.canAssign ? 'cursor-pointer bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 hover:bg-red-100 hover:text-red-600' : 'bg-slate-200 dark:bg-slate-800 text-slate-600'}`}>{members.find(m => m.userId === uid)?.displayName || uid} {userPermissions.canAssign && <X size={10} className="ml-1"/>}</span>))}
+                            {assignees.map(uid => (<span key={uid} onClick={() => userPermissions.canAssign && removeAssignee('assets', a.id, 'Global', uid)} className={`text-[10px] px-1.5 py-0.5 rounded flex items-center font-bold shadow-sm transition-colors ${userPermissions.canAssign ? 'cursor-pointer bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 hover:bg-red-100 hover:text-red-600' : 'bg-slate-200 dark:bg-slate-800 text-slate-600'}`}>{members.find(m => m.userId === uid)?.displayName || uid} {userPermissions.canAssign && <X size={10} className="ml-1"/>}</span>))}
                           </div>
                           
                           <div className="flex flex-wrap gap-1 no-print">
@@ -1758,7 +1829,7 @@ export default function App() {
                              {userPermissions.canAssign && <button onClick={()=>addTag(a.id, 'assets', a.tags||[])} className="text-[9px] border border-dashed border-slate-400 text-slate-500 px-1.5 py-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-800 transition flex items-center font-bold"><Plus size={8} className="mr-0.5"/> Tag</button>}
                           </div>
                           
-                          {userPermissions.canAssign && (<select className={`${inputClass} !p-1 !text-xs no-print`} value="" onChange={(e) => { if(e.target.value) addAssignee('assets', a.id, 'Global', e.target.value) }}><option value="" className="bg-white dark:bg-slate-900">+ Assigner</option>{members.filter(m => !assignees.includes(m.userId)).map(m => <option key={m.userId} value={m.userId} className="bg-white dark:bg-slate-900">{m.displayName}</option>)}</select>)}
+                          {userPermissions.canAssign && (<select className={`${inputClass} !p-1 !text-xs no-print`} value="" onChange={(e) => { if(e.target.value) addAssignee('assets', a.id, 'Global', e.target.value) }}><option value="" className="bg-slate-50 dark:bg-slate-900">+ Assigner</option>{members.filter(m => !assignees.includes(m.userId)).map(m => <option key={m.userId} value={m.userId} className="bg-slate-50 dark:bg-slate-900">{m.displayName}</option>)}</select>)}
                         </div>
                       </div>
                     )})}
@@ -1777,18 +1848,18 @@ export default function App() {
                 <h3 className="font-black text-xl text-center">Chronomètre en Direct</h3>
                 <div className="space-y-4">
                   <select value={selectedTask} onChange={(e) => setSelectedTask(e.target.value)} className={inputClass} disabled={isTimerActive}>
-                    <option value="" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Sélectionner Plan/Asset</option>
-                    {[...shots, ...assets].map(tk => <option key={tk.id} value={tk.id} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">{tk.name}</option>)}
+                    <option value="" className="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white">Sélectionner Plan/Asset</option>
+                    {[...shots, ...assets].map(tk => <option key={tk.id} value={tk.id} className="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white">{tk.name}</option>)}
                   </select>
                   <select value={selectedStep} onChange={(e) => setSelectedStep(e.target.value)} className={inputClass} disabled={isTimerActive}>
-                    <option value="" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Étape de production</option>
-                    {workspace?.pipeline?.map(step => <option key={step} value={step} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">{step}</option>)}
+                    <option value="" className="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white">Étape de production</option>
+                    {workspace?.pipeline?.map(step => <option key={step} value={step} className="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white">{step}</option>)}
                   </select>
                 </div>
                 <div className="text-center">
                   <div className="text-5xl sm:text-6xl font-black font-mono tracking-widest mb-8 text-blue-600 drop-shadow break-all">{formatTime(timer)}</div>
                   <div className="flex justify-center">
-                    {!isTimerActive ? (<button onClick={() => { if(!selectedTask || !selectedStep) return openModal("Erreur", "Sélectionnez tâche et étape."); setIsTimerActive(true); }} className="flex items-center space-x-2 bg-green-600 text-white px-8 py-4 rounded-xl font-bold text-lg shadow-lg transition transform hover:scale-105"><Play size={20} fill="currentColor"/> <span>Démarrer</span></button>) : (<button onClick={handleStopTimer} className="flex items-center space-x-2 bg-yellow-500 text-black px-8 py-4 rounded-xl font-bold text-lg shadow-lg transition"><Pause size={20} fill="currentColor"/> <span>Stop & Sauver</span></button>)}
+                    {!isTimerActive ? (<button onClick={() => { if(!selectedTask || !selectedStep) return openModal("Erreur", "Sélectionnez tâche et étape."); setIsTimerActive(true); }} className="flex items-center space-x-2 bg-green-600 hover:bg-green-500 text-white px-8 py-4 rounded-xl font-bold text-lg shadow-lg transition transform hover:scale-105"><Play size={20} fill="currentColor"/> <span>Démarrer</span></button>) : (<button onClick={handleStopTimer} className="flex items-center space-x-2 bg-yellow-500 hover:bg-yellow-400 text-black px-8 py-4 rounded-xl font-bold text-lg shadow-lg transition"><Pause size={20} fill="currentColor"/> <span>Stop & Sauver</span></button>)}
                   </div>
                 </div>
               </div>
@@ -1798,7 +1869,7 @@ export default function App() {
                   <h3 className="font-black text-xl mb-4">{t('manualTime')}</h3>
                   <form onSubmit={handleAddManualTime} className="space-y-4">
                     <div className="flex space-x-4"><div className="flex-1"><label className="text-xs font-bold text-slate-500">Heures</label><input type="number" min="0" value={manualTime.h} onChange={e=>setManualTime({...manualTime, h: e.target.value})} className={inputClass}/></div><div className="flex-1"><label className="text-xs font-bold text-slate-500">Minutes</label><input type="number" min="0" max="59" value={manualTime.m} onChange={e=>setManualTime({...manualTime, m: e.target.value})} className={inputClass}/></div></div>
-                    <button type="submit" className="w-full bg-blue-600 text-white font-bold p-3 rounded-xl transition shadow-sm">Ajouter au log</button>
+                    <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold p-3 rounded-xl transition shadow-sm">Ajouter au log</button>
                   </form>
                 </div>
               </div>
@@ -1809,11 +1880,11 @@ export default function App() {
             <div className="space-y-6 max-w-6xl mx-auto">
               <div className="flex justify-between items-center no-print">
                 <h2 className="text-xl font-bold text-slate-500">Statistiques</h2>
-                <button onClick={exportPDFReport} className="flex items-center space-x-2 bg-slate-800 text-white px-4 py-2 rounded-lg font-bold text-sm shadow-sm transition"><Printer size={16}/> <span>{t('report')}</span></button>
+                <button onClick={exportPDFReport} className="flex items-center space-x-2 bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg font-bold text-sm shadow-sm transition"><Printer size={16}/> <span>{t('report')}</span></button>
               </div>
 
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className={`border rounded-xl p-4 text-center ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}><div className="text-3xl font-black text-slate-400">{myStats.todo}</div><div className="text-xs font-bold text-slate-500 uppercase">To Do</div></div>
+                <div className={`border rounded-xl p-4 text-center shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}><div className="text-3xl font-black text-slate-400">{myStats.todo}</div><div className="text-xs font-bold text-slate-500 uppercase">To Do</div></div>
                 <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-xl p-4 text-center shadow-sm"><div className="text-3xl font-black text-blue-600">{myStats.wip}</div><div className="text-xs font-bold text-blue-700 dark:text-blue-500 uppercase">WIP</div></div>
                 <div className="bg-purple-50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-800 rounded-xl p-4 text-center shadow-sm"><div className="text-3xl font-black text-purple-600 dark:text-purple-500">{myStats.review}</div><div className="text-xs font-bold text-purple-700 dark:text-purple-500 uppercase">Review</div></div>
                 <div className="bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-xl p-4 text-center shadow-sm"><div className="text-3xl font-black text-green-600 dark:text-green-500">{myStats.done}</div><div className="text-xs font-bold text-green-700 dark:text-green-500 uppercase">Done</div></div>
@@ -1829,7 +1900,7 @@ export default function App() {
                     return (
                       <div>
                         <div className="flex justify-between mb-1 text-sm font-bold"><span className="text-slate-600 dark:text-slate-400">{doneTasks} / {totalTasks} Tâches Terminées</span> <span className="text-blue-600">{pct}%</span></div>
-                        <div className={`w-full h-4 rounded-full overflow-hidden ${theme==='dark'?'bg-slate-950':'bg-slate-100 border'}`}>
+                        <div className={`w-full h-4 rounded-full overflow-hidden ${theme==='dark'?'bg-slate-950':'bg-slate-200 border border-slate-300'}`}>
                           <div className="h-full bg-blue-600 transition-all duration-1000" style={{ width: `${pct}%` }}></div>
                         </div>
                       </div>
@@ -1874,10 +1945,10 @@ export default function App() {
                 <h3 className="font-black text-xl mb-6 flex items-center text-blue-600"><BarChart className="mr-3"/> Logs Récents</h3>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-sm whitespace-nowrap">
-                    <thead><tr className={`border-b text-xs uppercase ${theme==='dark'?'border-slate-800 bg-slate-950 text-slate-500':'border-slate-200 bg-[#f8fafc] text-slate-500'}`}>{userPermissions.canAssign && <th className="p-3 font-bold">Membre</th>}<th className="p-3 font-bold">Tâche</th><th className="p-3 font-bold">Étape</th><th className="p-3 font-bold">Temps</th></tr></thead>
+                    <thead><tr className={`border-b text-xs uppercase ${theme==='dark'?'border-slate-800 bg-slate-950 text-slate-500':'border-slate-200 bg-slate-100 text-slate-500'}`}>{userPermissions.canAssign && <th className="p-3 font-bold">Membre</th>}<th className="p-3 font-bold">Tâche</th><th className="p-3 font-bold">Étape</th><th className="p-3 font-bold">Temps</th></tr></thead>
                     <tbody className={`divide-y ${theme==='dark'?'divide-slate-800/50':'divide-slate-200'}`}>
                       {timeLogs.filter(log => userPermissions.canAssign || log.userId === user.uid).sort((a,b) => b.date - a.date).slice(0,20).map(log => (
-                        <tr key={log.id} className={`hover:bg-[#f8fafc] dark:hover:bg-slate-800/20`}>{userPermissions.canAssign && <td className="p-3 font-bold text-slate-700 dark:text-slate-300">{log.userName}</td>}<td className="p-3 font-medium">{log.taskName}</td><td className="p-3 text-slate-500 font-bold">{log.step}</td><td className="p-3 text-blue-600 font-mono font-bold">{formatTime(log.durationSeconds)}</td></tr>
+                        <tr key={log.id} className={`hover:bg-slate-100 dark:hover:bg-slate-800/20 transition-colors`}>{userPermissions.canAssign && <td className="p-3 font-bold text-slate-700 dark:text-slate-300">{log.userName}</td>}<td className="p-3 font-medium">{log.taskName}</td><td className="p-3 text-slate-500 font-bold">{log.step}</td><td className="p-3 text-blue-600 font-mono font-bold">{formatTime(log.durationSeconds)}</td></tr>
                       ))}
                     </tbody>
                   </table>
@@ -1892,7 +1963,7 @@ export default function App() {
                <div className="space-y-3">
                  {globalHistory.length === 0 && <p className="text-slate-500 italic text-sm">Aucun historique enregistré pour le moment.</p>}
                  {globalHistory.map(log => (
-                    <div key={log.id} className={`p-3 rounded-lg border flex justify-between items-center text-sm shadow-sm ${theme==='dark'?'bg-slate-950 border-slate-800':'bg-[#f8fafc] border-slate-200'}`}>
+                    <div key={log.id} className={`p-3 rounded-lg border flex justify-between items-center text-sm shadow-sm ${theme==='dark'?'bg-slate-950 border-slate-800':'bg-slate-50 border-slate-200'}`}>
                       <span className="font-bold">{log.text}</span>
                       <span className="text-xs text-slate-400 font-mono">{log.date ? new Date(log.date.toDate()).toLocaleString() : ''}</span>
                     </div>
@@ -1906,7 +1977,7 @@ export default function App() {
               <h3 className="font-black text-xl mb-6 text-blue-600">Membres ({members.length})</h3>
               <div className="space-y-4">
                 {members.map(m => (
-                  <div key={m.id} className={`flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4 p-4 rounded-xl border shadow-sm ${theme==='dark'?'bg-slate-950 border-slate-800':'bg-[#f8fafc] border-slate-200'}`}>
+                  <div key={m.id} className={`flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4 p-4 rounded-xl border shadow-sm transition-colors ${theme==='dark'?'bg-slate-950 border-slate-800':'bg-slate-50 border-slate-200 hover:border-slate-300'}`}>
                     <div className="flex items-center space-x-3 cursor-pointer hover:opacity-80" onClick={()=>setViewProfileId(m.userId)}>
                        <UserCircle size={32} className="text-slate-400 shrink-0"/>
                        <div>
@@ -1926,24 +1997,24 @@ export default function App() {
                                       if (e.target.checked) newLeads.push(step);
                                       else newLeads = newLeads.filter(l => l !== step);
                                       updateDoc(doc(db, 'projectMembers', m.id), { leads: newLeads });
-                                   }} />
+                                   }} className="accent-blue-600"/>
                                    <span>{step}</span>
                                  </label>
                                ))}
                             </div>
                          </div>
                          {m.role === 'Custom' && (
-                            <div className="flex flex-col lg:flex-row items-center space-y-1 lg:space-y-0 lg:space-x-3 text-xs bg-white dark:bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 shadow-sm">
-                               <label className="flex items-center space-x-1 cursor-pointer font-bold text-slate-600 dark:text-slate-300"><input type="checkbox" checked={m.canEdit} onChange={e=>updateDoc(doc(db, 'projectMembers', m.id), { canEdit: e.target.checked })}/><span>Édition</span></label>
-                               <label className="flex items-center space-x-1 cursor-pointer font-bold text-slate-600 dark:text-slate-300"><input type="checkbox" checked={m.canAssign} onChange={e=>updateDoc(doc(db, 'projectMembers', m.id), { canAssign: e.target.checked })}/><span>Assigner/Valider</span></label>
+                            <div className="flex flex-col lg:flex-row items-center space-y-1 lg:space-y-0 lg:space-x-3 text-xs bg-slate-100 dark:bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 shadow-sm">
+                               <label className="flex items-center space-x-1 cursor-pointer font-bold text-slate-600 dark:text-slate-300"><input type="checkbox" checked={m.canEdit} onChange={e=>updateDoc(doc(db, 'projectMembers', m.id), { canEdit: e.target.checked })} className="accent-blue-600"/><span>Édition</span></label>
+                               <label className="flex items-center space-x-1 cursor-pointer font-bold text-slate-600 dark:text-slate-300"><input type="checkbox" checked={m.canAssign} onChange={e=>updateDoc(doc(db, 'projectMembers', m.id), { canAssign: e.target.checked })} className="accent-blue-600"/><span>Assigner/Valider</span></label>
                             </div>
                          )}
                          <select className={`${inputClass} !p-2 !w-auto !text-sm !font-black !text-blue-600`} value={m.role} onChange={async (e) => await updateDoc(doc(db, 'projectMembers', m.id), { role: e.target.value, canEdit: false, canAssign: false })}>
-                           <option value="Guest" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Guest (Lecture seule)</option>
-                           <option value="Artist" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Artist</option>
-                           <option value="Supervisor" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Supervisor</option>
-                           <option value="Admin" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Admin</option>
-                           <option value="Custom" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Custom (Personnalisé)</option>
+                           <option value="Guest" className="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white">Guest (Lecture seule)</option>
+                           <option value="Artist" className="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white">Artist</option>
+                           <option value="Supervisor" className="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white">Supervisor</option>
+                           <option value="Admin" className="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white">Admin</option>
+                           <option value="Custom" className="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white">Custom (Personnalisé)</option>
                          </select>
                       </div>
                     ) : (
@@ -1964,6 +2035,19 @@ export default function App() {
               <p className="text-sm text-slate-500">Retrouvez ci-dessous toutes les informations techniques, raccourcis et spécifications de l'écosystème Fabrica Tracker.</p>
               
               <div className="space-y-4 text-sm">
+                
+                <div className="p-4 rounded-lg bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800">
+                  <h4 className="font-bold text-base mb-2 flex items-center text-blue-600"><Upload size={16} className="mr-2"/> {t('cloudGuideTitle')}</h4>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 mb-2 font-bold">Sans cette configuration, vous ne pourrez pas uploader d'images ou de vidéos.</p>
+                  <ul className="list-decimal list-inside space-y-2 text-xs text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
+                    <li>{t('cloudGuide1')}</li>
+                    <li>{t('cloudGuide2')}</li>
+                    <li>{t('cloudGuide3')}</li>
+                    <li>{t('cloudGuide4')}</li>
+                    <li>{t('cloudGuide5')}</li>
+                  </ul>
+                </div>
+
                 <div className="p-4 rounded-lg bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
                   <h4 className="font-bold text-base mb-2 flex items-center"><ShieldAlert size={16} className="mr-2"/> Rôles, Leads & Permissions</h4>
                   <ul className="list-disc list-inside space-y-2 text-xs text-slate-600 dark:text-slate-400">
@@ -1971,11 +2055,6 @@ export default function App() {
                     <li><strong>Leads :</strong> Un rôle hybride applicable à n'importe quel membre via l'onglet <em>Équipe</em>. Si un membre est coché comme Lead sur l'étape <em>Compositing</em>, il verra les plans en <em>Review</em> remonter tout en haut de <em>Mes Tâches</em>.</li>
                     <li><strong>Artist :</strong> Peut s'assigner des tâches, changer son statut, et uploader des fichiers.</li>
                   </ul>
-                </div>
-
-                <div className="p-4 rounded-lg bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
-                  <h4 className="font-bold text-base mb-2 flex items-center"><MonitorPlay size={16} className="mr-2"/> API Cloudinary & Médias</h4>
-                  <p className="text-xs text-slate-600 dark:text-slate-400 mb-2">Fabrica Tracker s'interface directement avec Cloudinary pour l'upload de médias (images et vidéos). Les formats pris en charge incluent le MP4, MOV, PNG, et JPG. Les vidéos sont lues en 25 fps.</p>
                 </div>
 
                 <div className="p-4 rounded-lg bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
@@ -2003,19 +2082,19 @@ export default function App() {
 
           {activeTab === 'settings' && userPermissions.role === 'Admin' && (
             <div className="space-y-6 max-w-3xl mx-auto pb-10 no-print">
-              <div className={`p-6 rounded-xl border space-y-6 ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}>
+              <div className={`p-6 rounded-xl border space-y-6 shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}>
                 <h3 className="font-black text-xl text-blue-600">Configuration Cloudinary</h3>
                 <p className="text-sm text-slate-500 font-medium">Pour pouvoir uploader des images et des vidéos dans le tracker, vous devez configurer gratuitement une API Cloudinary et lier les clés ici.</p>
-                <div className="space-y-4">
+                <div className="space-y-4 bg-slate-50 dark:bg-slate-950/50 p-4 rounded-lg border border-slate-200 dark:border-slate-700">
                   <div><label className="text-xs font-bold text-slate-500">Cloud Name</label><input type="text" placeholder="ex: dp6xxxx" value={cloudNameInput} onChange={e=>setCloudNameInput(e.target.value)} className={inputClass} /></div>
                   <div><label className="text-xs font-bold text-slate-500">Upload Preset (unsigned)</label><input type="text" placeholder="ex: fabrica_preset" value={uploadPresetInput} onChange={e=>setUploadPresetInput(e.target.value)} className={inputClass} /></div>
                   <div><label className="text-xs font-bold text-slate-500">API Key (Pour la suppression)</label><input type="text" placeholder="Clé publique" value={apiKeyInput} onChange={e=>setApiKeyInput(e.target.value)} className={inputClass} /></div>
                   <div><label className="text-xs font-bold text-slate-500">API Secret (Pour la suppression)</label><input type="password" placeholder="Clé secrète" value={apiSecretInput} onChange={e=>setApiSecretInput(e.target.value)} className={inputClass} /></div>
-                  <button onClick={() => updateDoc(doc(db, 'workspaces', workspace.id), { cloudinaryCloudName: cloudNameInput, cloudinaryUploadPreset: uploadPresetInput, cloudinaryApiKey: apiKeyInput, cloudinaryApiSecret: apiSecretInput }).then(()=>openModal('Succès', 'Configuration Cloudinary sauvegardée !'))} className="bg-blue-600 text-white px-6 py-2.5 rounded-lg font-bold text-sm shadow-md transition w-full sm:w-auto">Sauvegarder les clés</button>
+                  <button onClick={() => updateDoc(doc(db, 'workspaces', workspace.id), { cloudinaryCloudName: cloudNameInput, cloudinaryUploadPreset: uploadPresetInput, cloudinaryApiKey: apiKeyInput, cloudinaryApiSecret: apiSecretInput }).then(()=>openModal('Succès', 'Configuration Cloudinary sauvegardée !'))} className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2.5 rounded-lg font-bold text-sm shadow-md transition w-full sm:w-auto">Sauvegarder les clés</button>
                 </div>
               </div>
 
-              <div className={`p-6 rounded-xl border space-y-6 ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}>
+              <div className={`p-6 rounded-xl border space-y-6 shadow-sm ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}>
                 <h3 className="font-black text-xl text-blue-600">Bannière du Projet</h3>
                 <div>
                   <label className="text-xs font-bold text-slate-500 mb-1 block">Uploader une nouvelle image</label>
@@ -2028,24 +2107,24 @@ export default function App() {
                   }} className={`text-sm ${inputClass} !py-1.5`} />
                   {workspace?.bannerUrl && <img src={workspace.bannerUrl} className="mt-4 h-24 object-cover rounded-lg border border-slate-300 dark:border-slate-700 shadow-sm"/>}
                 </div>
-                <button onClick={() => updateDoc(doc(db, 'workspaces', workspace.id), { bannerUrl: workspace.bannerUrl || '' }).then(()=>openModal('Succès', 'Bannière mise à jour !'))} className="bg-blue-600 text-white px-6 py-2.5 rounded-lg font-bold text-sm shadow-md transition">Mettre à jour la bannière</button>
+                <button onClick={() => updateDoc(doc(db, 'workspaces', workspace.id), { bannerUrl: workspace.bannerUrl || '' }).then(()=>openModal('Succès', 'Bannière mise à jour !'))} className="bg-blue-600 hover:bg-blue-500 transition text-white px-6 py-2.5 rounded-lg font-bold text-sm shadow-md">Mettre à jour la bannière</button>
               </div>
 
-              <div className={`p-6 rounded-xl border border-red-500/30 space-y-4 ${theme==='dark'?'bg-slate-900':'bg-white'}`}>
+              <div className={`p-6 rounded-xl border border-red-500/30 space-y-4 ${theme==='dark'?'bg-slate-900':'bg-slate-50'}`}>
                 <h3 className="font-black text-xl text-red-500">Supprimer le projet</h3>
                 <p className="text-xs text-slate-500">La suppression d'un projet est définitive et effacera toutes les données associées.</p>
                 {deleteStepConfirm !== workspace.id ? (
-                  <button onClick={() => setDeleteStepConfirm(workspace.id)} className="bg-red-600 text-white px-4 py-2 rounded-lg font-bold text-sm">Supprimer le projet</button>
+                  <button onClick={() => setDeleteStepConfirm(workspace.id)} className="bg-red-600 hover:bg-red-500 transition text-white px-4 py-2 rounded-lg font-bold text-sm">Supprimer le projet</button>
                 ) : (
                   <div className="space-y-3 p-4 border border-red-500 rounded-lg bg-red-500/10">
                     <p className="text-xs font-bold text-red-500">Êtes-vous absolument sûr ? Cette action est irréversible.</p>
                     <div className="flex space-x-3">
-                      <button onClick={() => setDeleteStepConfirm('')} className="bg-slate-700 text-white px-3 py-1.5 rounded text-xs font-bold">Annuler</button>
+                      <button onClick={() => setDeleteStepConfirm('')} className="bg-slate-700 text-white px-3 py-1.5 rounded text-xs font-bold transition hover:bg-slate-600">Annuler</button>
                       <button onClick={async () => {
                         await deleteDoc(doc(db, 'workspaces', workspace.id));
                         setCurrentView('dashboard');
                         closeModal();
-                      }} className="bg-red-600 text-white px-3 py-1.5 rounded text-xs font-bold">Confirmer la suppression</button>
+                      }} className="bg-red-600 text-white px-3 py-1.5 rounded text-xs font-bold transition hover:bg-red-500">Confirmer la suppression</button>
                     </div>
                   </div>
                 )}
@@ -2057,20 +2136,20 @@ export default function App() {
         {reviewItem && reviewPreview && (
           <>
             <div className={`w-1.5 md:w-2 cursor-col-resize shrink-0 transition-colors z-30 no-print ${isResizing ? 'bg-blue-500' : (theme==='dark'?'bg-slate-700 hover:bg-slate-600':'bg-slate-300 hover:bg-slate-400')}`} onMouseDown={(e) => { e.preventDefault(); setIsResizing(true); }}><div className="h-full flex items-center justify-center opacity-50"><GripVertical size={16} /></div></div>
-            <aside style={{ width: reviewPanelWidth }} className={`flex flex-col border-l shadow-2xl z-20 shrink-0 no-print ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-white border-slate-300'}`}>
+            <aside style={{ width: reviewPanelWidth }} className={`flex flex-col border-l shadow-2xl z-20 shrink-0 no-print ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-slate-50 border-slate-300'}`}>
               <div className={`flex-1 flex flex-col min-h-[40%] border-b ${theme==='dark'?'border-slate-800':'border-slate-300'}`}>
-                <div className={`flex flex-wrap justify-between items-center p-3 shrink-0 ${theme==='dark'?'bg-slate-950/50':'bg-white shadow-sm'}`}>
+                <div className={`flex flex-wrap justify-between items-center p-3 shrink-0 ${theme==='dark'?'bg-slate-950/50':'bg-slate-100 shadow-sm'}`}>
                   <div>
                     <div className="flex items-center space-x-2"><h3 className="font-black text-lg truncate max-w-[200px]">{reviewItem.name}</h3>{reviewStep !== 'Global' && <span className="text-blue-700 bg-blue-100 dark:text-blue-400 dark:bg-blue-900/30 text-xs px-2 py-0.5 rounded-full font-bold whitespace-nowrap">{reviewStep}</span>}</div>
-                    <div className="flex items-center space-x-3 mt-1 text-[10px] text-slate-500 font-bold uppercase tracking-wider"><span>V{reviewVersion}</span>{(reviewItem.previews?.[reviewStep]?.length > 1 || (reviewType==='assets' && reviewItem.previews?.length > 1)) && (<label className="flex items-center space-x-1 cursor-pointer hover:text-blue-600 dark:hover:text-blue-400"><input type="checkbox" checked={compareMode} onChange={e=>setCompareMode(e.target.checked)} className="mr-1"/>Comparer</label>)}</div>
+                    <div className="flex items-center space-x-3 mt-1 text-[10px] text-slate-500 font-bold uppercase tracking-wider"><span>V{reviewVersion}</span>{(reviewItem.previews?.[reviewStep]?.length > 1 || (reviewType==='assets' && reviewItem.previews?.length > 1)) && (<label className="flex items-center space-x-1 cursor-pointer hover:text-blue-600 dark:hover:text-blue-400"><input type="checkbox" checked={compareMode} onChange={e=>setCompareMode(e.target.checked)} className="mr-1 accent-blue-600"/>Comparer</label>)}</div>
                   </div>
                   <div className="flex flex-wrap gap-2 justify-end items-center mt-2 2xl:mt-0">
                     {compareMode && (<select value={compareVersion} onChange={e=>setCompareVersion(e.target.value)} className={`${inputClass} !w-auto !py-1 !text-xs font-bold`}><option value="">-- Comparer --</option>{(reviewType==='shots' ? reviewItem.previews[reviewStep] : reviewItem.previews).map((v, i) => v.version !== reviewVersion && <option key={i} value={i}>V{v.version}</option>)}</select>)}
                     {drawMode && (
-                      <div className={`flex items-center border rounded-lg p-0.5 space-x-0.5 ${theme==='dark'?'bg-slate-950 border-slate-800':'bg-slate-100 border-slate-300'}`}>
-                        <button onClick={()=>setDrawMode('pen')} className={`p-1.5 rounded transition ${drawMode==='pen' ? 'bg-slate-300 text-blue-600 dark:bg-slate-800 dark:text-blue-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-white'}`}><Edit3 size={14}/></button>
-                        <button onClick={()=>setDrawMode('text')} className={`p-1.5 rounded transition ${drawMode==='text' ? 'bg-slate-300 text-blue-600 dark:bg-slate-800 dark:text-blue-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-white'}`}><Type size={14}/></button>
-                        <button onClick={()=>setDrawMode('eraser')} className={`p-1.5 rounded transition ${drawMode==='eraser' ? 'bg-slate-300 text-blue-600 dark:bg-slate-800 dark:text-blue-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-white'}`}><Eraser size={14}/></button>
+                      <div className={`flex items-center border rounded-lg p-0.5 space-x-0.5 ${theme==='dark'?'bg-slate-950 border-slate-800':'bg-white border-slate-300'}`}>
+                        <button onClick={()=>setDrawMode('pen')} className={`p-1.5 rounded transition ${drawMode==='pen' ? 'bg-slate-200 text-blue-600 dark:bg-slate-800 dark:text-blue-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-white'}`}><Edit3 size={14}/></button>
+                        <button onClick={()=>setDrawMode('text')} className={`p-1.5 rounded transition ${drawMode==='text' ? 'bg-slate-200 text-blue-600 dark:bg-slate-800 dark:text-blue-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-white'}`}><Type size={14}/></button>
+                        <button onClick={()=>setDrawMode('eraser')} className={`p-1.5 rounded transition ${drawMode==='eraser' ? 'bg-slate-200 text-blue-600 dark:bg-slate-800 dark:text-blue-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-white'}`}><Eraser size={14}/></button>
                         
                         <div className={`px-2 flex items-center border-l border-r space-x-1 ${theme==='dark'?'border-slate-800':'border-slate-300'}`}>
                           <input type="range" min="1" max="20" value={brushSize} onChange={(e) => setBrushSize(parseInt(e.target.value))} className="w-16 h-1 cursor-pointer accent-blue-600" />
@@ -2080,7 +2159,7 @@ export default function App() {
                         {strokes.length > 0 && <button onClick={deleteRetakeFromDB} className="p-1.5 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/50 rounded transition border-l border-slate-300 dark:border-slate-800 ml-0.5 pl-1.5"><Trash2 size={14} /></button>}
                       </div>
                     )}
-                    <button onClick={saveAnnotations} className="bg-blue-600 text-white p-1.5 rounded-lg transition shadow" title="Enregistrer le point rouge"><Save size={16} /></button>
+                    <button onClick={saveAnnotations} className="bg-blue-600 hover:bg-blue-500 text-white p-1.5 rounded-lg transition shadow" title="Enregistrer le point rouge"><Save size={16} /></button>
                     <button onClick={() => setReviewItem(null)} className="ml-2 text-slate-400 hover:text-red-500 transition"><X size={24}/></button>
                   </div>
                 </div>
@@ -2101,7 +2180,7 @@ export default function App() {
                 </div>
 
                 {reviewPreview.type === 'video' && (
-                  <div className={`p-3 shrink-0 flex flex-col justify-center ${theme==='dark'?'bg-slate-950/50':'bg-white shadow-sm z-10'}`}>
+                  <div className={`p-3 shrink-0 flex flex-col justify-center ${theme==='dark'?'bg-slate-950/50':'bg-slate-100 shadow-sm z-10'}`}>
                     
                     <div className="flex items-center space-x-2 mb-2 w-full max-w-full">
                        <div className={`relative flex-1 h-2.5 rounded-full cursor-pointer border overflow-hidden shadow-inner ${theme==='dark'?'bg-slate-900 border-slate-800':'bg-slate-200 border-slate-300'}`} onClick={(e) => { if(videoRef.current && videoDuration > 0) { const rect = e.currentTarget.getBoundingClientRect(); const time = ((e.clientX - rect.left) / rect.width) * videoDuration; videoRef.current.currentTime = time; if(compareVideoRef.current) compareVideoRef.current.currentTime = time; } }}>
@@ -2132,7 +2211,7 @@ export default function App() {
                        </div>
                        <div className="flex justify-center items-center space-x-6 flex-1">
                          <button onClick={() => { if(videoRef.current) { videoRef.current.pause(); videoRef.current.currentTime -= (1/FRAMERATE); if(compareVideoRef.current){compareVideoRef.current.pause(); compareVideoRef.current.currentTime -= (1/FRAMERATE);} } }} className="p-2 text-slate-500 hover:text-blue-600 rounded-full transition"><SkipBack size={20} /></button>
-                         <button onClick={toggleVideoPlay} className="p-3.5 bg-blue-600 text-white rounded-full transition shadow-md transform hover:scale-105">{isPlaying ? <Pause size={20} fill="currentColor"/> : <Play size={20} fill="currentColor" className="ml-0.5" />}</button>
+                         <button onClick={toggleVideoPlay} className="p-3.5 bg-blue-600 hover:bg-blue-500 text-white rounded-full transition shadow-md transform hover:scale-105">{isPlaying ? <Pause size={20} fill="currentColor"/> : <Play size={20} fill="currentColor" className="ml-0.5" />}</button>
                          <button onClick={() => { if(videoRef.current) { videoRef.current.pause(); videoRef.current.currentTime += (1/FRAMERATE); if(compareVideoRef.current){compareVideoRef.current.pause(); compareVideoRef.current.currentTime += (1/FRAMERATE);} } }} className="p-2 text-slate-500 hover:text-blue-600 rounded-full transition"><SkipForward size={20} /></button>
                        </div>
                        <div className="w-24"></div>
@@ -2174,7 +2253,7 @@ export default function App() {
                 {reviewTab === 'chat' && (
                    <form onSubmit={postComment} className={`p-3 border-t flex space-x-2 shrink-0 ${theme==='dark'?'border-slate-800 bg-slate-950/80':'border-slate-300 bg-white shadow-inner'}`}>
                      <input type="text" value={newChatMsg} onChange={e=>setNewChatMsg(e.target.value)} placeholder="Ajouter un commentaire..." className={inputClass} />
-                     <button type="submit" className="bg-blue-600 text-white p-3 rounded-lg shadow-sm"><Plus size={18}/></button>
+                     <button type="submit" className="bg-blue-600 hover:bg-blue-500 transition text-white p-3 rounded-lg shadow-sm"><Plus size={18}/></button>
                    </form>
                 )}
               </div>
