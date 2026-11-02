@@ -1180,20 +1180,148 @@ export default function App() {
                    <td className="p-4 font-mono text-xs font-bold text-slate-500">{item.sequence || '-'}</td>
                    <td className="p-4 font-black text-blue-600 dark:text-blue-400">{item.scene || '-'}</td>
                    <td className="p-4 font-bold">{item.duration} f</td>
-                   <td className="p-4 text-slate-500 italic max-w-[200px] truncate" title={item.description}>{item.description}</td>
-                   <td className="p-4"><div className="flex flex-wrap gap-1">{(item.characters||'').split(',').map((x,i) => x.trim() && <span key={i} className="bg-slate-200 dark:bg-slate-800 text-[10px] px-2 py-1 rounded">{x.trim()}</span>)}</div></td>
-                   <td className="p-4"><div className="flex flex-wrap gap-1">{(item.props||'').split(',').map((x,i) => x.trim() && <span key={i} className="bg-slate-200 dark:bg-slate-800 text-[10px] px-2 py-1 rounded">{x.trim()}</span>)}</div></td>
-                   <td className="p-4"><div className="flex flex-wrap gap-1">{(item.sets||'').split(',').map((x,i) => x.trim() && <span key={i} className="bg-slate-200 dark:bg-slate-800 text-[10px] px-2 py-1 rounded">{x.trim()}</span>)}</div></td>
-                   <td className="p-4"><div className="flex flex-wrap gap-1">{(item.fx||'').split(',').map((x,i) => x.trim() && <span key={i} className="bg-slate-200 dark:bg-slate-800 text-[10px] px-2 py-1 rounded">{x.trim()}</span>)}</div></td>
-                   <td className="p-4 flex justify-end space-x-3">
-                      <button onClick={() => convertToShots(item)} className="text-purple-500 hover:text-purple-600 transition flex items-center space-x-1 border border-purple-500/30 px-3 py-1.5 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/30" title="Générer en Plan (Shots)"><Film size={14}/> <span className="text-[10px] font-bold">Plan</span></button>
-                      <button onClick={() => convertToAsset(item)} className="text-blue-500 hover:text-blue-600 transition flex items-center space-x-1 border border-blue-500/30 px-3 py-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30" title="Générer tous les Assets"><Box size={14}/> <span className="text-[10px] font-bold">Assets</span></button>
-                      <button onClick={()=>deleteDoc(doc(db, 'breakdown', item.id))} className="text-red-500 hover:text-red-600 transition p-2" title="Supprimer"><Trash2 size={16}/></button>
+  const renderBreakdown = () => {
+    const addBreakdownItem = async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const seq = form.sequence.value;
+      const scene = form.scene.value;
+      
+      if (!scene) return;
+      await addDoc(collection(db, 'breakdown'), { 
+        workspaceId: workspace.id, sequence: seq, scene: scene, duration: 100, description: '', 
+        characters: '', props: '', sets: '', fx: '' 
+      });
+      form.scene.value = '';
+    };
+
+    const updateBreakdownField = async (id, field, value) => {
+      await updateDoc(doc(db, 'breakdown', id), { [field]: value });
+    };
+
+    const convertToAsset = async (item) => {
+      const categories = [
+        { key: 'characters', cat: 'Character' }, { key: 'props', cat: 'Prop' },
+        { key: 'sets', cat: 'Set' }, { key: 'fx', cat: 'FX' }
+      ];
+      
+      let count = 0;
+      for (const c of categories) {
+        if (!item[c.key]) continue;
+        const elements = item[c.key].split(',').map(s => s.trim()).filter(Boolean);
+        for (const el of elements) {
+          await addDoc(collection(db, 'assets'), {
+            name: el, category: c.cat, workspaceId: workspace.id, previews: [], assignedTo: {}, priority: 'Normal', tags: [item.scene || '']
+          });
+          count++;
+        }
+      }
+      openModal("Succès", `${count} assets ont été créés automatiquement depuis la scène ${item.scene} !`);
+    };
+
+    const convertToShots = async (item) => {
+      const seqName = item.sequence || 'SQ01';
+      const sceneName = item.scene || 'SC01';
+      
+      const snap = await getDocs(query(collection(db, 'shots'), where('workspaceId', '==', workspace.id), where('sequence', '==', seqName)));
+      let localShots = snap.docs.map(d => d.data());
+      let nextOrder = 10;
+      if (localShots.length > 0) {
+        localShots.sort((a,b) => (a.order||0) - (b.order||0));
+        nextOrder = (localShots[localShots.length - 1].order || localShots.length * 10) + 10;
+      }
+
+      await addDoc(collection(db, 'shots'), { 
+        sequence: seqName, scene: sceneName, name: `${sceneName}_SH010`, order: nextOrder, 
+        workspaceId: workspace.id, status: {}, assignedTo: {}, previews: {}, priority: 'Normal', tags: [], description: item.description || '', durationFrames: item.duration || 100 
+      });
+      openModal("Succès", `La scène ${sceneName} a été générée dans la séquence ${seqName} (Shots) !`);
+    };
+
+    const getElementsList = (catKey) => {
+      const counts = {};
+      breakdownItems.forEach(item => {
+        if (item[catKey]) {
+          item[catKey].split(',').forEach(x => {
+            const trimmed = x.trim();
+            if (trimmed) counts[trimmed] = (counts[trimmed] || 0) + 1;
+          });
+        }
+      });
+      return counts;
+    };
+
+    const renderStatCategory = (title, key, colorClass) => {
+      const elements = getElementsList(key);
+      const entries = Object.entries(elements).sort((a, b) => b[1] - a[1]);
+      return (
+        <div className={`flex-1 p-4 rounded-xl border shadow-sm ${theme==='dark'?'bg-slate-950 border-slate-800':'bg-slate-50 border-slate-200'}`}>
+          <h4 className={`font-black text-sm uppercase mb-3 border-b pb-2 ${colorClass}`}>{title}</h4>
+          {entries.length === 0 ? <div className="text-xs italic text-slate-500">Aucun élément</div> : (
+            <ul className="text-xs space-y-1.5 max-h-32 overflow-y-auto pr-1">
+              {entries.map(([name, count]) => (
+                <li key={name} className="flex justify-between items-center border-b border-slate-200/50 dark:border-slate-800/50 pb-1 last:border-0">
+                  <span className="font-bold truncate pr-2" title={name}>{name}</span>
+                  <span className="bg-slate-200 dark:bg-slate-800 px-1.5 py-0.5 rounded text-slate-600 dark:text-slate-400 font-mono">x{count}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      );
+    };
+
+    return (
+      <div className={`border rounded-xl p-6 ${theme==='dark'?'bg-slate-900 border-slate-800':lightCardClass}`}>
+         <div className="flex justify-between items-center mb-6">
+            <h3 className="font-black text-xl text-blue-600">{t('breakdown')}</h3>
+         </div>
+
+         {/* Panneau de statistiques sous forme de liste */}
+         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            {renderStatCategory('Characters', 'characters', 'text-blue-600 border-blue-500/20')}
+            {renderStatCategory('Props', 'props', 'text-green-600 border-green-500/20')}
+            {renderStatCategory('Sets', 'sets', 'text-purple-600 border-purple-500/20')}
+            {renderStatCategory('FX', 'fx', 'text-orange-500 border-orange-500/20')}
+         </div>
+
+         {/* Formulaire de création ultra simplifié */}
+         <form onSubmit={addBreakdownItem} className={`flex flex-wrap gap-4 mb-8 p-4 rounded-xl border items-center shadow-sm ${theme==='dark'?'bg-slate-950 border-slate-800':'bg-slate-100 border-slate-200'}`}>
+           <span className="font-bold text-sm text-slate-500 uppercase mr-2">Nouvelle Entrée :</span>
+           <input name="sequence" placeholder="Séquence (ex: SQ01)" className={`${inputClass} flex-1 min-w-[120px] max-w-[200px] font-bold`} defaultValue="SQ01" required/>
+           <input name="scene" placeholder="Scène (ex: SC01)" className={`${inputClass} flex-1 min-w-[120px] max-w-[200px] font-bold`} required/>
+           <button type="submit" className="bg-blue-600 text-white font-bold px-6 py-2.5 rounded-lg hover:bg-blue-500 transition-colors shadow-sm">Créer</button>
+         </form>
+
+         {/* Tableau avec édition à la volée (Inline Editing) */}
+         <div className="overflow-x-auto">
+           <table className="w-full text-left text-sm whitespace-nowrap">
+             <thead>
+               <tr className={`border-b text-xs uppercase ${theme==='dark'?'border-slate-800 text-slate-500':'border-slate-200 text-slate-500'}`}>
+                 <th className="p-3">Séquence</th><th className="p-3">Scène</th><th className="p-3">Durée</th><th className="p-3">Description</th>
+                 <th className="p-3">Characters</th><th className="p-3">Props</th><th className="p-3">Sets</th><th className="p-3">FX</th><th className="p-3 text-right">Actions</th>
+               </tr>
+             </thead>
+             <tbody className={`divide-y ${theme==='dark'?'divide-slate-800/50':'divide-slate-200'}`}>
+               {breakdownItems.map(item => (
+                 <tr key={item.id} className="hover:bg-slate-100 dark:hover:bg-slate-800/20 transition-colors">
+                   <td className="p-2"><input type="text" defaultValue={item.sequence} onBlur={e => updateBreakdownField(item.id, 'sequence', e.target.value)} className="w-20 p-1.5 bg-transparent border border-transparent hover:border-slate-300 dark:hover:border-slate-700 focus:border-blue-500 focus:bg-white dark:focus:bg-slate-950 rounded outline-none font-mono text-xs font-bold text-slate-500 transition-colors" /></td>
+                   <td className="p-2"><input type="text" defaultValue={item.scene} onBlur={e => updateBreakdownField(item.id, 'scene', e.target.value)} className="w-24 p-1.5 bg-transparent border border-transparent hover:border-slate-300 dark:hover:border-slate-700 focus:border-blue-500 focus:bg-white dark:focus:bg-slate-950 rounded outline-none font-black text-blue-600 dark:text-blue-400 transition-colors" /></td>
+                   <td className="p-2"><div className="flex items-center"><input type="number" defaultValue={item.duration} onBlur={e => updateBreakdownField(item.id, 'duration', parseInt(e.target.value)||0)} className="w-16 p-1.5 bg-transparent border border-transparent hover:border-slate-300 dark:hover:border-slate-700 focus:border-blue-500 focus:bg-white dark:focus:bg-slate-950 rounded outline-none font-bold transition-colors text-right" /><span className="text-xs font-bold text-slate-400 ml-1">f</span></div></td>
+                   <td className="p-2"><input type="text" defaultValue={item.description} onBlur={e => updateBreakdownField(item.id, 'description', e.target.value)} className="min-w-[150px] w-full p-1.5 bg-transparent border border-transparent hover:border-slate-300 dark:hover:border-slate-700 focus:border-blue-500 focus:bg-white dark:focus:bg-slate-950 rounded outline-none text-slate-500 italic transition-colors" placeholder="Ajouter une description..." /></td>
+                   <td className="p-2"><input type="text" defaultValue={item.characters} onBlur={e => updateBreakdownField(item.id, 'characters', e.target.value)} className="min-w-[120px] w-full p-1.5 bg-transparent border border-transparent hover:border-slate-300 dark:hover:border-slate-700 focus:border-blue-500 focus:bg-white dark:focus:bg-slate-950 rounded outline-none transition-colors" placeholder="Séparer par virgule" /></td>
+                   <td className="p-2"><input type="text" defaultValue={item.props} onBlur={e => updateBreakdownField(item.id, 'props', e.target.value)} className="min-w-[120px] w-full p-1.5 bg-transparent border border-transparent hover:border-slate-300 dark:hover:border-slate-700 focus:border-blue-500 focus:bg-white dark:focus:bg-slate-950 rounded outline-none transition-colors" placeholder="Séparer par virgule" /></td>
+                   <td className="p-2"><input type="text" defaultValue={item.sets} onBlur={e => updateBreakdownField(item.id, 'sets', e.target.value)} className="min-w-[120px] w-full p-1.5 bg-transparent border border-transparent hover:border-slate-300 dark:hover:border-slate-700 focus:border-blue-500 focus:bg-white dark:focus:bg-slate-950 rounded outline-none transition-colors" placeholder="Séparer par virgule" /></td>
+                   <td className="p-2"><input type="text" defaultValue={item.fx} onBlur={e => updateBreakdownField(item.id, 'fx', e.target.value)} className="min-w-[120px] w-full p-1.5 bg-transparent border border-transparent hover:border-slate-300 dark:hover:border-slate-700 focus:border-blue-500 focus:bg-white dark:focus:bg-slate-950 rounded outline-none transition-colors" placeholder="Séparer par virgule" /></td>
+                   <td className="p-2 flex justify-end space-x-2 items-center h-full pt-3">
+                      <button onClick={() => convertToShots(item)} className="text-purple-500 hover:text-purple-600 transition flex items-center space-x-1 border border-purple-500/30 px-2 py-1 rounded hover:bg-purple-50 dark:hover:bg-purple-900/30" title="Générer en Plan (Shots)"><Film size={12}/> <span className="text-[9px] font-bold">Plan</span></button>
+                      <button onClick={() => convertToAsset(item)} className="text-blue-500 hover:text-blue-600 transition flex items-center space-x-1 border border-blue-500/30 px-2 py-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30" title="Générer tous les Assets"><Box size={12}/> <span className="text-[9px] font-bold">Assets</span></button>
+                      <button onClick={()=>deleteDoc(doc(db, 'breakdown', item.id))} className="text-red-500 hover:text-red-600 transition p-1.5" title="Supprimer"><Trash2 size={14}/></button>
                    </td>
                  </tr>
                ))}
                {breakdownItems.length === 0 && (
-                 <tr><td colSpan="9" className="text-center p-8 text-slate-500 italic">Aucune scène analysée dans le dépouillement.</td></tr>
+                 <tr><td colSpan="9" className="text-center p-8 text-slate-500 italic">Aucune scène analysée. Utilisez le formulaire pour en créer une.</td></tr>
                )}
              </tbody>
            </table>
