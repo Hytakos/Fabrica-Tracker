@@ -398,11 +398,7 @@ export default function App() {
     } else setProfileModalData(null);
   }, [viewProfileId]);
 
-  useEffect(() => {
-    if (!user) return;
-    const updatePresence = async () => { try { await updateDoc(doc(db, 'users', user.uid), { lastOnline: serverTimestamp() }); } catch(e){} };
-    updatePresence();
-    const pmEndRef = useRef(null);
+  const pmEndRef = useRef(null);
 
   useEffect(() => {
     pmEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -410,7 +406,11 @@ export default function App() {
 
   useEffect(() => {
     if (!user) return;
-    const updatePresence = async () => { try { await updateDoc(doc(db, 'users', user.uid), { lastOnline: serverTimestamp() }); } catch(e){} };
+    const updatePresence = async () => { 
+      try { 
+        await updateDoc(doc(db, 'users', user.uid), { lastOnline: serverTimestamp() }); 
+      } catch(e){} 
+    };
     updatePresence();
     const interval = setInterval(updatePresence, 60000); 
     const unsubOnline = onSnapshot(collection(db, 'users'), (snap) => {
